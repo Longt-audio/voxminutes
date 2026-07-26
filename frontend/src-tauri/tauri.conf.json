@@ -1,0 +1,133 @@
+{
+    "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+    "productName": "VoxMinutes",
+    "version": "0.1.0",
+    "identifier": "com.voxminutes.app",
+    "build": {
+        "frontendDist": "../out",
+        "devUrl": "http://localhost:3118",
+        "beforeDevCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev-server.ps1",
+        "beforeBuildCommand": "pnpm build"
+    },
+    "app": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "VoxMinutes",
+                "width": 1100,
+                "height": 700,
+                "resizable": true,
+                "fullscreen": false,
+                "theme": "Light",
+                "decorations": false,
+                "center": true,
+                "focus": true,
+                "acceptFirstMouse": true
+            }
+        ],
+        "macOSPrivateApi": true,
+        "security": {
+            "csp": {
+            "default-src": "'self'",
+            "script-src": "'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3118",
+            "style-src": "'self' 'unsafe-inline' http://localhost:3118",
+            "img-src": "'self' asset: https://asset.localhost data: http://localhost:3118",
+            "media-src": "'self' blob: data:",
+            "connect-src": "'self' http://localhost:11434 http://127.0.0.1:11434 http://localhost:5167 http://127.0.0.1:5167 ws://localhost:5167 ws://127.0.0.1:5167 http://localhost:8178 http://127.0.0.1:8178 https://api.ollama.ai http://localhost:5000 http://127.0.0.1:5000 http://localhost:3118 ws://localhost:3118 http://127.0.0.1:3118 ws://127.0.0.1:3118 http://localhost:8001 http://127.0.0.1:8001"
+            },
+            "assetProtocol": {
+                "enable": true,
+                "scope": [
+                    "$APPDATA/**"
+                ]
+            },
+            "capabilities": [
+                {
+                    "identifier": "main",
+                    "description": "Main window capability with file system and media access",
+                    "windows": [
+                        "main"
+                    ],
+                    "permissions": [
+                        "fs:default",
+                        "fs:allow-read-file",
+                        "fs:read-all",
+                        "fs:write-all",
+                        "fs:allow-app-read",
+                        "fs:allow-app-write",
+                        "fs:allow-download-write",
+                        "fs:allow-download-read",
+                        "fs:scope-download",
+                        "core:path:default",
+                        "core:event:default",
+                        "core:window:default",
+                        "core:window:allow-start-dragging",
+                        "core:window:allow-minimize",
+                        "core:window:allow-toggle-maximize",
+                        "core:window:allow-maximize",
+                        "core:window:allow-unmaximize",
+                        "core:window:allow-close",
+                        "core:window:allow-is-maximized",
+                        "core:app:default",
+                        "core:resources:default",
+                        "core:menu:default",
+                        "core:tray:default",
+                        "core:window:allow-set-title",
+                        "store:default",
+                        "notification:default",
+                        "notification:allow-is-permission-granted",
+                        "updater:default",
+                        "process:default",
+                        "shell:default",
+                        "shell:allow-open",
+                        {
+                            "identifier": "fs:scope",
+                            "allow": [
+                                {
+                                    "path": "$APPDATA/**"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": [
+            "msi",
+            "nsis",
+            "app",
+            "dmg"
+        ],
+        "createUpdaterArtifacts": false,
+        "icon": [
+            "icons/app_icon.ico",
+            "icons/icon.png",
+            "icons/app_icon.icns"
+        ],
+        "resources": [
+            "templates/*.json",
+            "example_audio.wav"
+        ],
+        "externalBin": [
+            "binaries/ffmpeg",
+            "binaries/llama-helper"
+        ],
+        "macOS": {
+            "entitlements": "entitlements.plist",
+            "signingIdentity": "-",
+            "hardenedRuntime": true
+        },
+        "windows": {
+            "signCommand": "powershell -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 -FilePath %1"
+        }
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "",
+            "endpoints": []
+        }
+    }
+}

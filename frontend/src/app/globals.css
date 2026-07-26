@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── VoxMinutes 设计令牌（shadcn 风格，Streamlit 红强调色）────────────── */
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    /* Streamlit 红 #FF4B4B */
+    --primary: 0 100% 64.7%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    /* 淡红 hover / 选中底色 */
+    --accent: 0 100% 97.1%;
+    --accent-foreground: 0 72.2% 50.6%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 0 100% 64.7%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* 录音中呼吸红点（颜色随文字色） */
+@keyframes sh-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+.sh-rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: sh-pulse 1.2s ease-in-out infinite;
+}
+
+/* 细滚动条 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+/* 会议纪要等 Markdown 渲染（无 typography 插件，手写基础排版） */
+.md-body {
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  color: hsl(var(--foreground) / 0.9);
+  word-break: break-word;
+}
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4 {
+  font-weight: 600;
+  margin: 0.9em 0 0.4em;
+}
+.md-body h1 { font-size: 1.05rem; }
+.md-body h2 { font-size: 0.95rem; }
+.md-body h3,
+.md-body h4 { font-size: 0.875rem; }
+.md-body p { margin: 0.4em 0; }
+.md-body ul,
+.md-body ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+.md-body ul { list-style: disc; }
+.md-body ol { list-style: decimal; }
+.md-body li { margin: 0.15em 0; }
+.md-body strong { font-weight: 600; }
+.md-body blockquote {
+  margin: 0.4em 0;
+  padding-left: 0.75em;
+  border-left: 2px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+}
+.md-body code {
+  font-size: 0.75rem;
+  background: hsl(var(--muted));
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+.md-body pre {
+  margin: 0.5em 0;
+  padding: 0.6em 0.8em;
+  background: hsl(var(--muted));
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.md-body pre code {
+  background: transparent;
+  padding: 0;
+}
+.md-body table {
+  width: 100%;
+  margin: 0.5em 0;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.3em 0.6em;
+  text-align: left;
+}
+.md-body th {
+  background: hsl(var(--muted) / 0.6);
+  font-weight: 600;
+}
+.md-body hr {
+  margin: 0.8em 0;
+  border-color: hsl(var(--border));
+}

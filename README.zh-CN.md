@@ -1,0 +1,135 @@
+<div align="center">
+
+<img src="docs/assets/readme/icon.png" alt="VoxMinutes" width="96" />
+
+# VoxMinutes
+
+**您的本地会议助手 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备**
+
+**[English](README.md) | 中文 | [한국어](README.ko.md) | [日本語](README.ja.md)**
+
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
+[![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
+
+<img src="docs/assets/readme/chinese.gif" alt="VoxMinutes 实时转写与翻译演示" width="860" />
+
+</div>
+
+---
+
+## 这是什么
+
+VoxMinutes 是一款**本地优先**的桌面应用（Windows，Tauri 2）：一边开会一边实时转写，同时把系统播放的声音和麦克风输入**两路音频同时录下**——很多同类工具只支持麦克风。转写结果可以实时翻译成 13 种语言、一键生成 AI 会议纪要，全部模型都在你自己的电脑上运行，**音频与文本从不出设备**。
+
+首次启动时，内置的新手指引会带你下载或导入所需模型（支持 GitHub、HuggingFace 镜像、ModelScope 多源下载，也支持本地压缩包 / GGUF 文件导入）。
+
+## 功能特性
+
+- **实时流式转写**：两种本地 ASR 引擎可选
+  - `X-ASR`（中英双语纯流式，480ms chunk，低延迟）
+  - `SenseVoice`（中/英/日/韩/粤多语言，VAD 伪流式）
+- **双路录音**：系统播放 + 麦克风同时录制，自动混流
+- **实时翻译**：句级流水线，译文逐字流式显示
+  - `OPUS-MT`：轻量快速，中英互译
+  - `Hy-MT2`（腾讯混元）：更高质量，**13 种目标语言**
+- **AI 会议纪要**：本地 GGUF 大模型（Qwen / Gemma）离线总结，也可用远程 API 或网页 AI；结果独立面板展示，可导出 Markdown
+- **翻译页**：文本即输即译，自动识别源语言
+- **历史记录**：SQLite 存储，支持搜索、标题/段落行内编辑
+- **文件转写**：导入音频文件离线转写、重新识别
+- **导出**：TXT / SRT / Markdown / 会议总结 Markdown
+- **模型管家**：应用内下载（多源 + 断点续传 + 多模型并行）或本地导入，无需命令行
+- **多语言界面**：English / 中文 / 한국어 / 日本語，欢迎页即可切换
+
+## 模型支持
+
+所有模型均为**应用内下载或用户自行导入**，安装包不内置任何模型。下载源按序自动回退（官方源 → 国内镜像），国内网络默认可用。
+
+| 模型 | 用途 | 大小 | 下载源 |
+|------|------|------|--------|
+| SenseVoice（sherpa-onnx） | ASR：中/英/日/韩/粤 | ~854 MB | GitHub Releases / gh-proxy |
+| X-ASR 480ms（sherpa-onnx） | ASR：中英纯流式 | ~557 MB | GitHub Releases / gh-proxy |
+| OPUS-MT 中→英 / 英→中 | 翻译（快速） | 各 ~113 MB | HuggingFace / hf-mirror / ModelScope |
+| Hy-MT2-1.8B（腾讯混元） | 翻译（高质量，13 种目标语言） | ~1.1 GB | HuggingFace / hf-mirror |
+| Qwen2.5-3B-Instruct | 会议总结（较小较快） | ~2.1 GB | HuggingFace / hf-mirror / ModelScope |
+| Qwen3-4B-Instruct-2507 | 会议总结（质量更好） | ~2.5 GB | HuggingFace / hf-mirror |
+| Gemma-3-4B-it | 会议总结（英文较强） | ~2.5 GB | HuggingFace / hf-mirror |
+
+说明：
+
+- 全部模型为 Q4/int8 量化，**纯 CPU 即可运行**（约 8 线程的机器上 Hy-MT2 实时翻译约 2~4 秒/句）；ASR 实时转写 RTF ≈ 0.25
+- 模型文件存放在应用模型目录，可在设置页查看、删除、导入（`.tar.bz2` / `.tar.gz` / `.zip` 压缩包或 `.gguf` 文件）
+- 仅支持上表注册的模型，暂不支持自定义模型
+
+## 界面预览
+
+- **实时转录**：录音控制 + 实时文本 + 内联译文（见上方动图）
+- **历史记录**：列表 / 搜索 / 详情编辑 / 导出 / AI 总结
+- **翻译**：即输即译，13 种目标语言
+- **设置**：模型（下载/导入/删除）、音频与导出、API、高级
+
+## 下载与安装
+
+1. 从 [Releases](../../releases) 下载最新 Windows 安装包（或便携包）
+2. 安装并启动，**新手指引**会自动弹出，引导你下载或导入 ASR 模型（必装）、翻译与总结模型（可选）
+3. 模型之后也可以随时在「设置 → 模型」中下载 / 导入 / 删除
+
+> 提示：中国大陆用户无需任何代理，下载源会自动回退到可用镜像（hf-mirror / gh-proxy / ModelScope）。
+
+## 从源码构建
+
+环境：Windows 10/11 x64、Git、Node.js LTS、pnpm、Rust 1.77+、CMake、VS2022 Build Tools（macOS / Linux 支持计划中）。
+
+```bash
+git clone https://github.com/<your-org>/voxminutes.git
+cd voxminutes/frontend
+pnpm install --ignore-workspace
+pnpm build
+pnpm tauri:dev
+```
+
+如需本地 LLM 功能（Hy-MT2 翻译 / 本地会议总结），还要编译 llama-helper sidecar（需要 libclang）：
+
+```powershell
+$env:LIBCLANG_PATH = "<项目根>\.tooling\llvm\bin"
+cargo build -p llama-helper --release
+copy target\release\llama-helper.exe frontend\src-tauri\binaries\llama-helper-x86_64-pc-windows-msvc.exe
+```
+
+更多开发命令见 [docs/DEV_COMMANDS.md](docs/DEV_COMMANDS.md)。
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 桌面框架 | Tauri 2 + Next.js（静态导出）+ React + Tailwind CSS |
+| 系统层 | Rust |
+| ASR | sherpa-onnx（SenseVoice / X-ASR，ONNX Runtime） |
+| 机器翻译 | OPUS-MT（ONNX Runtime）/ Hy-MT2（llama.cpp sidecar） |
+| 会议总结 | llama.cpp sidecar（GGUF，Qwen / Gemma）+ OpenAI 兼容远程 API |
+| 数据库 | SQLite |
+
+## 路线图
+
+| 版本 | 目标 |
+|------|------|
+| v0.1.0（当前 MVP） | 实时/离线转写、双引擎翻译、本地会议总结、历史与导出、模型下载/导入、首启引导 |
+| v0.2.0 | TTS 语音合成、字幕悬浮窗、划词翻译 |
+| v0.3.0 | 按键实时传译、实时摘要、说话人识别 |
+| 未来（付费版） | 云端高精度 ASR、团队协作 |
+
+## 隐私
+
+音频、转写、翻译与总结全部在你的设备上完成；除非你主动配置远程总结 API，应用不与任何服务器交换你的内容。
+
+## 开源协议
+
+本项目采用 **AGPL-3.0** 协议，详见 [LICENSE](LICENSE)。
+
+## 参与贡献
+
+欢迎 Issue 与 Pull Request。提交前请确保 `cargo check --workspace`、`cargo test` 与 `cd frontend && pnpm build` 通过。
+
+---
+
+**VoxMinutes** — 你的声音，你的数据。

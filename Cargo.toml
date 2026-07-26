@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = [
+    "frontend/src-tauri",
+    # llama-helper：AI 会议总结用的本地 LLM 推理辅助进程（llama-cpp-2 sidecar）。
+    # 注意：依赖 llama-cpp-sys-2，本机构建需要 libclang（LLVM）。
+    "llama-helper",
+]
+
+# Shared workspace settings
+[workspace.package]
+edition = "2021"
+rust-version = "1.77"
+
+# Shared dependencies that can be inherited by workspace members
+[workspace.dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.32.0", features = ["full"] }
+
+# tokenizers 依赖的 esaxx-rs 强制 static_crt(/MT)，与 ort-sys 的 /MD 预编译库
+# 冲突（LNK2038 / rust-lld /failifmismatch）。改用 vendor 版本（去掉 static_crt）。
+[patch.crates-io]
+esaxx-rs = { path = "vendor/esaxx-rs" }
