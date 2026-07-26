@@ -20,9 +20,10 @@
 //      boundary matches and the uncommitted text reaches SOFT_COMMIT_UNITS,
 //      commit at the last weak boundary (，、；： , ; space); at
 //      HARD_COMMIT_UNITS with no usable weak boundary, cut hard there.
-//   5. Pause commit: audio silent for >= 2 s (chunk RMS <= 0.01) with
-//      >= MIN_SEGMENT_UNITS uncommitted text commits the pending text —
-//      a speaker pause is a natural segment boundary.
+//   5. Pause commit: audio silent for >= 4 s (chunk RMS <= 0.01) with
+//      >= 24 units uncommitted text commits the pending text — a fallback
+//      for unpunctuated speech; conservative so breath pauses don't
+//      fragment normal sentences.
 //   6. Stall timeout: if the recognized text has stopped growing for 30 s
 //      (silence or stalled recognition), force-commit the pending text.
 //      The clock tracks text growth, not commits, so accumulating short
@@ -92,7 +93,7 @@ struct StreamingState {
     /// Current audio time in seconds, updated from incoming chunk timestamps.
     current_audio_time: f64,
     /// Audio-stream timestamp of the last chunk whose RMS energy indicated
-    /// speech; drives the >=2 s pause commit.
+    /// speech; drives the >=4 s pause commit (fallback for unpunctuated speech).
     last_speech_audio_time: f64,
 }
 
@@ -386,18 +387,24 @@ impl XAsrProvider {
                         }
                     }
 
-                    // Pause commit: audio has been silent for >= 2 s while text
-                    // is still uncommitted. A speaker pause is a natural segment
-                    // boundary, so we commit even if the text was still growing
-                    // recently (last_text_growth is close) — this is intentional.
+                    // Pause commit: audio has been silent for a while with text
+                    // still uncommitted. This is a FALLBACK for unpunctuated
+                    // speech (news / continuous talk) — the thresholds are
+                    // deliberately conservative (>= 4 s silence, >= 24 units)
+                    // so normal breath pauses don't fragment sentences (the
+                    // original 2 s / 8 units version committed every 2-4 s on
+                    // broadcast audio, splitting mid-sentence and mid-word).
                     {
+                        const PAUSE_COMMIT_SILENCE_SECS: f64 = 4.0;
+                        const PAUSE_COMMIT_MIN_UNITS: usize = 24;
                         let s = state.lock().unwrap();
                         let pause_commit = s.last_speech_audio_time > 0.0
-                            && s.current_audio_time - s.last_speech_audio_time >= 2.0
-                            && text_length_units(s.uncommitted()) >= MIN_SEGMENT_UNITS;
+                            && s.current_audio_time - s.last_speech_audio_time
+                                >= PAUSE_COMMIT_SILENCE_SECS
+                            && text_length_units(s.uncommitted()) >= PAUSE_COMMIT_MIN_UNITS;
                         drop(s);
                         if pause_commit {
-                            info!("⏸️ X-ASR pause commit (>=2s silence)");
+                            info!("⏸️ X-ASR pause commit (>=4s silence)");
                             Self::force_commit_remaining(&state, &app);
                         }
                     }

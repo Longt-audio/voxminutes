@@ -96,10 +96,7 @@
     "bundle": {
         "active": true,
         "targets": [
-            "msi",
-            "nsis",
-            "app",
-            "dmg"
+            "nsis"
         ],
         "createUpdaterArtifacts": false,
         "icon": [
@@ -107,10 +104,15 @@
             "icons/icon.png",
             "icons/app_icon.icns"
         ],
-        "resources": [
-            "templates/*.json",
-            "example_audio.wav"
-        ],
+        "resources": {
+            "resources-dll/DirectML.dll": "DirectML.dll",
+            "resources-dll/onnxruntime.dll": "onnxruntime.dll",
+            "resources-dll/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll",
+            "resources-dll/sherpa-onnx-c-api.dll": "sherpa-onnx-c-api.dll",
+            "resources-dll/sherpa-onnx-cxx-api.dll": "sherpa-onnx-cxx-api.dll",
+            "templates/*.json": "templates/",
+            "example_audio.wav": "example_audio.wav"
+        },
         "externalBin": [
             "binaries/ffmpeg",
             "binaries/llama-helper"
@@ -120,9 +122,7 @@
             "signingIdentity": "-",
             "hardenedRuntime": true
         },
-        "windows": {
-            "signCommand": "powershell -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 -FilePath %1"
-        }
+        "windows": {}
     },
     "plugins": {
         "updater": {

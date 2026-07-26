@@ -83,6 +83,9 @@ frontend/public/icons/
 scripts/translation_benchmark_results.json
 scripts/translation_benchmark_results.md
 
+# 打包用运行时 DLL（从 target/debug 复制，体积大且随构建变化）
+frontend/src-tauri/resources-dll/
+
 # 本地开发工具（LLVM/libclang 等，勿提交）
 .tooling/
 

@@ -101,8 +101,9 @@ const EXE_SUFFIX: &str = ".exe";
 const EXE_SUFFIX: &str = "";
 
 /// Resolve the llama-helper executable, in order:
-/// 1. Bundled layouts: `<exe_dir>/llama-helper-<triple>.exe` and
-///    `<exe_dir>/binaries/llama-helper-<triple>.exe` (Tauri externalBin).
+/// 1. Bundled layouts: `<exe_dir>/llama-helper-<triple>.exe`,
+///    `<exe_dir>/binaries/llama-helper-<triple>.exe`, and
+///    `<exe_dir>/llama-helper.exe` (Tauri externalBin strips the triple).
 /// 2. Dev: `<manifest_dir>/binaries/llama-helper-x86_64-pc-windows-msvc.exe`.
 /// 3. Dev: workspace `target/{debug,release}/llama-helper.exe` (the app exe
 ///    lives in the same profile dir under the workspace `target/`).
@@ -113,9 +114,12 @@ pub(crate) fn resolve_helper_exe() -> Option<PathBuf> {
 
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
-            // 1. Bundled layouts.
+            // 1. Bundled layouts. Tauri externalBin strips the target triple
+            //    when bundling, so the sidecar lands next to the app exe as
+            //    plain `llama-helper.exe`.
             candidates.push(exe_dir.join(&sidecar_name));
             candidates.push(exe_dir.join("binaries").join(&sidecar_name));
+            candidates.push(exe_dir.join(&plain_name));
         }
     }
 
