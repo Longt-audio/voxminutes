@@ -81,7 +81,7 @@ VoxMinutes 是一款**本地优先**的桌面应用（Windows，Tauri 2）：一
 环境：Windows 10/11 x64、Git、Node.js LTS、pnpm、Rust 1.77+、CMake、VS2022 Build Tools（macOS / Linux 支持计划中）。
 
 ```bash
-git clone https://github.com/<your-org>/voxminutes.git
+git clone https://github.com/Longt-audio/voxminutes.git
 cd voxminutes/frontend
 pnpm install --ignore-workspace
 pnpm build

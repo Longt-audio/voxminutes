@@ -81,7 +81,7 @@ VoxMinutes は**ローカルファースト**のデスクトップアプリ（Wi
 必要環境：Windows 10/11 x64、Git、Node.js LTS、pnpm、Rust 1.77+、CMake、VS2022 Build Tools（macOS / Linux は対応予定）。
 
 ```bash
-git clone https://github.com/<your-org>/voxminutes.git
+git clone https://github.com/Longt-audio/voxminutes.git
 cd voxminutes/frontend
 pnpm install --ignore-workspace
 pnpm build
