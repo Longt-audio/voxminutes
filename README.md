@@ -6,6 +6,12 @@
 
 **Your local meeting assistant · Records system audio & mic together · Real-time transcription, translation & summaries — all on your device**
 
+<sub>您的本地会议助手 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备</sub>
+
+<sub>로컬 회의 어시스턴트 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다</sub>
+
+<sub>ローカル会議アシスタント · システム音声とマイクを同時録音 · リアルタイム文字起こし・翻訳・要約。データはデバイスの外に出ません</sub>
+
 **English | [中文](README.zh-CN.md) | [한국어](README.ko.md) | [日本語](README.ja.md)**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
