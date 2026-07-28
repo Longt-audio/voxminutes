@@ -141,8 +141,8 @@ export async function getDownloadableModels(): Promise<DownloadableModelInfo[]> 
   return invoke<DownloadableModelInfo[]>('get_downloadable_models')
 }
 
-export async function downloadModel(modelId: string): Promise<void> {
-  return invoke('download_model', { modelId })
+export async function downloadModel(modelId: string, sourceIndex?: number): Promise<void> {
+  return invoke('download_model', { modelId, sourceIndex: sourceIndex ?? null })
 }
 
 export async function cancelModelDownload(modelId: string): Promise<void> {

@@ -72,10 +72,10 @@ export function useModelDownload() {
   }, [refresh])
 
   // 下载结果通过 model-download-progress 事件反馈；invoke 直接报错
-  // （如同一模型重复下载）时 toast
+  // （如同一模型重复下载）时 toast。sourceIndex 省略时按序自动回退全部源。
   const startDownload = useCallback(
-    (modelId: string) => {
-      downloadModel(modelId)
+    (modelId: string, sourceIndex?: number) => {
+      downloadModel(modelId, sourceIndex)
         .catch((e) => toast.error(String(e)))
         .finally(() => refresh())
     },

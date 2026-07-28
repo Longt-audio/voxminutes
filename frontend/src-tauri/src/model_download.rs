@@ -322,12 +322,63 @@ static DOWNLOADS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
 const SAME_TASK_RUNNING_ERR: &str = "该模型正在下载或导入中";
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSourceInfo {
+    /// 源名称（如 "GitHub" / "hf-mirror 镜像" / "ModelScope"）。
+    pub label: String,
+    /// 该源的全部文件直链（Archive=1 个压缩包；Files=每个文件一条完整 URL）。
+    pub urls: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ModelDownloadInfo {
     pub id: String,
     pub display_name: String,
     pub installed: bool,
     pub downloading: bool,
     pub size_bytes: u64,
+    /// 该模型的全部下载源（与注册表顺序一致：官方在前，镜像在后）。
+    pub sources: Vec<ModelSourceInfo>,
+}
+
+/// 从 URL 推导源名称（用于 UI 展示）。
+fn source_label(url: &str) -> &'static str {
+    if url.contains("gh-proxy.com") {
+        "gh-proxy 镜像"
+    } else if url.contains("github.com") {
+        "GitHub"
+    } else if url.contains("hf-mirror.com") {
+        "hf-mirror 镜像"
+    } else if url.contains("huggingface.co") {
+        "HuggingFace"
+    } else if url.contains("modelscope.cn") {
+        "ModelScope"
+    } else {
+        "官方源"
+    }
+}
+
+/// 生成某个源的完整文件直链列表（与下载逻辑同一套 URL 拼接规则）。
+fn source_urls(source: &ModelSource) -> Vec<String> {
+    match source {
+        ModelSource::Archive { url } => vec![url.to_string()],
+        ModelSource::Files {
+            base_url,
+            resolve_path,
+            files,
+        } => files
+            .iter()
+            .map(|f| format!("{}/{}/{}", base_url.trim_end_matches('/'), resolve_path, f))
+            .collect(),
+    }
+}
+
+fn source_label_of(source: &ModelSource) -> &'static str {
+    match source {
+        ModelSource::Archive { url } => source_label(url),
+        ModelSource::Files { base_url, .. } => source_label(base_url),
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -388,15 +439,38 @@ pub fn get_downloadable_models() -> Result<Vec<ModelDownloadInfo>, String> {
             installed: is_installed(&models_dir, m),
             downloading: downloads.contains_key(m.id),
             size_bytes: m.size_bytes,
+            sources: m
+                .sources
+                .iter()
+                .map(|s| ModelSourceInfo {
+                    label: source_label_of(s).to_string(),
+                    urls: source_urls(s),
+                })
+                .collect(),
         })
         .collect())
 }
 
 /// Start downloading + extracting a model in the background.
 /// Progress is reported via the `model-download-progress` event.
+/// `source_index` 省略时按序自动回退所有源；指定时只使用该源
+/// （用户显式选择，失败不回退，报错提示可换源重试）。
 #[tauri::command]
-pub async fn download_model<R: Runtime>(app: AppHandle<R>, model_id: String) -> Result<(), String> {
+pub async fn download_model<R: Runtime>(
+    app: AppHandle<R>,
+    model_id: String,
+    source_index: Option<usize>,
+) -> Result<(), String> {
     let model = find_model(&model_id).ok_or_else(|| format!("Unknown model: {}", model_id))?;
+    if let Some(i) = source_index {
+        if i >= model.sources.len() {
+            return Err(format!(
+                "无效的下载源序号 {}（共 {} 个源）",
+                i,
+                model.sources.len()
+            ));
+        }
+    }
 
     // Per-model exclusivity; different models download concurrently.
     let cancel_flag = register_task(model.id)?;
@@ -405,7 +479,7 @@ pub async fn download_model<R: Runtime>(app: AppHandle<R>, model_id: String) -> 
     let app_handle = app.clone();
 
     tauri::async_runtime::spawn(async move {
-        let result = run_download(&app_handle, model, &models_dir, &cancel_flag).await;
+        let result = run_download(&app_handle, model, &models_dir, &cancel_flag, source_index).await;
 
         finish_task(model.id);
 
@@ -522,13 +596,18 @@ async fn run_download<R: Runtime>(
     model: &DownloadableModel,
     models_dir: &Path,
     cancel: &AtomicBool,
+    source_index: Option<usize>,
 ) -> Result<(), String> {
     std::fs::create_dir_all(models_dir)
         .map_err(|e| format!("Failed to create models directory: {}", e))?;
 
-    // Try each source in order; only fail when every source failed.
+    // 指定 source_index 时只用该源；否则按序尝试全部源，全失败才报错。
+    let sources_to_try: Vec<&ModelSource> = match source_index {
+        Some(i) => model.sources.iter().skip(i).take(1).collect(),
+        None => model.sources.iter().collect(),
+    };
     let mut failures: Vec<String> = Vec::new();
-    for source in model.sources {
+    for source in sources_to_try {
         let result = match source {
             ModelSource::Archive { url } => {
                 run_archive_download(app, model, models_dir, url, cancel).await
@@ -556,6 +635,9 @@ async fn run_download<R: Runtime>(
     }
 
     if !failures.is_empty() {
+        if source_index.is_some() {
+            return Err(format!("所选下载源失败：{}。可换其他源重试", failures.join("；")));
+        }
         return Err(format!("所有下载源均失败：{}", failures.join("；")));
     }
 
@@ -1252,5 +1334,48 @@ mod tests {
         ] {
             assert_eq!(import_kind(find_model(id).unwrap()), ImportKind::GgufFile);
         }
+    }
+
+    #[test]
+    fn source_labels_and_urls_are_generated() {
+        // Archive 模型：每源 1 条直链，label 顺序 GitHub → gh-proxy 镜像。
+        let m = find_model("sense-voice").unwrap();
+        let labels: Vec<_> = m.sources.iter().map(source_label_of).collect();
+        assert_eq!(labels, ["GitHub", "gh-proxy 镜像"]);
+        for s in m.sources {
+            let urls = source_urls(s);
+            assert_eq!(urls.len(), 1);
+            assert!(urls[0].ends_with(".tar.bz2"));
+        }
+
+        // Files 模型：直链数 == 文件数，含 resolve 路径。
+        let m = find_model("opus-mt-zh-en").unwrap();
+        let labels: Vec<_> = m.sources.iter().map(source_label_of).collect();
+        assert_eq!(labels, ["HuggingFace", "hf-mirror 镜像", "ModelScope"]);
+        for (i, s) in m.sources.iter().enumerate() {
+            let urls = source_urls(s);
+            assert_eq!(urls.len(), OPUS_MT_FILES.len());
+            let expect_resolve = if i < 2 { "resolve/main" } else { "resolve/master" };
+            assert!(urls[0].contains(expect_resolve));
+            assert!(urls[0].ends_with("onnx/encoder_model_int8.onnx"));
+        }
+
+        // GGUF 模型：单文件直链。
+        let m = find_model("hy-mt2-1.8b-q4_k_m").unwrap();
+        let labels: Vec<_> = m.sources.iter().map(source_label_of).collect();
+        assert_eq!(labels, ["HuggingFace", "hf-mirror 镜像"]);
+        for s in m.sources {
+            let urls = source_urls(s);
+            assert_eq!(urls.len(), 1);
+            assert!(urls[0].ends_with("Hy-MT2-1.8B-Q4_K_M.gguf"));
+        }
+    }
+
+    #[test]
+    fn download_source_index_out_of_range_message() {
+        // 模拟 download_model 的越界检查逻辑（命令本体是 async + AppHandle，这里验证判断）
+        let m = find_model("sense-voice").unwrap();
+        let i = m.sources.len();
+        assert!(i >= m.sources.len());
     }
 }

@@ -65,6 +65,12 @@ export interface ModelInfo {
   hidden?: boolean
 }
 
+/** get_downloadable_models 返回的单个下载源 */
+export interface ModelSourceInfo {
+  label: string
+  urls: string[]
+}
+
 /** get_downloadable_models 返回 */
 export interface DownloadableModelInfo {
   id: string
@@ -72,6 +78,8 @@ export interface DownloadableModelInfo {
   installed: boolean
   downloading: boolean
   size_bytes: number
+  /** 全部下载源（官方在前，镜像在后） */
+  sources: ModelSourceInfo[]
 }
 
 /** model-download-progress 事件 payload */

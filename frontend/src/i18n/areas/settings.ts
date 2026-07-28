@@ -26,6 +26,12 @@ export interface SettingsMessages {
   setImport: string
   setImportDone: string
   setImportFailed: string
+  setLinks: string
+  setDownloadThisSource: string
+  setCopyLinks: string
+  setCopiedLinks: string
+  setLinksHint: string
+  setCopyFailed: string
   setReopenOnboarding: string
   setDeleteConfirm: string
   setModelDeleted: string
@@ -122,6 +128,12 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setImport: "Import",
     setImportDone: "Model imported",
     setImportFailed: "Model import failed: {error}",
+    setLinks: "Links",
+    setDownloadThisSource: "Use this source",
+    setCopyLinks: "Copy links",
+    setCopiedLinks: "Copied {count} link(s) from {label}",
+    setLinksHint: "Slow downloads? Copy the links to a download manager (e.g. IDM, aria2), then install via “Import”.",
+    setCopyFailed: "Copy failed",
     setReopenOnboarding: "Reopen setup guide",
     setDeleteConfirm: "Delete model \"{name}\"? You will need to download it again before using it.",
     setModelDeleted: "Model deleted",
@@ -216,6 +228,12 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setImport: "导入",
     setImportDone: "模型导入完成",
     setImportFailed: "模型导入失败：{error}",
+    setLinks: "链接",
+    setDownloadThisSource: "用此源下载",
+    setCopyLinks: "复制链接",
+    setCopiedLinks: "已复制 {label} 的 {count} 个链接",
+    setLinksHint: "下载慢时可把链接复制到迅雷 / IDM 等下载器，完成后用「导入」安装。",
+    setCopyFailed: "复制失败",
     setReopenOnboarding: "重新打开新手指引",
     setDeleteConfirm: "确定删除模型「{name}」吗？删除后需重新下载才能使用。",
     setModelDeleted: "模型已删除",
@@ -310,6 +328,12 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setImport: "가져오기",
     setImportDone: "모델을 가져왔습니다",
     setImportFailed: "모델 가져오기 실패: {error}",
+    setLinks: "링크",
+    setDownloadThisSource: "이 소스로 다운로드",
+    setCopyLinks: "링크 복사",
+    setCopiedLinks: "{label} 링크 {count}개를 복사했습니다",
+    setLinksHint: "다운로드가 느리면 링크를 다운로드 매니저(IDM, aria2 등)에 붙여넣고, 완료 후 「가져오기」로 설치하세요.",
+    setCopyFailed: "복사 실패",
     setReopenOnboarding: "시작 가이드 다시 열기",
     setDeleteConfirm: "모델 \"{name}\"을(를) 삭제하시겠습니까? 삭제 후 다시 사용하려면 재다운로드가 필요합니다.",
     setModelDeleted: "모델이 삭제되었습니다",
@@ -404,6 +428,12 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setImport: "インポート",
     setImportDone: "モデルをインポートしました",
     setImportFailed: "モデルのインポートに失敗しました: {error}",
+    setLinks: "リンク",
+    setDownloadThisSource: "このソースでダウンロード",
+    setCopyLinks: "リンクをコピー",
+    setCopiedLinks: "{label} のリンクを {count} 件コピーしました",
+    setLinksHint: "ダウンロードが遅い場合はリンクをダウンロードマネージャー（IDM、aria2 など）にコピーし、完了後「インポート」でインストールしてください。",
+    setCopyFailed: "コピーに失敗しました",
     setReopenOnboarding: "セットアップガイドを再表示",
     setDeleteConfirm: "モデル「{name}」を削除しますか？削除後は再度ダウンロードしないと使用できません。",
     setModelDeleted: "モデルを削除しました",
