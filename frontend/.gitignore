@@ -16,7 +16,7 @@ package-lock.json
 
 transcripts/
 chroma/
-models/
+/models/
 whisper.cpp/
 whisper-server*
 whisper-server-package/

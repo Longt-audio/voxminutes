@@ -27,9 +27,9 @@ venv/
 *.env
 .venv-onnx/
 
-# Models (large files)
-models/
-models-beifen/
+# Models (large files) — 仅根目录的模型目录，勿误伤前端同名目录
+/models/
+/models-beifen/
 *.onnx
 *.bin
 *.tar.bz2

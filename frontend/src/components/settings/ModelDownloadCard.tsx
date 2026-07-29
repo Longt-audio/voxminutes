@@ -14,6 +14,7 @@ import { SettingsSection } from './SettingsSection'
 import { useMessages } from '@/i18n/useMessages'
 import { modelDisplayName, formatSize, stageText, modelGroup, modelDesc, type ModelGroup } from '@/lib/modelDisplay'
 import { useModelDownload } from '@/hooks/useModelDownload'
+import { SourceLinksPanel } from '@/components/models/SourceLinks'
 
 /** 设置页 Section 1：ASR 模型目录展示 + 模型下载 / 导入 / 取消 / 删除管理 */
 export function ModelDownloadCard() {
@@ -37,16 +38,6 @@ export function ModelDownloadCard() {
       .then(setModelsDir)
       .catch(() => {})
   }, [])
-
-  // 复制某源的全部文件直链（换行分隔）到剪贴板
-  const copySourceLinks = (label: string, urls: string[]) => {
-    navigator.clipboard
-      .writeText(urls.join('\n'))
-      .then(() =>
-        toast.success(t.setCopiedLinks.replace('{count}', String(urls.length)).replace('{label}', label))
-      )
-      .catch(() => toast.error(t.setCopyFailed))
-  }
 
   const handleDelete = async (m: DownloadableModelInfo) => {
     if (!window.confirm(t.setDeleteConfirm.replace('{name}', modelDisplayName(m.id, t, m.display_name)))) return
@@ -106,48 +97,26 @@ export function ModelDownloadCard() {
               <Button size="sm" onClick={() => startDownload(m.id)}>
                 {t.comDownload}
               </Button>
-              {/* 展开/收起下载源直链（可复制到外部下载器） */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                onClick={() => setLinksOpen((prev) => ({ ...prev, [m.id]: !prev[m.id] }))}
-              >
-                {t.setLinks}
-              </Button>
             </>
           )}
+          {/* 链接面板对所有行可用：未安装可选源下载，已安装也可复制链接 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => setLinksOpen((prev) => ({ ...prev, [m.id]: !prev[m.id] }))}
+          >
+            {t.setLinks}
+          </Button>
         </div>
 
-        {/* 下载源直链面板：可选源下载 / 复制链接到迅雷、IDM 等下载器后用「导入」安装 */}
-        {linksOpen[m.id] && !m.installed && (
-          <div className="mt-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
-            <p className="text-xs text-muted-foreground mb-2">{t.setLinksHint}</p>
-            <div className="flex flex-col gap-1.5">
-              {m.sources.map((s, i) => (
-                <div key={s.label} className="flex items-center gap-2">
-                  <span className="flex-1 min-w-0 truncate text-xs">{s.label}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={isDownloading}
-                    onClick={() => startDownload(m.id, i)}
-                  >
-                    {t.setDownloadThisSource}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => copySourceLinks(s.label, s.urls)}
-                  >
-                    {t.setCopyLinks}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* 下载源直链面板（共享组件，与首启向导同款） */}
+        {linksOpen[m.id] && (
+          <SourceLinksPanel
+            model={m}
+            disabled={m.installed || isDownloading}
+            onUseSource={(i) => startDownload(m.id, i)}
+          />
         )}
 
         {/* 下载/导入进度条 */}

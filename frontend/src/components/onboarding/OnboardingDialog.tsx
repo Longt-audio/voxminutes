@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { useMessages } from '@/i18n/useMessages'
 import { useModelDownload } from '@/hooks/useModelDownload'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { SourceLinksPanel } from '@/components/models/SourceLinks'
 import { formatSize, stageText, modelGroup, modelDesc, modelDisplayName } from '@/lib/modelDisplay'
 
 /** 设置页"重新打开新手指引"通过该窗口事件通知 AppShell 里的向导弹出 */
@@ -34,6 +35,8 @@ export function OnboardingDialog() {
   const t = useMessages()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState(0)
+  // 每个模型卡的"链接"面板展开状态
+  const [linksOpen, setLinksOpen] = useState<Record<string, boolean>>({})
   const {
     models,
     progressMap,
@@ -137,9 +140,25 @@ export function OnboardingDialog() {
               <Button size="sm" onClick={() => downloadAll(ids)}>
                 {t.comDownload}
               </Button>
+              {/* 展开/收起下载源直链（可复制到外部下载器） */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => setLinksOpen((prev) => ({ ...prev, [ids[0]]: !prev[ids[0]] }))}
+              >
+                {t.setLinks}
+              </Button>
             </>
           )}
         </div>
+        {linksOpen[ids[0]] && !installed && (
+          <SourceLinksPanel
+            model={list[0]}
+            disabled={!!busyInfo}
+            onUseSource={(i) => startDownload(ids[0], i)}
+          />
+        )}
         {busyInfo && (
           <div className="mt-2">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
