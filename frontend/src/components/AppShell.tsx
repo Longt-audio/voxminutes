@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { getVersion } from '@tauri-apps/api/app'
 import { FileText, History, Settings, Minus, Square, X, Copy, Languages } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Button } from '@/components/ui/button'
@@ -71,6 +72,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = rawPathname.replace(/\/$/, '') || '/'
   const t = useMessages()
   useModelLoadingToasts()
+  // 版本号从 Tauri 运行时读取（跟随 tauri.conf.json，不再硬编码）
+  const [version, setVersion] = useState('')
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => {})
+  }, [])
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -126,7 +132,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* 底部栏：版本号 + 完整 slogan（随语言切换），靠左显示；刻意弱化不抢眼 */}
       <footer className="shrink-0 h-8 flex items-center border-t border-border/60 bg-card/50 backdrop-blur-sm select-none px-4">
-        <span className="text-[10px] text-muted-foreground/60">VoxMinutes v0.1.0 · {t.sloganFooter}</span>
+        <span className="text-[10px] text-muted-foreground/60">VoxMinutes{version ? ` v${version}` : ''} · {t.sloganFooter}</span>
       </footer>
     </div>
   )

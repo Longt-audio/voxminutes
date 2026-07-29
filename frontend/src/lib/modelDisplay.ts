@@ -10,10 +10,25 @@ export function formatSize(bytes: number): string {
 
 /** 下载/导入进度事件的阶段文案（done/error/cancelled 返回空串，由 toast 反馈） */
 export function stageText(p: ModelDownloadProgress, t: Messages): string {
-  if (p.stage === 'downloading') return t.setStageDownloading.replace('{percent}', String(Math.floor(p.percent)))
+  if (p.stage === 'downloading') {
+    const base = t.setStageDownloading.replace('{percent}', String(Math.floor(p.percent)))
+    // 显示当前正在下载的链接（域名部分），方便用户判断走的是哪个源
+    const host = urlHost(p.sourceUrl)
+    return host ? `${base} · ${host}` : base
+  }
   if (p.stage === 'extracting') return t.setStageExtracting
   if (p.stage === 'verifying') return t.setStageVerifying
   return ''
+}
+
+/** 从完整 URL 提取域名（解析失败返回 null） */
+function urlHost(url?: string | null): string | null {
+  if (!url) return null
+  try {
+    return new URL(url).host
+  } catch {
+    return null
+  }
 }
 
 /** 模型 id → 类别（ASR / 翻译 / 总结），用于分组展示 */
