@@ -111,3 +111,12 @@ scripts/benchmark_translation_models.py
 scripts/inject_transcript.py
 scripts/generate-update-manifest-github.js
 scripts/test-update-locally.js
+
+# 本地视频处理/推广工具产物（ffmpeg、剪映安装器、中间帧等，勿提交）
+.tools/
+
+# 本地工作记忆（WorkBuddy 项目记忆，不公开）
+.workbuddy/
+
+# 另一 AI 生成的推广素材目录（含 13MB 原始录屏，如需公开再单独提交）
+docs/promotion/

@@ -18,10 +18,19 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
 
-<img src="docs/assets/readme/english.gif" alt="VoxMinutes real-time transcription and translation demo" width="860" />
+<video src="docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4" controls width="860" poster="docs/assets/readme/english.gif"></video>
+
+*👆 60-second demo: dual-channel recording, real-time transcription, live translation & AI meeting minutes. Watch the [30s short version](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4) or the [vertical version for social media](docs/promotion-v2/videos/voxminutes-v2-vertical.mp4).*
 
 </div>
+
+---
+
+## Quick Links
+
+[Features](#features) · [Why VoxMinutes](#why-voxminutes) · [Models](#model-support) · [Download & install](#download--install) · [Build from source](#build-from-source) · [Tech stack](#tech-stack) · [Roadmap](#roadmap) · [Privacy](#privacy) · [Contributing](#contributing)
 
 ---
 
@@ -30,6 +39,26 @@
 VoxMinutes is a **completely free, local-first** desktop app (Windows, Tauri 2) that transcribes your meetings in real time — recording **system playback and microphone input at the same time**, something many similar tools can't do. Transcripts can be translated live into 13 languages and turned into AI meeting minutes, with every model running on your own machine. **Your audio and text never leave your device — and every feature is free to use, no subscription, no paywall.**
 
 On first launch, a built-in onboarding wizard walks you through downloading or importing the models you need (multi-source downloads via GitHub / HuggingFace mirrors / ModelScope, plus importing local archives or GGUF files).
+
+## Why VoxMinutes
+
+| Pain point | Typical tools | VoxMinutes |
+|------------|---------------|------------|
+| Cost | Otter.ai, 讯飞听见: per-minute pricing | **100% free, no subscription, no paywall** |
+| Privacy | Audio uploaded to the cloud | **Everything runs on your device** |
+| Recording | Only mic OR only system sound | **Records system audio + mic together** |
+| Setup | Whisper-based apps need CLI / config | **In-app model manager, no terminal needed** |
+| Compatibility | Browser plugins blocked by audio permissions | **System-level capture, works with any meeting app** |
+
+> VoxMinutes works with Zoom, Teams, Google Meet, 腾讯会议, 飞书, webinars, online lectures, and interviews — because it captures audio at the system level, not inside a specific app.
+
+## Quick Start
+
+1. **Download** the latest Windows installer from [Releases](https://github.com/Longt-audio/voxminutes/releases) (~50 MB).
+2. **Install & launch** — the onboarding wizard helps you download an ASR model (required) and optional translation / summary models. No proxy needed in mainland China: download sources automatically fall back to hf-mirror / gh-proxy / ModelScope.
+3. **Press record** — start a meeting, watch text appear in real time, translate live, and hit "Meeting Summary" when you're done.
+
+> ⚠️ **Note for Windows:** the installer isn't code-signed yet, so SmartScreen may show a blue warning — click **More info → Run anyway**. It's safe; the source is open.
 
 ## Features
 
@@ -137,6 +166,8 @@ See [docs/DEV_COMMANDS.md](docs/DEV_COMMANDS.md) for more development commands.
 | v0.3.0 | Push-to-talk live interpreting, live summaries, speaker diarization |
 | Future (paid) | Cloud high-accuracy ASR, team workspace |
 
+> 💡 Want macOS / Linux, TTS, or speaker diarization sooner? Open an issue or vote on existing ones — roadmap priorities follow community demand.
+
 ## Privacy
 
 Recording, transcription, translation, and summarization all happen on your device. Unless you explicitly configure a remote summary API, the app exchanges no content with any server.
@@ -148,6 +179,10 @@ This project is licensed under **AGPL-3.0** — see [LICENSE](LICENSE).
 ## Contributing
 
 Issues and pull requests are welcome. Please make sure `cargo check --workspace`, `cargo test`, and `cd frontend && pnpm build` pass before submitting.
+
+- 🐛 Report bugs & request features via [Issues](https://github.com/Longt-audio/voxminutes/issues)
+- 💬 Ask questions & share ideas in [Discussions](https://github.com/Longt-audio/voxminutes/discussions)
+- ⭐ If VoxMinutes helps you, **star the repo** — it helps more people discover it!
 
 ---
 

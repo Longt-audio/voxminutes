@@ -12,10 +12,19 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
 
-<img src="docs/assets/readme/chinese.gif" alt="VoxMinutes 实时转写与翻译演示" width="860" />
+<video src="docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4" controls width="860" poster="docs/assets/readme/chinese.gif"></video>
+
+*👆 60 秒演示：双路录音、实时转写、实时翻译与 AI 会议纪要。另有 [30 秒精华版](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4) 与 [竖屏版（适合社交平台）](docs/promotion-v2/videos/voxminutes-v2-vertical.mp4)。*
 
 </div>
+
+---
+
+## 快速导航
+
+[功能特性](#功能特性) · [为什么选择 VoxMinutes](#为什么选择-voxminutes) · [模型支持](#模型支持) · [下载与安装](#下载与安装) · [从源码构建](#从源码构建) · [技术栈](#技术栈) · [路线图](#路线图) · [隐私](#隐私) · [参与贡献](#参与贡献)
 
 ---
 
@@ -24,6 +33,26 @@
 VoxMinutes 是一款**完全免费、本地优先**的桌面应用（Windows，Tauri 2）：一边开会一边实时转写，同时把系统播放的声音和麦克风输入**两路音频同时录下**——很多同类工具只支持麦克风。转写结果可以实时翻译成 13 种语言、一键生成 AI 会议纪要，全部模型都在你自己的电脑上运行，**音频与文本从不出设备，所有功能完全免费，无订阅、无付费墙**。
 
 首次启动时，内置的新手指引会带你下载或导入所需模型（支持 GitHub、HuggingFace 镜像、ModelScope 多源下载，也支持本地压缩包 / GGUF 文件导入）。
+
+## 为什么选择 VoxMinutes
+
+| 痛点 | 常见工具 | VoxMinutes |
+|------|----------|------------|
+| 费用 | Otter.ai、讯飞听见：按分钟收费 | **完全免费，无订阅、无付费墙** |
+| 隐私 | 音频上传云端 | **一切都在你的设备上运行** |
+| 录音 | 只能录麦克风或只能录系统声音 | **系统声音 + 麦克风同时录制** |
+| 上手难度 | Whisper 类工具需要命令行/配置 | **应用内模型管家，无需终端** |
+| 兼容性 | 浏览器插件受音频权限限制 | **系统级采集，适配任何会议软件** |
+
+> VoxMinutes 适用于 Zoom、腾讯会议、飞书、Teams、Google Meet、网课、访谈等场景——因为它在系统层面采集音频，不依赖特定应用。
+
+## 快速开始
+
+1. **下载**最新 Windows 安装包（约 50 MB）：[Releases](https://github.com/Longt-audio/voxminutes/releases)
+2. **安装并启动**——新手指引会帮你下载 ASR 模型（必装）以及可选的翻译/总结模型。中国大陆无需代理：下载源会自动回退到 hf-mirror / gh-proxy / ModelScope。
+3. **按下录音**——开会时看文字实时出现，随时实时翻译，结束后点「Meeting Summary」一键生成纪要。
+
+> ⚠️ **Windows 提示：** 安装包暂未代码签名，SmartScreen 可能出现蓝色警告——点击**更多信息 → 仍要运行**即可。源码公开，请放心。
 
 ## 功能特性
 
@@ -76,7 +105,7 @@ VoxMinutes 是一款**完全免费、本地优先**的桌面应用（Windows，T
 
 ## 界面预览
 
-- **实时转录**：录音控制 + 实时文本 + 内联译文（见上方动图）
+- **实时转录**：录音控制 + 实时文本 + 内联译文（见上方演示视频）
 - **历史记录**：列表 / 搜索 / 详情编辑 / 导出 / AI 总结
 - **翻译**：即输即译，13 种目标语言
 - **设置**：模型（下载/导入/删除）、音频与导出、API、高级
@@ -131,6 +160,8 @@ copy target\release\llama-helper.exe frontend\src-tauri\binaries\llama-helper-x8
 | v0.3.0 | 按键实时传译、实时摘要、说话人识别 |
 | 未来（付费版） | 云端高精度 ASR、团队协作 |
 
+> 💡 想要 macOS / Linux、TTS 或说话人分离更快落地？去提 issue 或在已有 issue 里投票——路线图优先级会跟随社区需求。
+
 ## 隐私
 
 音频、转写、翻译与总结全部在你的设备上完成；除非你主动配置远程总结 API，应用不与任何服务器交换你的内容。
@@ -142,6 +173,10 @@ copy target\release\llama-helper.exe frontend\src-tauri\binaries\llama-helper-x8
 ## 参与贡献
 
 欢迎 Issue 与 Pull Request。提交前请确保 `cargo check --workspace`、`cargo test` 与 `cd frontend && pnpm build` 通过。
+
+- 🐛 报 Bug / 提需求：[Issues](https://github.com/Longt-audio/voxminutes/issues)
+- 💬 提问 / 交流想法：[Discussions](https://github.com/Longt-audio/voxminutes/discussions)
+- ⭐ 如果 VoxMinutes 对你有帮助，**点个 Star**——这能帮更多人发现它！
 
 ---
 
