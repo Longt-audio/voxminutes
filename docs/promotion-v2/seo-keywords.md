@@ -34,10 +34,11 @@ gguf
 asr
 transcription-software
 meeting-notes
-productivity
+multi-language
 ```
 
-> 当前已有标签：`asr, chinese, local-first, meeting-notes, multi-language, speech-to-text, tauri, transcription, translation`（9 个）。建议按上表补全到 20 个，可保留 `chinese`、`multi-language` 等已有标签（保留的话需从 20 个里取舍，优先保留：meeting-assistant / real-time-transcription / speech-to-text / local-first / offline / privacy / translation / ai-summaries / tauri / rust / opensource / windows / whisper-alternative / sensevoice / asr / transcription-software / meeting-notes / productivity / chinese / multi-language）。
+> ✅ **已实际设置（2026-08-02，通过 GitHub API）：** 上述 20 个已全部生效。第一版用 `productivity` 占位，后应项目要求换成 `multi-language`（13 语言翻译是核心卖点），`productivity` 已移除。
+> 同时已更新仓库 Description 为：`VoxMinutes - free, local-first meeting assistant for Windows. Records system audio & mic together; real-time transcription, translation (13 languages) & AI summaries. Data never leaves your device.`（替换了原来四语言堆叠的旧描述）。
 
 ### 2. README 标题优化 ✅ 已应用（2026-08-02）
 

@@ -4,7 +4,7 @@
 
 # VoxMinutes
 
-**Your local meeting assistant · 100% free · Records system audio & mic together · Real-time transcription, translation & summaries — all on your device**
+**Your local meeting assistant · 100% free · Records system audio & mic together · Real-time transcription, translation (13 languages) & summaries — all on your device**
 
 <sub>您的本地会议助手 · 完全免费 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备</sub>
 
