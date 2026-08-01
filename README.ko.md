@@ -12,10 +12,19 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
 
-<img src="docs/assets/readme/ko.png" alt="VoxMinutes 실시간 받아쓰기 및 번역 화면" width="860" />
+<video src="docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4" controls width="860" poster="docs/assets/readme/ko.png"></video>
+
+*👆 60초 데모: 듀얼 채널 녹음, 실시간 받아쓰기, 실시간 번역, AI 회의록. [30초 하이라이트 버전](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4) 및 [소셜 미디어용 세로 버전](docs/promotion-v2/videos/voxminutes-v2-vertical.mp4)도 있습니다.*
 
 </div>
+
+---
+
+## 빠른 링크
+
+[주요 기능](#주요-기능) · [왜 VoxMinutes인가](#왜-voxminutes인가) · [모델 지원](#모델-지원) · [다운로드 및 설치](#다운로드-및-설치) · [소스에서 빌드](#소스에서-빌드) · [기술 스택](#기술-스택) · [로드맵](#로드맵) · [개인정보 보호](#개인정보-보호) · [기여](#기여)
 
 ---
 
@@ -24,6 +33,26 @@
 VoxMinutes는 **완전 무료, 로컬 우선** 데스크톱 앱(Windows, Tauri 2)으로, 회의를 실시간으로 받아쓰면서 **시스템 재생 음성과 마이크 입력을 동시에** 녹음합니다 — 많은 유사 도구는 마이크만 지원합니다. 받아쓴 내용은 13개 언어로 실시간 번역할 수 있고, AI 회의록도 한 번에 생성할 수 있으며, 모든 모델이 사용자의 컴퓨터에서 직접 실행됩니다. **오디오와 텍스트는 절대 기기를 떠나지 않으며, 모든 기능은 완전 무료입니다 — 구독도, 유료 장벽(페이월)도 없습니다.**
 
 첫 실행 시 내장된 시작 가이드가 필요한 모델을 다운로드하거나 가져오는 과정을 안내합니다(GitHub / HuggingFace 미러 / ModelScope 다중 소스 다운로드, 로컬 압축 파일 / GGUF 파일 가져오기 지원).
+
+## 왜 VoxMinutes인가
+
+| 불편한 점 | 일반적인 도구 | VoxMinutes |
+|-----------|--------------|------------|
+| 비용 | Otter.ai, 讯飞听见: 분당 과금 | **완전 무료, 구독도 페이월도 없음** |
+| 개인정보 | 오디오가 클라우드에 업로드됨 | **모든 것이 내 기기에서 실행** |
+| 녹음 | 마이크만 또는 시스템 사운드만 | **시스템 사운드 + 마이크 동시 녹음** |
+| 사용 난이도 | Whisper 계열 도구는 CLI/설정 필요 | **앱 내 모델 관리자, 터미널 불필요** |
+| 호환성 | 브라우저 플러그인은 오디오 권한 제한 | **시스템 레벨 캡처, 모든 회의 앱과 호환** |
+
+> VoxMinutes는 Zoom, Teams, Google Meet, 腾讯会议, 飞书, 웨비나, 온라인 강의, 인터뷰 등에서 사용할 수 있습니다 — 특정 앱에 의존하지 않고 시스템 레벨에서 오디오를 캡처하기 때문입니다.
+
+## 빠른 시작
+
+1. 최신 Windows 설치 패키지(약 50MB)를 [Releases](https://github.com/Longt-audio/voxminutes/releases)에서 다운로드합니다.
+2. **설치 후 실행** — 시작 가이드가 ASR 모델(필수)과 선택적인 번역/요약 모델 다운로드를 안내합니다. 중국 본토에서는 프록시 불필요: 다운로드 소스가 자동으로 hf-mirror / gh-proxy / ModelScope로 폴백됩니다.
+3. **녹음 시작** — 회의를 시작하고, 텍스트가 실시간으로 나타나는 것을 보고, 라이브 번역을 사용하고, 끝나면 "Meeting Summary"를 클릭합니다.
+
+> ⚠️ **Windows 참고:** 설치 패키지는 아직 코드 서명이 되어 있지 않아 SmartScreen 파란 경고가 표시될 수 있습니다 — **추가 정보 → 계속 실행**을 클릭하세요. 소스가 공개되어 있으니 안심하세요.
 
 ## 주요 기능
 
@@ -131,6 +160,8 @@ copy target\release\llama-helper.exe frontend\src-tauri\binaries\llama-helper-x8
 | v0.3.0 | 푸시투토크 실시간 통역, 실시간 요약, 화자 분리 |
 | 향후 (유료) | 클라우드 고정밀 ASR, 팀 워크스페이스 |
 
+> 💡 macOS / Linux, TTS, 화자 분리를 더 빨리 원하시나요? Issue를 올리거나 기존 Issue에 투표하세요 — 로드맵 우선순위는 커뮤니티 수요를 따릅니다.
+
 ## 개인정보 보호
 
 녹음, 받아쓰기, 번역, 요약은 모두 사용자의 기기에서 처리됩니다. 원격 회의록 API를 직접 설정하지 않는 한, 앱은 어떤 서버와도 콘텐츠를 주고받지 않습니다.
@@ -142,6 +173,10 @@ copy target\release\llama-helper.exe frontend\src-tauri\binaries\llama-helper-x8
 ## 기여
 
 Issue와 Pull Request를 환영합니다. 제출 전에 `cargo check --workspace`, `cargo test`, `cd frontend && pnpm build`가 통과하는지 확인해 주세요.
+
+- 🐛 버그 신고 & 기능 요청: [Issues](https://github.com/Longt-audio/voxminutes/issues)
+- 💬 질문 & 아이디어 공유: [Discussions](https://github.com/Longt-audio/voxminutes/discussions)
+- ⭐ VoxMinutes가 도움이 되셨다면 **스타를 눌러주세요** — 더 많은 사람들이 발견할 수 있게 도와줍니다!
 
 ---
 
