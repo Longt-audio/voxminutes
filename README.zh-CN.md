@@ -4,13 +4,14 @@
 
 # VoxMinutes
 
-**您的本地会议助手 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备**
+**您的本地会议助手 · 完全免费 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备**
 
 **[English](README.md) | 中文 | [한국어](README.ko.md) | [日本語](README.ja.md)**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
+[![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 
 <img src="docs/assets/readme/chinese.gif" alt="VoxMinutes 实时转写与翻译演示" width="860" />
 
@@ -20,7 +21,7 @@
 
 ## 这是什么
 
-VoxMinutes 是一款**本地优先**的桌面应用（Windows，Tauri 2）：一边开会一边实时转写，同时把系统播放的声音和麦克风输入**两路音频同时录下**——很多同类工具只支持麦克风。转写结果可以实时翻译成 13 种语言、一键生成 AI 会议纪要，全部模型都在你自己的电脑上运行，**音频与文本从不出设备**。
+VoxMinutes 是一款**完全免费、本地优先**的桌面应用（Windows，Tauri 2）：一边开会一边实时转写，同时把系统播放的声音和麦克风输入**两路音频同时录下**——很多同类工具只支持麦克风。转写结果可以实时翻译成 13 种语言、一键生成 AI 会议纪要，全部模型都在你自己的电脑上运行，**音频与文本从不出设备，所有功能完全免费，无订阅、无付费墙**。
 
 首次启动时，内置的新手指引会带你下载或导入所需模型（支持 GitHub、HuggingFace 镜像、ModelScope 多源下载，也支持本地压缩包 / GGUF 文件导入）。
 

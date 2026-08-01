@@ -4,19 +4,20 @@
 
 # VoxMinutes
 
-**Your local meeting assistant · Records system audio & mic together · Real-time transcription, translation & summaries — all on your device**
+**Your local meeting assistant · 100% free · Records system audio & mic together · Real-time transcription, translation & summaries — all on your device**
 
-<sub>您的本地会议助手 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备</sub>
+<sub>您的本地会议助手 · 完全免费 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备</sub>
 
-<sub>로컬 회의 어시스턴트 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다</sub>
+<sub>로컬 회의 어시스턴트 · 완전 무료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다</sub>
 
-<sub>ローカル会議アシスタント · システム音声とマイクを同時録音 · リアルタイム文字起こし・翻訳・要約。データはデバイスの外に出ません</sub>
+<sub>ローカル会議アシスタント · 完全無料 · システム音声とマイクを同時録音 · リアルタイム文字起こし・翻訳・要約。データはデバイスの外に出ません</sub>
 
 **English | [中文](README.zh-CN.md) | [한국어](README.ko.md) | [日本語](README.ja.md)**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
+[![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 
 <img src="docs/assets/readme/english.gif" alt="VoxMinutes real-time transcription and translation demo" width="860" />
 
@@ -26,7 +27,7 @@
 
 ## What is this
 
-VoxMinutes is a **local-first** desktop app (Windows, Tauri 2) that transcribes your meetings in real time — recording **system playback and microphone input at the same time**, something many similar tools can't do. Transcripts can be translated live into 13 languages and turned into AI meeting minutes, with every model running on your own machine. **Your audio and text never leave your device.**
+VoxMinutes is a **completely free, local-first** desktop app (Windows, Tauri 2) that transcribes your meetings in real time — recording **system playback and microphone input at the same time**, something many similar tools can't do. Transcripts can be translated live into 13 languages and turned into AI meeting minutes, with every model running on your own machine. **Your audio and text never leave your device — and every feature is free to use, no subscription, no paywall.**
 
 On first launch, a built-in onboarding wizard walks you through downloading or importing the models you need (multi-source downloads via GitHub / HuggingFace mirrors / ModelScope, plus importing local archives or GGUF files).
 
