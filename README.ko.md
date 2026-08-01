@@ -4,13 +4,14 @@
 
 # VoxMinutes
 
-**로컬 회의 어시스턴트 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다**
+**로컬 회의 어시스턴트 · 완전 무료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다**
 
 **[English](README.md) | [中文](README.zh-CN.md) | 한국어 | [日本語](README.ja.md)**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
+[![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 
 <img src="docs/assets/readme/ko.png" alt="VoxMinutes 실시간 받아쓰기 및 번역 화면" width="860" />
 
@@ -20,7 +21,7 @@
 
 ## 소개
 
-VoxMinutes는 **로컬 우선** 데스크톱 앱(Windows, Tauri 2)으로, 회의를 실시간으로 받아쓰면서 **시스템 재생 음성과 마이크 입력을 동시에** 녹음합니다 — 많은 유사 도구는 마이크만 지원합니다. 받아쓴 내용은 13개 언어로 실시간 번역할 수 있고, AI 회의록도 한 번에 생성할 수 있으며, 모든 모델이 사용자의 컴퓨터에서 직접 실행됩니다. **오디오와 텍스트는 절대 기기를 떠나지 않습니다.**
+VoxMinutes는 **완전 무료, 로컬 우선** 데스크톱 앱(Windows, Tauri 2)으로, 회의를 실시간으로 받아쓰면서 **시스템 재생 음성과 마이크 입력을 동시에** 녹음합니다 — 많은 유사 도구는 마이크만 지원합니다. 받아쓴 내용은 13개 언어로 실시간 번역할 수 있고, AI 회의록도 한 번에 생성할 수 있으며, 모든 모델이 사용자의 컴퓨터에서 직접 실행됩니다. **오디오와 텍스트는 절대 기기를 떠나지 않으며, 모든 기능은 완전 무료입니다 — 구독도, 유료 장벽(페이월)도 없습니다.**
 
 첫 실행 시 내장된 시작 가이드가 필요한 모델을 다운로드하거나 가져오는 과정을 안내합니다(GitHub / HuggingFace 미러 / ModelScope 다중 소스 다운로드, 로컬 압축 파일 / GGUF 파일 가져오기 지원).
 
