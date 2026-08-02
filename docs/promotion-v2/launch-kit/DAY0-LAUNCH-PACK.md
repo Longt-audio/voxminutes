@@ -3,6 +3,7 @@
 > 用途：发布日当天直接复制粘贴，无需再想文案。
 > 配套文件：
 > - 画廊图：本目录 `gallery/`（5 张 1600×900）
+> - 原始 README 素材：本目录 `assets/`（english.gif / chinese.gif / ko.png / jp.png / icon.png，清单见 assets/ASSETS.md）
 > - 视频：`docs/promotion-v2/videos/`（60s 横版 / 30s 精华版 / 竖屏版）
 > - 仓库：https://github.com/Longt-audio/voxminutes
 > - 下载：https://github.com/Longt-audio/voxminutes/releases
