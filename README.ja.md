@@ -14,7 +14,7 @@
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
 
-<img src="docs/assets/readme/demo.gif" alt="VoxMinutes リアルタイム文字起こしと翻訳のデモ" width="860" />
+<img src="docs/assets/readme/jp.png" alt="VoxMinutes リアルタイム文字起こしと翻訳のデモ" width="860" />
 
 *👆 アニメーションデモ：デュアルチャンネル録音、リアルタイム文字起こし、リアルタイム翻訳、AI 議事録。音声付きのフルデモを見たい場合は、[60 秒動画](docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4) または [30 秒ハイライト版](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4) をご覧ください。*
 

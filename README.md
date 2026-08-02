@@ -20,7 +20,7 @@
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
 
-<img src="docs/assets/readme/demo.gif" alt="VoxMinutes real-time transcription and translation demo" width="860" />
+<img src="docs/assets/readme/english.gif" alt="VoxMinutes real-time transcription and translation demo" width="860" />
 
 *👆 Animated demo: dual-channel recording, real-time transcription, live translation & AI meeting minutes. Want audio & the full walkthrough? Watch the [60s video](docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4) or the [30s short version](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4).*
 

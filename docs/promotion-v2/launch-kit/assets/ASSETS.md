@@ -7,14 +7,14 @@
 
 | 文件 | 类型 | 规格 | 用途 |
 |------|------|------|------|
-| `english.gif` | 动图 | 1934×1236, 16.67fps, 20s, 544KB | Reddit / V2EX / 知乎 / Twitter 帖子里的英文演示 |
-| `chinese.gif` | 动图 | 1934×1236, 16.67fps, 22s, 653KB | V2EX / 知乎 / 即刻 帖子里的中文演示 |
-| `demo.gif` | 动图 | 720×406, 15fps, 24s, 1.1MB | README 当前使用的优化版演示（中英双语字幕） |
-| `ko.png` | 静态图 | - | 韩文相关物料（如韩语社区发帖配图） |
-| `jp.png` | 静态图 | - | 日文相关物料（如日语社区发帖配图） |
+| `english.gif` | 动图 | 1934×1236, 16.67fps, 20s, 544KB | **README.md（英文版）演示图**；Reddit / V2EX / Twitter 帖子里的英文演示 |
+| `chinese.gif` | 动图 | 1934×1236, 16.67fps, 22s, 653KB | **README.zh-CN.md（中文版）演示图**；V2EX / 知乎 / 即刻 帖子里的中文演示 |
+| `demo.gif` | 动图 | 720×406, 15fps, 24s, 1.1MB | 可选通用演示素材（中英双语字幕），当前 README 未引用，留作论坛/备用 |
+| `ko.png` | 静态图 | - | **README.ko.md（韩文版）演示图**；韩语社区发帖配图 |
+| `jp.png` | 静态图 | - | **README.ja.md（日文版）演示图**；日语社区发帖配图 |
 | `icon.png` | 图标 | 96×96 | 头像 / 水印 / 链接预览图 |
 
-> `demo.gif` 在 `docs/assets/readme/demo.gif`（未复制到本目录，直接引用即可）。
+> `demo.gif` 文件位于 `docs/assets/readme/demo.gif`（未复制到本目录，直接引用即可）。
 
 ## 视频素材（位于 `docs/promotion-v2/videos/`）
 
