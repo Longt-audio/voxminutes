@@ -14,7 +14,7 @@
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
 
-<img src="docs/assets/readme/demo.gif" alt="VoxMinutes 실시간 받아쓰기 및 번역 데모" width="860" />
+<img src="docs/assets/readme/ko.png" alt="VoxMinutes 실시간 받아쓰기 및 번역 데모" width="860" />
 
 *👆 애니메이션 데모: 듀얼 채널 녹음, 실시간 받아쓰기, 실시간 번역, AI 회의록. 음성 포함 전체 데모를 보고 싶다면 [60초 영상](docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4) 또는 [30초 하이라이트 버전](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4)을 확인하세요.*
 

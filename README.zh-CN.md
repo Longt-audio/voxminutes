@@ -14,7 +14,7 @@
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
 
-<img src="docs/assets/readme/demo.gif" alt="VoxMinutes 实时转写与翻译演示" width="860" />
+<img src="docs/assets/readme/chinese.gif" alt="VoxMinutes 实时转写与翻译演示" width="860" />
 
 *👆 动图演示：双路录音、实时转写、实时翻译与 AI 会议纪要。想看带声音的完整演示？[60 秒视频](docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4) 或 [30 秒精华版](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4)。*
 
