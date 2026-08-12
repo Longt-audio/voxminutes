@@ -8,7 +8,7 @@
 
 <sub>您的本地会议助手 · 完全免费 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备</sub>
 
-<sub>로컬 회의 어시스턴트 · 완전 무료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다</sub>
+<sub>로컬 회의 어시스턴트 · 완전 물 료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다</sub>
 
 <sub>ローカル会議アシスタント · 完全無料 · システム音声とマイクを同時録音 · リアルタイム文字起こし・翻訳・要約。データはデバイスの外に出ません</sub>
 
@@ -19,6 +19,12 @@
 [![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
+
+🎙️ **Dual-channel recording** · 📝 **Real-time transcription** · 🌐 **13-language translation** · 🤖 **Local AI summaries**
+
+### [⬇️ Download for Windows](https://github.com/Longt-audio/voxminutes/releases/latest)
+
+<sub>**Free · No account · No subscription · ~50 MB** &nbsp;|&nbsp; 🍎 macOS / 🐧 Linux — [vote on the issue](https://github.com/Longt-audio/voxminutes/issues) to help us prioritize</sub>
 
 <img src="docs/assets/readme/english.gif" alt="VoxMinutes real-time transcription and translation demo" width="860" />
 

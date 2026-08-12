@@ -4,7 +4,7 @@
 
 # VoxMinutes
 
-**로컬 회의 어시스턴트 · 완전 무료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 13개 언어 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다**
+**로컬 회의 어시스턴트 · 완전 물 료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 13개 언어 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다**
 
 **[English](README.md) | [中文](README.zh-CN.md) | 한국어 | [日本語](README.ja.md)**
 
@@ -13,6 +13,12 @@
 [![Models](https://img.shields.io/badge/models-100%25%20local-green)]()
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
+
+🎙️ **듀얼 채널 녹음** · 📝 **실시간 받아쓰기** · 🌐 **13개 언어 번역** · 🤖 **로컬 AI 요약**
+
+### [⬇️ Windows용 다운로드](https://github.com/Longt-audio/voxminutes/releases/latest)
+
+<sub>**묾료 · 계정 불필요 · 구독 없음 · 약 50MB** &nbsp;|&nbsp; 🍎 macOS / 🐧 Linux — [Issue에 투표](https://github.com/Longt-audio/voxminutes/issues)하여 우선순위 결정에 참여하세요</sub>
 
 <img src="docs/assets/readme/ko.png" alt="VoxMinutes 실시간 받아쓰기 및 번역 데모" width="860" />
 
@@ -30,7 +36,7 @@
 
 ## 소개
 
-VoxMinutes는 **완전 무료, 로컬 우선** 데스크톱 앱(Windows, Tauri 2)으로, 회의를 실시간으로 받아쓰면서 **시스템 재생 음성과 마이크 입력을 동시에** 녹음합니다 — 많은 유사 도구는 마이크만 지원합니다. 받아쓴 내용은 13개 언어로 실시간 번역할 수 있고, AI 회의록도 한 번에 생성할 수 있으며, 모든 모델이 사용자의 컴퓨터에서 직접 실행됩니다. **오디오와 텍스트는 절대 기기를 떠나지 않으며, 모든 기능은 완전 무료입니다 — 구독도, 유료 장벽(페이월)도 없습니다.**
+VoxMinutes는 **완전 묾료, 로컬 우선** 데스크톱 앱(Windows, Tauri 2)으로, 회의를 실시간으로 받아쓰면서 **시스템 재생 음성과 마이크 입력을 동시에** 녹음합니다 — 많은 유사 도구는 마이크만 지원합니다. 받아쓴 내용은 13개 언어로 실시간 번역할 수 있고, AI 회의록도 한 번에 생성할 수 있으며, 모든 모델이 사용자의 컴퓨터에서 직접 실행됩니다. **오디오와 텍스트는 절대 기기를 떠나지 않으며, 모든 기능은 완전 묾료입니다 — 구독도, 유료 장벽(페이월)도 없습니다.**
 
 첫 실행 시 내장된 시작 가이드가 필요한 모델을 다운로드하거나 가져오는 과정을 안내합니다(GitHub / HuggingFace 미러 / ModelScope 다중 소스 다운로드, 로컬 압축 파일 / GGUF 파일 가져오기 지원).
 
@@ -38,7 +44,7 @@ VoxMinutes는 **완전 무료, 로컬 우선** 데스크톱 앱(Windows, Tauri 2
 
 | 불편한 점 | 일반적인 도구 | VoxMinutes |
 |-----------|--------------|------------|
-| 비용 | Otter.ai, 讯飞听见: 분당 과금 | **완전 무료, 구독도 페이월도 없음** |
+| 비용 | Otter.ai, 讯飞听见: 분당 과금 | **완전 묾료, 구독도 페이월도 없음** |
 | 개인정보 | 오디오가 클라우드에 업로드됨 | **모든 것이 내 기기에서 실행** |
 | 녹음 | 마이크만 또는 시스템 사운드만 | **시스템 사운드 + 마이크 동시 녹음** |
 | 사용 난이도 | Whisper 계열 도구는 CLI/설정 필요 | **앱 내 모델 관리자, 터미널 불필요** |
@@ -49,7 +55,7 @@ VoxMinutes는 **완전 무료, 로컬 우선** 데스크톱 앱(Windows, Tauri 2
 ## 빠른 시작
 
 1. 최신 Windows 설치 패키지(약 50MB)를 [Releases](https://github.com/Longt-audio/voxminutes/releases)에서 다운로드합니다.
-2. **설치 후 실행** — 시작 가이드가 ASR 모델(필수)과 선택적인 번역/요약 모델 다운로드를 안내합니다. 중국 본토에서는 프록시 불필요: 다운로드 소스가 자동으로 hf-mirror / gh-proxy / ModelScope로 폴백됩니다.
+2. **설치 후 실행** — 시작 가이드가 ASR 모델(필수)과 선택적인 번역/요약 모델 다운로드를 안내합니다. 중국 본토에서는 프록시 불필요: 다운로드 소스가 자동으로 hf-mirror / gh-proxy / ModelScope로 폴 백됩니다.
 3. **녹음 시작** — 회의를 시작하고, 텍스트가 실시간으로 나타나는 것을 보고, 라이브 번역을 사용하고, 끝나면 "Meeting Summary"를 클릭합니다.
 
 > ⚠️ **Windows 참고:** 설치 패키지는 아직 코드 서명이 되어 있지 않아 SmartScreen 파란 경고가 표시될 수 있습니다 — **추가 정보 → 계속 실행**을 클릭하세요. 소스가 공개되어 있으니 안심하세요.
@@ -63,11 +69,11 @@ VoxMinutes는 **완전 무료, 로컬 우선** 데스크톱 앱(Windows, Tauri 2
 - **실시간 번역**: 문장 단위 파이프라인, 번역문이 토큰 단위로 스트리밍 표시
   - `OPUS-MT` — 가볍고 빠름, 중-영 번역
   - `Hy-MT2`(텐센트 Hunyuan) — 더 높은 품질, **13개 대상 언어**
-- **AI 회의록**: 로컬 GGUF LLM(Qwen / Gemma)으로 오프라인 요약, 원격 API 또는 웹 AI도 사용 가능; 결과는 별도 패널에 표시, Markdown으로 내보내기
+- **AI 회의록**: 로컬 GGUF LLM(Qwen / Gemma)으로 오프라인 요약, 원격 API 또는 웹 AI도 사용 가능; 결과는 별도 패널에 표시, Markdown으로 낼볼내기
 - **번역 페이지**: 텍스트 입력 즉시 번역, 원본 언어 자동 인식
 - **기록**: SQLite 저장, 검색 및 제목/문장 인라인 편집
 - **파일 받아쓰기**: 오디오 파일 가져오기, 다른 엔진으로 재인식
-- **내보내기**: TXT / SRT / Markdown / 회의록 Markdown
+- **낼볼내기**: TXT / SRT / Markdown / 회의록 Markdown
 - **모델 관리자**: 앱 내 다운로드(다중 소스, 이어 받기, 병렬) 또는 로컬 가져오기, 명령줄 불필요
 - **다국어 UI**: English / 中文 / 한국어 / 日本語, 시작 화면에서 전환 가능
 
@@ -106,9 +112,9 @@ VoxMinutes는 **완전 무료, 로컬 우선** 데스크톱 앱(Windows, Tauri 2
 ## 화면 구성
 
 - **받아쓰기**: 녹음 컨트롤 + 실시간 텍스트 + 인라인 번역(위 데모 참고)
-- **기록**: 목록 / 검색 / 상세 편집 / 내보내기 / AI 회의록
+- **기록**: 목록 / 검색 / 상세 편집 / 낼볼내기 / AI 회의록
 - **번역**: 입력 즉시 번역, 13개 대상 언어
-- **설정**: 모델(다운로드/가져오기/삭제), 오디오 및 내보내기, API, 고급
+- **설정**: 모델(다운로드/가져오기/삭제), 오디오 및 낼볼내기, API, 고급
 
 ## 다운로드 및 설치
 
@@ -144,7 +150,7 @@ copy target\release\llama-helper.exe frontend\src-tauri\binaries\llama-helper-x8
 
 | 계층 | 기술 |
 |------|------|
-| 데스크톱 | Tauri 2 + Next.js(정적 내보내기) + React + Tailwind CSS |
+| 데스크톱 | Tauri 2 + Next.js(정적 낼볼내기) + React + Tailwind CSS |
 | 시스템 | Rust |
 | ASR | sherpa-onnx(SenseVoice / X-ASR, ONNX Runtime) |
 | 번역 | OPUS-MT(ONNX Runtime) / Hy-MT2(llama.cpp 사이드카) |
@@ -155,7 +161,7 @@ copy target\release\llama-helper.exe frontend\src-tauri\binaries\llama-helper-x8
 
 | 버전 | 목표 |
 |------|------|
-| v0.1.0 (현재 MVP) | 실시간/파일 받아쓰기, 듀얼 엔진 번역, 로컬 회의록, 기록 및 내보내기, 모델 다운로드/가져오기, 시작 가이드 |
+| v0.1.0 (현재 MVP) | 실시간/파일 받아쓰기, 듀얼 엔진 번역, 로컬 회의록, 기록 및 낼볼내기, 모델 다운로드/가져오기, 시작 가이드 |
 | v0.2.0 | TTS, 자막 플로팅 창, 드래그 번역 |
 | v0.3.0 | 푸시투토크 실시간 통역, 실시간 요약, 화자 분리 |
 | 향후 (유료) | 클라우드 고정밀 ASR, 팀 워크스페이스 |
