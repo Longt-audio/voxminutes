@@ -14,6 +14,12 @@
 [![Price](https://img.shields.io/badge/price-100%25%20free-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Longt-audio/voxminutes/pulls)
 
+🎙️ **双路录音** · 📝 **实时转写** · 🌐 **13 种语言翻译** · 🤖 **本地 AI 总结**
+
+### [⬇️ 下载 Windows 版](https://github.com/Longt-audio/voxminutes/releases/latest)
+
+<sub>**免费 · 无需注册 · 无订阅 · 约 50 MB** &nbsp;|&nbsp; 🍎 macOS / 🐧 Linux — [去 issue 投票](https://github.com/Longt-audio/voxminutes/issues)帮我们排优先级</sub>
+
 <img src="docs/assets/readme/chinese.gif" alt="VoxMinutes 实时转写与翻译演示" width="860" />
 
 *👆 动图演示：双路录音、实时转写、实时翻译与 AI 会议纪要。想看带声音的完整演示？[60 秒视频](docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4) 或 [30 秒精华版](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4)。*
