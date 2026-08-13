@@ -6,7 +6,7 @@
 
 **로컬 회의 어시스턴트 · 완전 물 료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 13개 언어 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다**
 
-**[English](README.md) | [中文](README.zh-CN.md) | 한국어 | [日本語](README.ja.md)**
+**[English](README.en.md) | [中文](README.md) | 한국어 | [日本語](README.ja.md)**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
