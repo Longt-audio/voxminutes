@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxMinutes - 無料オープンソースのローカル会議アシスタント | リアルタイム文字起こし・翻訳・AI議事録</title>
+<meta name="description" content="VoxMinutes は 100% 無料・完全ローカル動作の Windows 会議アシスタントです。システム音声とマイクを同時録音し、リアルタイムで音声をテキスト化し、13言語に翻訳し、ローカルAIで議事録を自動生成します。データはデバイスから出ません。">
+<meta name="keywords" content="会議アシスタント,議事録,リアルタイム文字起こし,音声認識,リアルタイム翻訳,ローカルAI,オープンソース,無料,Windows,プライバシー,オフライン">
+<link rel="alternate" hreflang="zh" href="https://longt-audio.github.io/voxminutes/zh/">
+<link rel="alternate" hreflang="en" href="https://longt-audio.github.io/voxminutes/en/">
+<link rel="alternate" hreflang="ko" href="https://longt-audio.github.io/voxminutes/ko/">
+<link rel="alternate" hreflang="ja" href="https://longt-audio.github.io/voxminutes/ja/">
+<link rel="alternate" hreflang="x-default" href="https://longt-audio.github.io/voxminutes/">
+<link rel="canonical" href="https://longt-audio.github.io/voxminutes/ja/">
+<meta property="og:title" content="VoxMinutes - 無料オープンソースのローカル会議アシスタント | リアルタイム文字起こし・翻訳・AI議事録">
+<meta property="og:description" content="VoxMinutes は 100% 無料・完全ローカル動作の Windows 会議アシスタントです。システム音声とマイクを同時録音し、リアルタイムで音声をテキスト化し、13言語に翻訳し、ローカルAIで議事録を自動生成します。データはデバイスから出ません。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://longt-audio.github.io/voxminutes/ja/">
+<meta property="og:image" content="https://longt-audio.github.io/voxminutes/assets/hero.png">
+<link rel="icon" type="image/png" href="../assets/icon.png">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --bg:#0f1123; --card:#1a1a2e; --red:#e94560; --text:#eaeaea; --muted:#9aa0b4; --radius:14px; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans JP","Noto Sans KR",sans-serif; background:var(--bg); color:var(--text); line-height:1.7; }
+  .wrap { max-width:1000px; margin:0 auto; padding:0 24px; }
+  header { padding:28px 0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header img { width:40px; height:40px; border-radius:9px; }
+  header .name { font-size:20px; font-weight:600; }
+  header nav { margin-left:auto; display:flex; gap:22px; align-items:center; }
+  header nav a { color:var(--muted); text-decoration:none; font-size:15px; }
+  header nav a:hover { color:var(--text); }
+  .lang { display:flex; gap:8px; margin-left:14px; }
+  .lang a { font-size:13px; padding:4px 10px; border-radius:7px; border:1px solid #2a2a44; color:var(--muted); text-decoration:none; }
+  .lang a.on { background:var(--red); border-color:var(--red); color:#fff; }
+  .btn { display:inline-block; background:var(--red); color:#fff; padding:14px 30px; border-radius:10px; text-decoration:none; font-weight:600; font-size:16px; }
+  .btn.ghost { background:transparent; border:1.5px solid var(--red); color:var(--red); }
+  .hero { text-align:center; padding:56px 0 40px; }
+  .hero h1 { font-size:44px; line-height:1.25; margin-bottom:18px; }
+  .hero h1 .red { color:var(--red); }
+  .hero p.sub { font-size:19px; color:var(--muted); max-width:680px; margin:0 auto 30px; }
+  .hero .cta { display:flex; gap:16px; justify-content:center; margin-bottom:44px; flex-wrap:wrap; }
+  .hero img.shot { width:100%; border-radius:var(--radius); box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .badges { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px; }
+  .badge { background:var(--card); border:1px solid #2a2a44; color:var(--muted); font-size:13px; padding:6px 14px; border-radius:999px; }
+  section { padding:52px 0; }
+  .sec-title { font-size:30px; text-align:center; margin-bottom:8px; }
+  .sec-sub { text-align:center; color:var(--muted); margin-bottom:40px; max-width:640px; margin-left:auto; margin-right:auto; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:22px; }
+  .card { background:var(--card); border:1px solid #262640; border-radius:var(--radius); overflow:hidden; }
+  .card img { width:100%; display:block; }
+  .card .body { padding:20px 22px; }
+  .card h3 { font-size:18px; margin-bottom:6px; }
+  .card p { color:var(--muted); font-size:14.5px; }
+  .feat-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; }
+  .feat { background:var(--card); border:1px solid #262640; border-radius:12px; padding:20px; }
+  .feat .ic { font-size:22px; margin-bottom:8px; }
+  .feat h4 { font-size:16px; margin-bottom:4px; }
+  .feat p { color:var(--muted); font-size:14px; }
+  .download { text-align:center; background:var(--card); border-radius:var(--radius); padding:48px 24px; border:1px solid #2a2a44; }
+  footer { text-align:center; color:var(--muted); font-size:13.5px; padding:40px 0 56px; border-top:1px solid #22223a; margin-top:40px; }
+  footer a { color:var(--muted); }
+  @media (max-width:600px){ .hero h1{font-size:28px} .lang{margin-left:0} }
+
+  .lang-btn { font-size:13px; padding:4px 10px; border-radius:7px; border:1px solid #2a2a44; color:var(--muted); text-decoration:none; }
+  .lang-btn.on { background:var(--red); border-color:var(--red); color:#fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="../assets/icon.png" alt="VoxMinutes">
+    <span class="name">VoxMinutes</span>
+    <nav>
+      <a href="#features">機能</a>
+      <a href="#download">ダウンロード</a>
+      <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a>
+      <span class="lang"><a class="lang-btn" href="../zh/">中文</a><a class="lang-btn" href="../en/">English</a><a class="lang-btn" href="../ko/">한국어</a><a class="lang-btn on" href="../ja/">日本語</a></span>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>無料・オープンソースの<span class="red">ローカル会議アシスタント</span><br>データはデバイスから出ません</h1>
+    <p class="sub">システム音声 + マイクを同時録音。話せば文字が出て、13言語にリアルタイム翻訳。ローカルAIがワンクリックで議事録を生成。アカウント不要、サブスク不要、ペイウォールなし。</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/Longt-audio/voxminutes/releases" target="_blank" rel="noopener">Windows版を無料ダウンロード</a>
+      <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">ソースを見る</a>
+    </div>
+    <img class="shot" src="../assets/hero.png" alt="VoxMinutes リアルタイム文字起こし画面">
+    <div class="badges">
+      <span class="badge">100% 無料</span>
+      <span class="badge">オープンソース MIT</span>
+      <span class="badge">完全ローカル</span>
+      <span class="badge">プライバシー第一</span>
+      <span class="badge">Windows</span>
+    </div>
+  </div>
+
+  <section id="features">
+    <h2 class="sec-title">会議の、あるべき姿</h2>
+    <p class="sec-sub">一度録音すれば、文字起こし・翻訳・議事録まで全自動</p>
+    <div class="grid">
+      <div class="card"><img src="../assets/card-dual-channel.png" alt="デュアルチャンネル録音"><div class="body"><h3>デュアルチャンネル同時録音</h3><p>システム音声とマイクを同時に録音。オンライン会議も対面も逃さず、1つのトラックに自動ミックス。</p></div></div>
+      <div class="card"><img src="../assets/card-transcribe.png" alt="リアルタイム文字起こし"><div class="body"><h3>リアルタイム音声テキスト化</h3><p>X-ASR / SenseVoice デュアルエンジンのストリーミング文字起こし。話した瞬間に文字が現れ、完全オフライン。</p></div></div>
+      <div class="card"><img src="../assets/card-translate.png" alt="リアルタイム翻訳"><div class="body"><h3>13言語へリアルタイム翻訳</h3><p>国際会議もその場で翻訳。会議後の整理を待つ必要はありません。</p></div></div>
+      <div class="card"><img src="../assets/card-summary.png" alt="AI議事録"><div class="body"><h3>ローカルAI ワンクリック議事録</h3><p>会議後、ワンクリックでローカルLLMがトピック・結論・アクションアイテムを生成。</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec-title">さらに</h2>
+    <div class="feat-list">
+      <div class="feat"><div class="ic">🔍</div><h4>履歴検索</h4><p>すべての会議を全文検索</p></div>
+      <div class="feat"><div class="ic">📤</div><h4>マルチフォーマット出力</h4><p>TXT / SRT / Markdown で出力</p></div>
+      <div class="feat"><div class="ic">🔒</div><h4>プライバシー完全掌握</h4><p>すべてのデータは自分のデバイスに</p></div>
+      <div class="feat"><div class="ic">⚡</div><h4>オフライン動作</h4><p>モデル取得後は完全オフライン</p></div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="download">
+      <h2 class="sec-title">AIに会議メモを任せよう</h2>
+      <p class="sec-sub">無料ダウンロード。モデルは初回起動ウィザードで取得。中国国内はミラーに自動切替。</p>
+      <a class="btn" href="https://github.com/Longt-audio/voxminutes/releases" target="_blank" rel="noopener">VoxMinutes for Windows をダウンロード</a>
+      <p style="margin-top:18px;color:var(--muted);font-size:14px">現在はWindowsのみ · Mac / Linux 計画中</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>VoxMinutes — 無料オープンソースのローカル会議アシスタント · <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a></p>
+    <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
+  </footer>
+</div>
+</body>
+</html>
