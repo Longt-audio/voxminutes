@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxMinutes - 물료 오픈소스 로컬 회의 어시스턴트 | 실시간 전사·번역·AI 회의록</title>
+<meta name="description" content="VoxMinutes는 100% 물묘, 완전 로컬로 동작하는 Windows 회의 어시스턴트입니다. 시스템 오디오와 마이크를 동시에 녹음하고, 실시간으로 음성을 텍스트로 변환하며, 13개 언어로 번역하고, 로컬 AI로 회의록을 자동 생성합니다. 데이터는 절대 기기를 떠나지 않습니다.">
+<meta name="keywords" content="회의 어시스턴트,회의록,실시간 전사,음성 인식,실시간 번역,로컬 AI,오픈소스,묘리,Windows,프라이버시,오프라인">
+<link rel="alternate" hreflang="zh" href="https://longt-audio.github.io/voxminutes/zh/">
+<link rel="alternate" hreflang="en" href="https://longt-audio.github.io/voxminutes/en/">
+<link rel="alternate" hreflang="ko" href="https://longt-audio.github.io/voxminutes/ko/">
+<link rel="alternate" hreflang="ja" href="https://longt-audio.github.io/voxminutes/ja/">
+<link rel="alternate" hreflang="x-default" href="https://longt-audio.github.io/voxminutes/">
+<link rel="canonical" href="https://longt-audio.github.io/voxminutes/ko/">
+<meta property="og:title" content="VoxMinutes - 물료 오픈소스 로컬 회의 어시스턴트 | 실시간 전사·번역·AI 회의록">
+<meta property="og:description" content="VoxMinutes는 100% 물묘, 완전 로컬로 동작하는 Windows 회의 어시스턴트입니다. 시스템 오디오와 마이크를 동시에 녹음하고, 실시간으로 음성을 텍스트로 변환하며, 13개 언어로 번역하고, 로컬 AI로 회의록을 자동 생성합니다. 데이터는 절대 기기를 떠나지 않습니다.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://longt-audio.github.io/voxminutes/ko/">
+<meta property="og:image" content="https://longt-audio.github.io/voxminutes/assets/hero.png">
+<link rel="icon" type="image/png" href="../assets/icon.png">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --bg:#0f1123; --card:#1a1a2e; --red:#e94560; --text:#eaeaea; --muted:#9aa0b4; --radius:14px; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans JP","Noto Sans KR",sans-serif; background:var(--bg); color:var(--text); line-height:1.7; }
+  .wrap { max-width:1000px; margin:0 auto; padding:0 24px; }
+  header { padding:28px 0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header img { width:40px; height:40px; border-radius:9px; }
+  header .name { font-size:20px; font-weight:600; }
+  header nav { margin-left:auto; display:flex; gap:22px; align-items:center; }
+  header nav a { color:var(--muted); text-decoration:none; font-size:15px; }
+  header nav a:hover { color:var(--text); }
+  .lang { display:flex; gap:8px; margin-left:14px; }
+  .lang a { font-size:13px; padding:4px 10px; border-radius:7px; border:1px solid #2a2a44; color:var(--muted); text-decoration:none; }
+  .lang a.on { background:var(--red); border-color:var(--red); color:#fff; }
+  .btn { display:inline-block; background:var(--red); color:#fff; padding:14px 30px; border-radius:10px; text-decoration:none; font-weight:600; font-size:16px; }
+  .btn.ghost { background:transparent; border:1.5px solid var(--red); color:var(--red); }
+  .hero { text-align:center; padding:56px 0 40px; }
+  .hero h1 { font-size:44px; line-height:1.25; margin-bottom:18px; }
+  .hero h1 .red { color:var(--red); }
+  .hero p.sub { font-size:19px; color:var(--muted); max-width:680px; margin:0 auto 30px; }
+  .hero .cta { display:flex; gap:16px; justify-content:center; margin-bottom:44px; flex-wrap:wrap; }
+  .hero img.shot { width:100%; border-radius:var(--radius); box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .badges { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px; }
+  .badge { background:var(--card); border:1px solid #2a2a44; color:var(--muted); font-size:13px; padding:6px 14px; border-radius:999px; }
+  section { padding:52px 0; }
+  .sec-title { font-size:30px; text-align:center; margin-bottom:8px; }
+  .sec-sub { text-align:center; color:var(--muted); margin-bottom:40px; max-width:640px; margin-left:auto; margin-right:auto; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:22px; }
+  .card { background:var(--card); border:1px solid #262640; border-radius:var(--radius); overflow:hidden; }
+  .card img { width:100%; display:block; }
+  .card .body { padding:20px 22px; }
+  .card h3 { font-size:18px; margin-bottom:6px; }
+  .card p { color:var(--muted); font-size:14.5px; }
+  .feat-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; }
+  .feat { background:var(--card); border:1px solid #262640; border-radius:12px; padding:20px; }
+  .feat .ic { font-size:22px; margin-bottom:8px; }
+  .feat h4 { font-size:16px; margin-bottom:4px; }
+  .feat p { color:var(--muted); font-size:14px; }
+  .download { text-align:center; background:var(--card); border-radius:var(--radius); padding:48px 24px; border:1px solid #2a2a44; }
+  footer { text-align:center; color:var(--muted); font-size:13.5px; padding:40px 0 56px; border-top:1px solid #22223a; margin-top:40px; }
+  footer a { color:var(--muted); }
+  @media (max-width:600px){ .hero h1{font-size:28px} .lang{margin-left:0} }
+
+  .lang-btn { font-size:13px; padding:4px 10px; border-radius:7px; border:1px solid #2a2a44; color:var(--muted); text-decoration:none; }
+  .lang-btn.on { background:var(--red); border-color:var(--red); color:#fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="../assets/icon.png" alt="VoxMinutes">
+    <span class="name">VoxMinutes</span>
+    <nav>
+      <a href="#features">기능</a>
+      <a href="#download">다운로드</a>
+      <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a>
+      <span class="lang"><a class="lang-btn" href="../zh/">中文</a><a class="lang-btn" href="../en/">English</a><a class="lang-btn on" href="../ko/">한국어</a><a class="lang-btn" href="../ja/">日本語</a></span>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>묘리·오픈소스<span class="red">로컬 회의 어시스턴트</span><br>데이터는 기기를 떠나지 않습니다</h1>
+    <p class="sub">시스템 오디오 + 마이크를 동시에 녹음하고, 말하는 즉시 텍스트로 변환하며, 13개 언어로 실시간 번역하고, 로컬 AI로 회의록을 한 번에 생성합니다. 계정도, 구독도, 페이월도 없습니다.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/Longt-audio/voxminutes/releases" target="_blank" rel="noopener">Windows용 묘리 다운로드</a>
+      <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">소스 보기</a>
+    </div>
+    <img class="shot" src="../assets/hero.png" alt="VoxMinutes 실시간 전사 화면">
+    <div class="badges">
+      <span class="badge">100% 묘리</span>
+      <span class="badge">오픈소스 MIT</span>
+      <span class="badge">완전 로컬</span>
+      <span class="badge">프라이버시 우선</span>
+      <span class="badge">Windows</span>
+    </div>
+  </div>
+
+  <section id="features">
+    <h2 class="sec-title">회의, 제대로 하기</h2>
+    <p class="sec-sub">한 번 녹음하면 전사·번역·회의록이 자동으로</p>
+    <div class="grid">
+      <div class="card"><img src="../assets/card-dual-channel.png" alt="듀얼 채널 녹음"><div class="body"><h3>듀얼 채널 동시 녹음</h3><p>시스템 오디오와 마이크를 함께 녹음해 온라인 회의든 대면 회의든 놓치지 않고 하나의 트랙으로 자동 믹싱합니다.</p></div></div>
+      <div class="card"><img src="../assets/card-transcribe.png" alt="실시간 전사"><div class="body"><h3>실시간 음성 텍스트 변환</h3><p>X-ASR / SenseVoice 듀얼 엔진 스트리밍 전사. 말하는 순간 텍스트가 나타나며 완전 오프라인입니다.</p></div></div>
+      <div class="card"><img src="../assets/card-translate.png" alt="실시간 번역"><div class="body"><h3>13개 언어 실시간 번역</h3><p>국제 회의도 실시간으로 번역 — 회의 후 정리를 기다릴 필요가 없습니다.</p></div></div>
+      <div class="card"><img src="../assets/card-summary.png" alt="AI 회의록"><div class="body"><h3>로컬 AI 원클릭 회의록</h3><p>회의 후 한 번의 클릭으로 로컬 LLM이 주제, 결론, 액션 아이템을 생성합니다.</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec-title">더 많은 기능</h2>
+    <div class="feat-list">
+      <div class="feat"><div class="ic">🔍</div><h4>기록 검색</h4><p>모든 회의를 전문 검색</p></div>
+      <div class="feat"><div class="ic">📤</div><h4>다양한 형식 낼내기</h4><p>TXT / SRT / Markdown 낼내기</p></div>
+      <div class="feat"><div class="ic">🔒</div><h4>완전한 프라이버시</h4><p>모든 데이터는 내 기기에만</p></div>
+      <div class="feat"><div class="ic">⚡</div><h4>오프라인 동작</h4><p>모델 다운로드 후 완전 오프라인</p></div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="download">
+      <h2 class="sec-title">이제 AI가 회의를 기록합니다</h2>
+      <p class="sec-sub">묘리 다운로드. 첫 실행 마법사로 모델을 다운로드하며, 중국에서는 미러로 자동 전환됩니다.</p>
+      <a class="btn" href="https://github.com/Longt-audio/voxminutes/releases" target="_blank" rel="noopener">VoxMinutes for Windows 다운로드</a>
+      <p style="margin-top:18px;color:var(--muted);font-size:14px">현재 Windows만 지원 · Mac / Linux 예정</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>VoxMinutes — 묘리 오픈소스 로컬 회의 어시스턴트 · <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a></p>
+    <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
+  </footer>
+</div>
+</body>
+</html>
