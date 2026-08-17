@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxMinutes - Free & Open-Source Local Meeting Assistant | Transcribe, Translate, AI Minutes</title>
+<meta name="description" content="VoxMinutes is a 100% free, fully local meeting assistant for Windows. Records system audio and microphone together, transcribes speech in real time, translates into 13 languages, and generates AI meeting minutes locally. Your data never leaves your device.">
+<meta name="keywords" content="meeting assistant,meeting minutes,real-time transcription,speech to text,live translation,local AI,open source,free software,Windows,privacy,offline transcription">
+<link rel="alternate" hreflang="zh" href="https://longt-audio.github.io/voxminutes/zh/">
+<link rel="alternate" hreflang="en" href="https://longt-audio.github.io/voxminutes/en/">
+<link rel="alternate" hreflang="ko" href="https://longt-audio.github.io/voxminutes/ko/">
+<link rel="alternate" hreflang="ja" href="https://longt-audio.github.io/voxminutes/ja/">
+<link rel="alternate" hreflang="x-default" href="https://longt-audio.github.io/voxminutes/">
+<link rel="canonical" href="https://longt-audio.github.io/voxminutes/en/">
+<meta property="og:title" content="VoxMinutes - Free & Open-Source Local Meeting Assistant | Transcribe, Translate, AI Minutes">
+<meta property="og:description" content="VoxMinutes is a 100% free, fully local meeting assistant for Windows. Records system audio and microphone together, transcribes speech in real time, translates into 13 languages, and generates AI meeting minutes locally. Your data never leaves your device.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://longt-audio.github.io/voxminutes/en/">
+<meta property="og:image" content="https://longt-audio.github.io/voxminutes/assets/hero.png">
+<link rel="icon" type="image/png" href="../assets/icon.png">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --bg:#0f1123; --card:#1a1a2e; --red:#e94560; --text:#eaeaea; --muted:#9aa0b4; --radius:14px; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans JP","Noto Sans KR",sans-serif; background:var(--bg); color:var(--text); line-height:1.7; }
+  .wrap { max-width:1000px; margin:0 auto; padding:0 24px; }
+  header { padding:28px 0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header img { width:40px; height:40px; border-radius:9px; }
+  header .name { font-size:20px; font-weight:600; }
+  header nav { margin-left:auto; display:flex; gap:22px; align-items:center; }
+  header nav a { color:var(--muted); text-decoration:none; font-size:15px; }
+  header nav a:hover { color:var(--text); }
+  .lang { display:flex; gap:8px; margin-left:14px; }
+  .lang a { font-size:13px; padding:4px 10px; border-radius:7px; border:1px solid #2a2a44; color:var(--muted); text-decoration:none; }
+  .lang a.on { background:var(--red); border-color:var(--red); color:#fff; }
+  .btn { display:inline-block; background:var(--red); color:#fff; padding:14px 30px; border-radius:10px; text-decoration:none; font-weight:600; font-size:16px; }
+  .btn.ghost { background:transparent; border:1.5px solid var(--red); color:var(--red); }
+  .hero { text-align:center; padding:56px 0 40px; }
+  .hero h1 { font-size:44px; line-height:1.25; margin-bottom:18px; }
+  .hero h1 .red { color:var(--red); }
+  .hero p.sub { font-size:19px; color:var(--muted); max-width:680px; margin:0 auto 30px; }
+  .hero .cta { display:flex; gap:16px; justify-content:center; margin-bottom:44px; flex-wrap:wrap; }
+  .hero img.shot { width:100%; border-radius:var(--radius); box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .badges { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px; }
+  .badge { background:var(--card); border:1px solid #2a2a44; color:var(--muted); font-size:13px; padding:6px 14px; border-radius:999px; }
+  section { padding:52px 0; }
+  .sec-title { font-size:30px; text-align:center; margin-bottom:8px; }
+  .sec-sub { text-align:center; color:var(--muted); margin-bottom:40px; max-width:640px; margin-left:auto; margin-right:auto; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:22px; }
+  .card { background:var(--card); border:1px solid #262640; border-radius:var(--radius); overflow:hidden; }
+  .card img { width:100%; display:block; }
+  .card .body { padding:20px 22px; }
+  .card h3 { font-size:18px; margin-bottom:6px; }
+  .card p { color:var(--muted); font-size:14.5px; }
+  .feat-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; }
+  .feat { background:var(--card); border:1px solid #262640; border-radius:12px; padding:20px; }
+  .feat .ic { font-size:22px; margin-bottom:8px; }
+  .feat h4 { font-size:16px; margin-bottom:4px; }
+  .feat p { color:var(--muted); font-size:14px; }
+  .download { text-align:center; background:var(--card); border-radius:var(--radius); padding:48px 24px; border:1px solid #2a2a44; }
+  footer { text-align:center; color:var(--muted); font-size:13.5px; padding:40px 0 56px; border-top:1px solid #22223a; margin-top:40px; }
+  footer a { color:var(--muted); }
+  @media (max-width:600px){ .hero h1{font-size:28px} .lang{margin-left:0} }
+
+  .lang-btn { font-size:13px; padding:4px 10px; border-radius:7px; border:1px solid #2a2a44; color:var(--muted); text-decoration:none; }
+  .lang-btn.on { background:var(--red); border-color:var(--red); color:#fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="../assets/icon.png" alt="VoxMinutes">
+    <span class="name">VoxMinutes</span>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a>
+      <span class="lang"><a class="lang-btn" href="../zh/">中文</a><a class="lang-btn on" href="../en/">English</a><a class="lang-btn" href="../ko/">한국어</a><a class="lang-btn" href="../ja/">日本語</a></span>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>Free & open-source<span class="red">local meeting assistant</span><br>Your data never leaves your device</h1>
+    <p class="sub">Record system audio and microphone together, see words appear as you speak, translate into 13 languages live, and generate meeting minutes with one click — all on-device. No account, no subscription, no paywall.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/Longt-audio/voxminutes/releases" target="_blank" rel="noopener">Free Download for Windows</a>
+      <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">View Source</a>
+    </div>
+    <img class="shot" src="../assets/hero.png" alt="VoxMinutes real-time transcription interface">
+    <div class="badges">
+      <span class="badge">100% Free</span>
+      <span class="badge">Open Source MIT</span>
+      <span class="badge">Fully Local</span>
+      <span class="badge">Privacy First</span>
+      <span class="badge">Windows</span>
+    </div>
+  </div>
+
+  <section id="features">
+    <h2 class="sec-title">Meetings, done right</h2>
+    <p class="sec-sub">Record once — transcription, translation and minutes, all automatic</p>
+    <div class="grid">
+      <div class="card"><img src="../assets/card-dual-channel.png" alt="Dual-channel recording"><div class="body"><h3>Dual-Channel Recording</h3><p>Captures system audio and microphone together — online calls and in-person talks, auto-mixed into one track.</p></div></div>
+      <div class="card"><img src="../assets/card-transcribe.png" alt="Real-time transcription"><div class="body"><h3>Real-Time Transcription</h3><p>X-ASR / SenseVoice dual-engine streaming transcription. Words appear as you speak, fully offline.</p></div></div>
+      <div class="card"><img src="../assets/card-translate.png" alt="Live translation"><div class="body"><h3>Live Translation into 13 Languages</h3><p>Translate cross-border meetings on the fly — no waiting for post-meeting cleanup.</p></div></div>
+      <div class="card"><img src="../assets/card-summary.png" alt="AI meeting minutes"><div class="body"><h3>One-Click Local AI Minutes</h3><p>After the meeting, one click generates topics, conclusions and action items with a local LLM.</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec-title">And more</h2>
+    <div class="feat-list">
+      <div class="feat"><div class="ic">🔍</div><h4>Searchable History</h4><p>Full-text search across all meetings</p></div>
+      <div class="feat"><div class="ic">📤</div><h4>Multi-format Export</h4><p>Export to TXT / SRT / Markdown</p></div>
+      <div class="feat"><div class="ic">🔒</div><h4>Privacy in Your Hands</h4><p>All data stays on your own device</p></div>
+      <div class="feat"><div class="ic">⚡</div><h4>Works Offline</h4><p>Fully offline once models are downloaded</p></div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="download">
+      <h2 class="sec-title">Let AI take your meeting notes</h2>
+      <p class="sec-sub">Free download. Models download via a first-launch wizard, with mirror fallback in China.</p>
+      <a class="btn" href="https://github.com/Longt-audio/voxminutes/releases" target="_blank" rel="noopener">Download VoxMinutes for Windows</a>
+      <p style="margin-top:18px;color:var(--muted);font-size:14px">Windows only for now · Mac / Linux planned</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>VoxMinutes — Free & open-source local meeting assistant · <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a></p>
+    <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
+  </footer>
+</div>
+</body>
+</html>
