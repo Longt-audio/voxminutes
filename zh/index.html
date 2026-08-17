@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxMinutes - 免费开源的本地会议助手 | 实时转写·翻译·AI纪要</title>
+<meta name="description" content="VoxMinutes 是 100% 免费、完全本地运行的 Windows 会议助手。系统声音+麦克风双路录制，实时语音转文字，翻译成13种语言，本地AI一键生成会议纪要。数据不出你的电脑，隐私完全由你掌控。">
+<meta name="keywords" content="会议助手,会议纪要,实时转写,语音转文字,实时翻译,本地AI,开源软件,免费软件,Windows,隐私,离线转写,meeting assistant,transcription">
+<link rel="alternate" hreflang="zh" href="https://longt-audio.github.io/voxminutes/zh/">
+<link rel="alternate" hreflang="en" href="https://longt-audio.github.io/voxminutes/en/">
+<link rel="alternate" hreflang="ko" href="https://longt-audio.github.io/voxminutes/ko/">
+<link rel="alternate" hreflang="ja" href="https://longt-audio.github.io/voxminutes/ja/">
+<link rel="alternate" hreflang="x-default" href="https://longt-audio.github.io/voxminutes/">
+<link rel="canonical" href="https://longt-audio.github.io/voxminutes/zh/">
+<meta property="og:title" content="VoxMinutes - 免费开源的本地会议助手 | 实时转写·翻译·AI纪要">
+<meta property="og:description" content="VoxMinutes 是 100% 免费、完全本地运行的 Windows 会议助手。系统声音+麦克风双路录制，实时语音转文字，翻译成13种语言，本地AI一键生成会议纪要。数据不出你的电脑，隐私完全由你掌控。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://longt-audio.github.io/voxminutes/zh/">
+<meta property="og:image" content="https://longt-audio.github.io/voxminutes/assets/hero.png">
+<link rel="icon" type="image/png" href="../assets/icon.png">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --bg:#0f1123; --card:#1a1a2e; --red:#e94560; --text:#eaeaea; --muted:#9aa0b4; --radius:14px; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans JP","Noto Sans KR",sans-serif; background:var(--bg); color:var(--text); line-height:1.7; }
+  .wrap { max-width:1000px; margin:0 auto; padding:0 24px; }
+  header { padding:28px 0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header img { width:40px; height:40px; border-radius:9px; }
+  header .name { font-size:20px; font-weight:600; }
+  header nav { margin-left:auto; display:flex; gap:22px; align-items:center; }
+  header nav a { color:var(--muted); text-decoration:none; font-size:15px; }
+  header nav a:hover { color:var(--text); }
+  .lang { display:flex; gap:8px; margin-left:14px; }
+  .lang a { font-size:13px; padding:4px 10px; border-radius:7px; border:1px solid #2a2a44; color:var(--muted); text-decoration:none; }
+  .lang a.on { background:var(--red); border-color:var(--red); color:#fff; }
+  .btn { display:inline-block; background:var(--red); color:#fff; padding:14px 30px; border-radius:10px; text-decoration:none; font-weight:600; font-size:16px; }
+  .btn.ghost { background:transparent; border:1.5px solid var(--red); color:var(--red); }
+  .hero { text-align:center; padding:56px 0 40px; }
+  .hero h1 { font-size:44px; line-height:1.25; margin-bottom:18px; }
+  .hero h1 .red { color:var(--red); }
+  .hero p.sub { font-size:19px; color:var(--muted); max-width:680px; margin:0 auto 30px; }
+  .hero .cta { display:flex; gap:16px; justify-content:center; margin-bottom:44px; flex-wrap:wrap; }
+  .hero img.shot { width:100%; border-radius:var(--radius); box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .badges { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px; }
+  .badge { background:var(--card); border:1px solid #2a2a44; color:var(--muted); font-size:13px; padding:6px 14px; border-radius:999px; }
+  section { padding:52px 0; }
+  .sec-title { font-size:30px; text-align:center; margin-bottom:8px; }
+  .sec-sub { text-align:center; color:var(--muted); margin-bottom:40px; max-width:640px; margin-left:auto; margin-right:auto; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:22px; }
+  .card { background:var(--card); border:1px solid #262640; border-radius:var(--radius); overflow:hidden; }
+  .card img { width:100%; display:block; }
+  .card .body { padding:20px 22px; }
+  .card h3 { font-size:18px; margin-bottom:6px; }
+  .card p { color:var(--muted); font-size:14.5px; }
+  .feat-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; }
+  .feat { background:var(--card); border:1px solid #262640; border-radius:12px; padding:20px; }
+  .feat .ic { font-size:22px; margin-bottom:8px; }
+  .feat h4 { font-size:16px; margin-bottom:4px; }
+  .feat p { color:var(--muted); font-size:14px; }
+  .download { text-align:center; background:var(--card); border-radius:var(--radius); padding:48px 24px; border:1px solid #2a2a44; }
+  footer { text-align:center; color:var(--muted); font-size:13.5px; padding:40px 0 56px; border-top:1px solid #22223a; margin-top:40px; }
+  footer a { color:var(--muted); }
+  @media (max-width:600px){ .hero h1{font-size:28px} .lang{margin-left:0} }
+
+  .lang-btn { font-size:13px; padding:4px 10px; border-radius:7px; border:1px solid #2a2a44; color:var(--muted); text-decoration:none; }
+  .lang-btn.on { background:var(--red); border-color:var(--red); color:#fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="../assets/icon.png" alt="VoxMinutes">
+    <span class="name">VoxMinutes</span>
+    <nav>
+      <a href="#features">功能</a>
+      <a href="#download">下载</a>
+      <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a>
+      <span class="lang"><a class="lang-btn on" href="../zh/">中文</a><a class="lang-btn" href="../en/">English</a><a class="lang-btn" href="../ko/">한국어</a><a class="lang-btn" href="../ja/">日本語</a></span>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>免费开源的<span class="red">本地会议助手</span><br>数据不出你的电脑</h1>
+    <p class="sub">系统声音 + 麦克风同时录制，说话即出文字，实时翻译成 13 种语言，本地 AI 一键生成会议纪要。无账号、无订阅、无付费墙。</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/Longt-audio/voxminutes/releases" target="_blank" rel="noopener">免费下载 Windows 版</a>
+      <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">查看源码</a>
+    </div>
+    <img class="shot" src="../assets/hero.png" alt="VoxMinutes 实时转写界面">
+    <div class="badges">
+      <span class="badge">100% 免费</span>
+      <span class="badge">开源 MIT</span>
+      <span class="badge">完全本地</span>
+      <span class="badge">隐私优先</span>
+      <span class="badge">Windows</span>
+    </div>
+  </div>
+
+  <section id="features">
+    <h2 class="sec-title">开会该有的样子</h2>
+    <p class="sec-sub">一次录制，转写、翻译、纪要全自动完成</p>
+    <div class="grid">
+      <div class="card"><img src="../assets/card-dual-channel.png" alt="双路录制"><div class="body"><h3>双路同时录制</h3><p>系统声音和麦克风一起录，线上会议、面对面讨论都不漏，自动混音成一条音轨。</p></div></div>
+      <div class="card"><img src="../assets/card-transcribe.png" alt="实时转写"><div class="body"><h3>实时语音转文字</h3><p>X-ASR / SenseVoice 双引擎流式转写，说话的同时文字就出来了，全程离线。</p></div></div>
+      <div class="card"><img src="../assets/card-translate.png" alt="实时翻译"><div class="body"><h3>实时翻译成 13 种语言</h3><p>跨国会议边说边翻，中文译文逐行跟在原文下方，不用等会后整理。</p></div></div>
+      <div class="card"><img src="../assets/card-summary.png" alt="AI会议纪要"><div class="body"><h3>本地 AI 一键生成纪要</h3><p>开完会点一下，本地大模型离线生成主题、结论、待办事项，一目了然。</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec-title">还有更多</h2>
+    <div class="feat-list">
+      <div class="feat"><div class="ic">🔍</div><h4>历史记录搜索</h4><p>所有会议可全文检索，随时回看</p></div>
+      <div class="feat"><div class="ic">📤</div><h4>多格式导出</h4><p>TXT / SRT / Markdown 一键导出</p></div>
+      <div class="feat"><div class="ic">🔒</div><h4>隐私完全掌控</h4><p>所有数据只存在你自己的电脑上</p></div>
+      <div class="feat"><div class="ic">⚡</div><h4>无需联网</h4><p>模型下载后全程离线可用</p></div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="download">
+      <h2 class="sec-title">现在开始，让 AI 帮你记会议</h2>
+      <p class="sec-sub">免费下载，模型首次启动按向导下载即可，国内自动回退可用镜像</p>
+      <a class="btn" href="https://github.com/Longt-audio/voxminutes/releases" target="_blank" rel="noopener">下载 VoxMinutes for Windows</a>
+      <p style="margin-top:18px;color:var(--muted);font-size:14px">目前仅支持 Windows · Mac / Linux 计划中</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>VoxMinutes — 免费开源的本地会议助手 · <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a></p>
+    <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
+  </footer>
+</div>
+</body>
+</html>
