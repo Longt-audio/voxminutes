@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://longt-audio.github.io/voxminutes/sitemap.xml
