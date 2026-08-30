@@ -158,7 +158,7 @@ fn collect_system_info() -> serde_json::Value {
         }
     };
     #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
-    let (cpu_features, has_avx512) = (Vec::new(), false);
+    let (cpu_features, has_avx512) = (Vec::<&'static str>::new(), false);
 
     serde_json::json!({
         "os": std::env::consts::OS,
