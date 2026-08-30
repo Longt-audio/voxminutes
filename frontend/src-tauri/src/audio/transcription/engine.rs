@@ -121,6 +121,12 @@ pub fn get_remote_asr_model() -> String {
     REMOTE_ASR_MODEL.lock().map(|m| m.clone()).unwrap_or_default()
 }
 
+/// 判断远程 ASR 模型是否为「流式」：模型 id 带 -realtime / -streaming 后缀。
+/// 与网关模型目录的 mode=streaming 约定一致。
+pub fn is_remote_asr_streaming_model(model_name: &str) -> bool {
+    model_name.ends_with("-realtime") || model_name.ends_with("-streaming")
+}
+
 pub fn get_remote_translate_model() -> String {
     REMOTE_TRANSLATE_MODEL.lock().map(|m| m.clone()).unwrap_or_default()
 }
@@ -441,35 +447,28 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
     if is_remote {
         let endpoint = get_remote_asr_endpoint();
         let model_name = get_remote_asr_model();
-        let is_streaming = config.model.contains("streaming");
+        let is_streaming = is_remote_asr_streaming_model(&model_name);
 
         if is_streaming {
-            info!("🦊 Initializing remote Qwen3-ASR STREAMING transcription engine at: {}", endpoint);
-        } else {
-            info!("🦊 Initializing remote Qwen3-ASR transcription engine at: {}", endpoint);
+            info!("🦊 Initializing remote STREAMING ASR engine at: {} model={}", endpoint, model_name);
+            let provider = super::remote_asr_streaming_provider::RemoteAsrStreamingProvider::new(
+                endpoint.clone(),
+                model_name.clone(),
+                crate::get_language_preference_internal().unwrap_or_else(|| "zh".to_string()),
+            );
+            // 流式 provider 在 run_streaming 里按需连 WS，这里只做一次健康探测
+            let _ = provider.is_model_loaded().await;
+            info!("✅ Remote streaming ASR provider ready");
+            return Ok(TranscriptionEngine::Provider(Arc::new(provider)));
         }
 
-        let provider = if is_streaming {
-            let chunk_context: Arc<std::sync::Mutex<Option<super::remote_asr_provider::ChunkContext>>> =
-                Arc::new(std::sync::Mutex::new(None));
-            let emitter = build_sse_emitter(app.clone(), chunk_context.clone());
-            RemoteAsrProvider::new_streaming(endpoint.clone(), model_name.clone(), emitter, chunk_context)
-        } else {
-            RemoteAsrProvider::new(endpoint.clone(), model_name.clone())
-        };
+        let provider = RemoteAsrProvider::new(endpoint.clone(), model_name.clone());
         provider.check_health().await;
         let detected_model = provider.detect_model_name().await;
 
         let provider = if !detected_model.is_empty() && detected_model != model_name {
             info!("🔄 Using detected model: {}", detected_model);
-            if is_streaming {
-                let chunk_context: Arc<std::sync::Mutex<Option<super::remote_asr_provider::ChunkContext>>> =
-                    Arc::new(std::sync::Mutex::new(None));
-                let emitter = build_sse_emitter(app.clone(), chunk_context.clone());
-                RemoteAsrProvider::new_streaming(endpoint, detected_model, emitter, chunk_context)
-            } else {
-                RemoteAsrProvider::new(endpoint, detected_model)
-            }
+            RemoteAsrProvider::new(endpoint, detected_model)
         } else {
             provider
         };
@@ -479,7 +478,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         // `is_model_loaded() == false` and skip every audio chunk.
         provider.check_health().await;
 
-        info!("✅ Remote Qwen3-ASR provider ready");
+        info!("✅ Remote ASR provider ready");
         return Ok(TranscriptionEngine::Provider(Arc::new(provider)));
     }
 
