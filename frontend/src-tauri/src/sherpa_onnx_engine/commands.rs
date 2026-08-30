@@ -75,8 +75,11 @@ fn find_model_subdir(base_dir: &Path, prefer_name: &str) -> Option<PathBuf> {
 }
 
 pub fn set_models_directory<R: Runtime>(app: &AppHandle<R>) {
-    // Prefer project-local models/ for development, then bundled resources, then app data dir
-    let models_dir = if let Some(local) = find_local_models_dir() {
+    // 优先级：用户自定义目录 > 项目本地 models/ > 打包资源 > app data
+    let models_dir = if let Some(custom) = load_custom_models_dir() {
+        log::info!("Using custom models directory: {}", custom.display());
+        custom
+    } else if let Some(local) = find_local_models_dir() {
         log::info!("Using local models directory: {}", local.display());
         local
     } else if let Ok(resource_dir) = app.path().resource_dir() {
@@ -103,6 +106,50 @@ pub fn set_models_directory<R: Runtime>(app: &AppHandle<R>) {
     // (sherpa-onnx cannot open non-ASCII model paths on Windows).
     let models_dir = crate::bundle_paths::stage_models_dir_for_native(&models_dir);
     *MODELS_DIR.lock().unwrap() = Some(models_dir);
+}
+
+/// 自定义模型目录持久化文件（config_dir/voxminutes/models_dir.json）。
+fn custom_models_dir_path() -> Option<PathBuf> {
+    let mut path = dirs::config_dir()?;
+    path.push("voxminutes");
+    path.push("models_dir.json");
+    Some(path)
+}
+
+fn load_custom_models_dir() -> Option<PathBuf> {
+    let path = custom_models_dir_path()?;
+    let content = std::fs::read_to_string(&path).ok()?;
+    let dir: String = serde_json::from_str(&content).ok()?;
+    if dir.trim().is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(dir))
+    }
+}
+
+fn save_custom_models_dir(dir: &str) -> Result<(), String> {
+    let path = custom_models_dir_path().ok_or_else(|| "无法确定配置目录".to_string())?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建配置目录失败: {}", e))?;
+    }
+    let json = serde_json::to_string(dir).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| format!("写入失败: {}", e))
+}
+
+/// 用户修改模型目录（设置页/引导调用）：保存并立即生效，返回生效后的路径。
+#[tauri::command]
+pub fn set_models_directory_custom(dir: String) -> Result<String, String> {
+    let dir = dir.trim().to_string();
+    if dir.is_empty() {
+        return Err("模型目录不能为空".to_string());
+    }
+    let path = PathBuf::from(&dir);
+    std::fs::create_dir_all(&path).map_err(|e| format!("创建目录失败: {}", e))?;
+    save_custom_models_dir(&dir)?;
+    let staged = crate::bundle_paths::stage_models_dir_for_native(&path);
+    *MODELS_DIR.lock().unwrap() = Some(staged);
+    log::info!("自定义模型目录已更新: {}", dir);
+    Ok(dir)
 }
 
 fn get_models_dir() -> PathBuf {
