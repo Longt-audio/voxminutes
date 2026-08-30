@@ -367,6 +367,10 @@ export interface RemoteModelItem {
   kind: 'asr' | 'translate' | 'tts'
   price?: number
   price_unit?: string
+  /** 流式(streaming) / 非流式(batch) */
+  mode?: 'streaming' | 'batch'
+  /** 调用协议/端点 */
+  protocol?: string
 }
 
 /** 网关 /v1/models 全量列表（供模型选择器下拉） */

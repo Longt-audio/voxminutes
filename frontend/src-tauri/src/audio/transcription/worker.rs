@@ -79,6 +79,20 @@ pub fn start_transcription_task<R: Runtime>(
             error!("X-ASR provider downcast failed — falling back to chunk mode (will fail)");
         }
 
+        // ── 远程流式 ASR branch（真·实时，走网关 WebSocket） ──
+        if engine_name == "Remote ASR Streaming" {
+            info!("🌐 远程流式 ASR detected — entering streaming mode");
+            super::remote_asr_streaming_provider::reset_remote_stream_sequence();
+            if let TranscriptionEngine::Provider(provider_arc) = &transcription_engine {
+                if let Some(remote_stream) = provider_arc.as_any().downcast_ref::<super::remote_asr_streaming_provider::RemoteAsrStreamingProvider>() {
+                    remote_stream.run_streaming(transcription_receiver, app).await;
+                    info!("🌐 远程流式 ASR streaming task completed");
+                    return;
+                }
+            }
+            error!("远程流式 ASR provider downcast failed — falling back to chunk mode (will fail)");
+        }
+
         // Single worker mode for ordered emission
         const NUM_WORKERS: usize = 1;
         let (work_sender, work_receiver) = tokio::sync::mpsc::unbounded_channel::<AudioChunk>();

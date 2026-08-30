@@ -180,6 +180,7 @@ export function RemoteAsrSection() {
                         <SelectItem key={m.id} value={m.id} className="text-xs">
                           {m.owned_by} / {m.id}
                           <span className="ml-1 text-muted-foreground/70">
+                            {m.mode === 'streaming' ? '· 流式' : ''}
                             {formatModelPrice(m)}
                           </span>
                         </SelectItem>

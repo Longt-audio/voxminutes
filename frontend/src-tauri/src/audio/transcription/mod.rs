@@ -5,6 +5,7 @@
 pub mod provider;
 pub mod sherpa_onnx_provider;
 pub mod remote_asr_provider;
+pub mod remote_asr_streaming_provider;
 pub mod x_asr_provider;
 pub mod engine;
 pub mod worker;
@@ -32,6 +33,7 @@ pub use engine::{
     load_remote_asr_config_from_disk,
 };
 pub use remote_asr_provider::{check_remote_asr_health, ChunkContext};
+pub use remote_asr_streaming_provider::RemoteAsrStreamingProvider;
 pub use worker::{
     start_transcription_task,
     reset_speech_detected_flag,
