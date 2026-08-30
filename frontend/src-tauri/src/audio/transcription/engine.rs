@@ -350,25 +350,25 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
         if endpoint.is_empty() {
             return Err("Remote ASR endpoint not configured. Please set the remote ASR URL in Settings.".to_string());
         }
-        let is_streaming = config.model.contains("streaming");
+        let model_name = get_remote_asr_model();
+        let is_streaming = is_remote_asr_streaming_model(&model_name);
         if is_streaming {
-            info!("🔍 Validating remote Qwen3-ASR (streaming) at: {}", endpoint);
+            info!("🔍 Validating remote STREAMING ASR at: {} model={}", endpoint, model_name);
         } else {
-            info!("🔍 Validating remote Qwen3-ASR at: {}", endpoint);
+            info!("🔍 Validating remote ASR at: {} model={}", endpoint, model_name);
         }
-        let provider = if is_streaming {
-            // No-op callback for validation (no partial emissions needed)
-            let noop_emitter: Arc<dyn Fn(&str, bool) + Send + Sync> = Arc::new(|_, _| {});
-            let chunk_context: Arc<std::sync::Mutex<Option<super::remote_asr_provider::ChunkContext>>> =
-                Arc::new(std::sync::Mutex::new(None));
-            RemoteAsrProvider::new_streaming(endpoint.clone(), get_remote_asr_model(), noop_emitter, chunk_context)
+        // 流式只校验网关健康（真正连接在 run_streaming 里建立）；非流式校验完整健康
+        if is_streaming {
+            if !super::remote_asr_provider::check_remote_asr_health(&endpoint).await {
+                return Err(format!("Cannot connect to remote ASR at {}. Please check the server is running.", endpoint));
+            }
         } else {
-            RemoteAsrProvider::new(endpoint.clone(), get_remote_asr_model())
-        };
-        if !provider.check_health().await {
-            return Err(format!("Cannot connect to remote ASR at {}. Please check the server is running.", endpoint));
+            let provider = RemoteAsrProvider::new(endpoint.clone(), model_name);
+            if !provider.check_health().await {
+                return Err(format!("Cannot connect to remote ASR at {}. Please check the server is running.", endpoint));
+            }
         }
-        info!("✅ Remote Qwen3-ASR ready");
+        info!("✅ Remote ASR ready");
         return Ok(());
     }
 
