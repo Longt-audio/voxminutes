@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/state'
-import { listAudioDevices, getDownloadableModels, getDefaultAudioDevices, openSystemSoundSettings, setTranslationEnabled as ipcSetTranslationEnabled, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationEngine as ipcSetTranslationEngine } from '@/services/ipc'
+import { listAudioDevices, getDownloadableModels, getDefaultAudioDevices, openSystemSoundSettings, setTranslationEnabled as ipcSetTranslationEnabled, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationEngine as ipcSetTranslationEngine, getRemoteEnabled } from '@/services/ipc'
 import { cn } from '@/lib/utils'
 import { Check, ExternalLink, Mic, MonitorSpeaker } from 'lucide-react'
 import { useMessages } from '@/i18n/useMessages'
@@ -60,11 +60,18 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
   const [devices, setDevices] = useState<AudioDevice[]>([])
   const [defaults, setDefaults] = useState<DefaultDevicesInfo>({ microphone: null, speaker: null })
   const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
+  const [remoteEnabled, setRemoteEnabled] = useState(false)
 
   useEffect(() => {
     getDownloadableModels()
       .then(setTranslationModels)
       .catch(() => setTranslationModels([]))
+  }, [])
+
+  useEffect(() => {
+    getRemoteEnabled()
+      .then(setRemoteEnabled)
+      .catch(() => setRemoteEnabled(false))
   }, [])
 
   const translationEngines = translationModels === null
@@ -191,6 +198,26 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
                   </button>
                 )
               })}
+              {remoteEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setModelName('remote')}
+                  className={cn(
+                    'relative text-left rounded-lg border p-3 transition-all',
+                    modelName === 'remote'
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'border-border/60 bg-card/50 hover:border-primary/30'
+                  )}
+                >
+                  {modelName === 'remote' && (
+                    <span className="absolute top-2 right-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <Check className="h-2.5 w-2.5" />
+                    </span>
+                  )}
+                  <div className="text-sm font-semibold">{t.recRemoteModel}</div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">{t.recRemoteModelDesc}</div>
+                </button>
+              )}
             </div>
           </section>
 
@@ -273,6 +300,7 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
                   >
                     {translationEngines.includes('opus') && <option value="opus">{t.recEngineOpus}</option>}
                     {translationEngines.includes('hymt2') && <option value="hymt2">{t.recEngineHymt2}</option>}
+                    {remoteEnabled && <option value="remote">{t.recEngineRemote}</option>}
                   </select>
                 </label>
               )}

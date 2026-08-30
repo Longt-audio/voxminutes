@@ -6,7 +6,7 @@ import { ArrowLeftRight, Copy, Check, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { Button } from '@/components/ui/button'
-import { translateText, getTranslationEngine, setTranslationEngine as ipcSetTranslationEngine, getTranslationTargetLang, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationHomeLang, onTranslateTextStream, getDownloadableModels } from '@/services/ipc'
+import { translateText, getTranslationEngine, setTranslationEngine as ipcSetTranslationEngine, getTranslationTargetLang, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationHomeLang, onTranslateTextStream, getDownloadableModels, getRemoteEnabled } from '@/services/ipc'
 import { useTranslatePageStore } from '@/stores/translatePageStore'
 import { useLanguageStore } from '@/stores/languageStore'
 import { useMessages } from '@/i18n/useMessages'
@@ -40,11 +40,15 @@ export default function TranslatePage() {
   const [modelMissing, setModelMissing] = useState(false)
   const [engine, setEngine] = useState<TranslationEngine>('opus')
   const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
+  const [remoteEnabled, setRemoteEnabled] = useState(false)
 
   useEffect(() => {
     getDownloadableModels()
       .then(setTranslationModels)
       .catch(() => setTranslationModels([]))
+    getRemoteEnabled()
+      .then(setRemoteEnabled)
+      .catch(() => setRemoteEnabled(false))
   }, [])
 
   const translationEngines = translationModels === null
@@ -236,6 +240,7 @@ export default function TranslatePage() {
         >
           {translationEngines.includes('opus') && <option value="opus">{t.trEngineOpus}</option>}
           {translationEngines.includes('hymt2') && <option value="hymt2">{t.trEngineHymt2}</option>}
+          {remoteEnabled && <option value="remote">{t.recEngineRemote}</option>}
         </select>
 
         <div className="flex-1" />

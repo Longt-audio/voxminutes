@@ -21,6 +21,9 @@ export interface RecorderMessages {
   recTranslateEngine: string
   recEngineOpus: string
   recEngineHymt2: string
+  recEngineRemote: string
+  recRemoteModel: string
+  recRemoteModelDesc: string
   recModelXAsr: string
   recModelSenseVoice: string
   recNoModel: string
@@ -95,6 +98,9 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslateEngine: 'Engine',
     recEngineOpus: 'OPUS-MT (fast)',
     recEngineHymt2: 'Hy-MT2 (high quality)',
+    recEngineRemote: 'Remote',
+    recRemoteModel: 'Remote ASR',
+    recRemoteModelDesc: 'Cloud ASR via the remote gateway',
     recModelXAsr: 'X-ASR Streaming (ZH/EN)',
     recModelSenseVoice: 'SenseVoice Multilingual',
     recNoModel: 'Not selected',
@@ -167,6 +173,9 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslateEngine: '翻译引擎',
     recEngineOpus: 'OPUS-MT（快速）',
     recEngineHymt2: 'Hy-MT2（高质量）',
+    recEngineRemote: '远程',
+    recRemoteModel: '远程 ASR',
+    recRemoteModelDesc: '走远程网关的高精度 ASR',
     recModelXAsr: 'X-ASR 流式（中英）',
     recModelSenseVoice: 'SenseVoice 多语言',
     recNoModel: '未选择',
@@ -239,6 +248,9 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslateEngine: '번역 엔진',
     recEngineOpus: 'OPUS-MT (빠름)',
     recEngineHymt2: 'Hy-MT2 (고품질)',
+    recEngineRemote: '원격',
+    recRemoteModel: '원격 ASR',
+    recRemoteModelDesc: '원격 게이트웨이의 고정밀 ASR',
     recModelXAsr: 'X-ASR 스트리밍(중/영)',
     recModelSenseVoice: 'SenseVoice 다국어',
     recNoModel: '선택되지 않음',
@@ -311,6 +323,9 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslateEngine: '翻訳エンジン',
     recEngineOpus: 'OPUS-MT（高速）',
     recEngineHymt2: 'Hy-MT2（高品質）',
+    recEngineRemote: 'リモート',
+    recRemoteModel: 'リモート ASR',
+    recRemoteModelDesc: 'リモートゲートウェイの高精度 ASR',
     recModelXAsr: 'X-ASR ストリーミング(中/英)',
     recModelSenseVoice: 'SenseVoice 多言語',
     recNoModel: '未選択',

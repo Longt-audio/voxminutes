@@ -136,7 +136,7 @@ pub async fn set_translation_engine(
     state: tauri::State<'_, AppState>,
     engine: String,
 ) -> Result<(), String> {
-    if !matches!(engine.as_str(), "opus" | "hymt2") {
+    if !matches!(engine.as_str(), "opus" | "hymt2" | "remote") {
         return Err(format!("不支持的翻译引擎: {}", engine));
     }
     log::info!("Translation engine: {}", engine);
