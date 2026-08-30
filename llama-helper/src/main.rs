@@ -259,10 +259,6 @@ impl ModelState {
             .store(Self::current_timestamp(), Ordering::SeqCst);
     }
 
-    fn seconds_since_activity(&self) -> u64 {
-        Self::current_timestamp() - self.last_activity.load(Ordering::SeqCst)
-    }
-
     fn load_model_if_needed(&mut self, model_path: PathBuf, context_size: u32) -> Result<()> {
         // Check if model is already loaded
         if let Some(ref loaded_path) = self.model_path {
@@ -561,11 +557,11 @@ fn send_response(response: &Response) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    // Get idle timeout from environment variable (default 30 minutes)
+    // Get idle timeout from environment variable (default 60 seconds)
     let idle_timeout_secs = std::env::var("LLAMA_IDLE_TIMEOUT")
         .ok()
         .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(1800); // 30 minutes default
+        .unwrap_or(60); // 60 seconds default
 
     eprintln!(
         "🦙 llama-helper starting (idle timeout: {}s)",
@@ -574,18 +570,26 @@ fn main() -> Result<()> {
 
     let mut state = ModelState::new()?;
 
+    // Idle watchdog: the stdin read below blocks indefinitely, so a separate
+    // thread checks the idle timeout and exits the process (freeing the model)
+    // once no request has arrived for `idle_timeout_secs`.
+    let watchdog_activity = state.last_activity.clone();
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            let idle = ModelState::current_timestamp() - watchdog_activity.load(Ordering::SeqCst);
+            if idle > idle_timeout_secs {
+                eprintln!("💤 Idle timeout reached, shutting down");
+                std::process::exit(0);
+            }
+        }
+    });
+
     let stdin = io::stdin();
     let mut stdin_lock = stdin.lock();
     let mut buffer = String::new();
 
     loop {
-        // Check idle timeout
-        if state.seconds_since_activity() > idle_timeout_secs {
-            eprintln!("💤 Idle timeout reached, shutting down");
-            send_response(&Response::Goodbye)?;
-            break;
-        }
-
         // Read line from stdin
         buffer.clear();
         match stdin_lock.read_line(&mut buffer) {
