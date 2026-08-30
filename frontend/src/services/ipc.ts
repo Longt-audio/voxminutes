@@ -135,6 +135,11 @@ export async function sherpaOnnxGetModelsDirectory(): Promise<string> {
   return invoke<string>('sherpa_onnx_get_models_directory')
 }
 
+/** 修改模型存放目录，立即生效并返回生效路径。 */
+export async function setModelsDirectoryCustom(dir: string): Promise<string> {
+  return invoke<string>('set_models_directory_custom', { dir })
+}
+
 // ── 模型下载 ──────────────────────────────────────────────────────────────────
 
 export async function getDownloadableModels(): Promise<DownloadableModelInfo[]> {

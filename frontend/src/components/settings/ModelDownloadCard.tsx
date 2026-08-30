@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { open } from '@tauri-apps/plugin-dialog'
 import {
   sherpaOnnxGetModelsDirectory,
   deleteModel,
   clearAllModelBackends,
+  setModelsDirectoryCustom,
 } from '@/services/ipc'
 import type { DownloadableModelInfo } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -59,6 +61,21 @@ export function ModelDownloadCard() {
       toast.success(t.setMemoryCleared)
     } catch (e) {
       toast.error(t.setClearFailed.replace('{error}', String(e)))
+    }
+  }
+
+  const handleChangeModelsDir = async () => {
+    try {
+      const selected = await open({ directory: true, title: t.setModelDir })
+      if (!selected) return
+      const dir = typeof selected === 'string' ? selected : selected?.[0]
+      if (!dir) return
+      const effective = await setModelsDirectoryCustom(dir)
+      setModelsDir(effective)
+      toast.success(t.setModelDirChanged)
+      refresh()
+    } catch (e) {
+      toast.error(t.setModelDirChangeFailed.replace('{error}', String(e)))
     }
   }
 
@@ -167,7 +184,12 @@ export function ModelDownloadCard() {
       {/* 模型目录 */}
       <div className="flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">{t.setModelDir}</span>
-        <Input readOnly value={modelsDir} placeholder={t.comLoading} />
+        <div className="flex items-center gap-2">
+          <Input readOnly className="flex-1 min-w-0" value={modelsDir} placeholder={t.comLoading} />
+          <Button variant="outline" size="sm" className="shrink-0" onClick={handleChangeModelsDir}>
+            {t.setModelDirChange}
+          </Button>
+        </div>
         <span className="text-xs text-muted-foreground/70">{t.setModelDirHint}</span>
       </div>
 

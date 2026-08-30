@@ -13,6 +13,9 @@ export interface SettingsMessages {
   setGroupSummary: string
   setModelDir: string
   setModelDirHint: string
+  setModelDirChange: string
+  setModelDirChanged: string
+  setModelDirChangeFailed: string
   setClearMemory: string
   setClearMemoryHint: string
   setMemoryCleared: string
@@ -127,6 +130,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setGroupSummary: "Summary models",
     setModelDir: "Model directory",
     setModelDirHint: "Where model files are stored",
+    setModelDirChange: "Change",
+    setModelDirChanged: "Model directory updated",
+    setModelDirChangeFailed: "Failed to change directory: {error}",
     setClearMemory: "Clear model memory",
     setClearMemoryHint: "Release all loaded AI models (ASR / translation / summary); they reload on next use.",
     setMemoryCleared: "Model memory cleared",
@@ -239,6 +245,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setGroupSummary: "总结模型",
     setModelDir: "模型目录",
     setModelDirHint: "模型文件存放位置",
+    setModelDirChange: "更改",
+    setModelDirChanged: "模型目录已更新",
+    setModelDirChangeFailed: "更改目录失败：{error}",
     setClearMemory: "清除模型内存",
     setClearMemoryHint: "释放所有已加载的 AI 模型（ASR / 翻译 / 总结），下次使用会重新加载。",
     setMemoryCleared: "模型内存已清除",
@@ -351,6 +360,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setGroupSummary: "요약 모델",
     setModelDir: "모델 디렉터리",
     setModelDirHint: "모델 파일이 저장되는 위치",
+    setModelDirChange: "변경",
+    setModelDirChanged: "모델 디렉터리가 업데이트되었습니다",
+    setModelDirChangeFailed: "디렉터리 변경 실패: {error}",
     setClearMemory: "모델 메모리 비우기",
     setClearMemoryHint: "로드된 모든 AI 모델(ASR/번역/요약)을 해제하며, 다음 사용 시 다시 로드됩니다.",
     setMemoryCleared: "모델 메모리가 비워졌습니다",
@@ -463,6 +475,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setGroupSummary: "要約モデル",
     setModelDir: "モデルディレクトリ",
     setModelDirHint: "モデルファイルの保存場所",
+    setModelDirChange: "変更",
+    setModelDirChanged: "モデルディレクトリを更新しました",
+    setModelDirChangeFailed: "ディレクトリ変更に失敗: {error}",
     setClearMemory: "モデルメモリを解放",
     setClearMemoryHint: "ロード中のすべての AI モデル（ASR/翻訳/要約）を解放します。次回利用時に再ロードされます。",
     setMemoryCleared: "モデルメモリを解放しました",

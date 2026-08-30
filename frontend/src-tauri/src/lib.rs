@@ -871,6 +871,7 @@ pub fn run() {
             sherpa_onnx_engine::commands::sherpa_onnx_is_model_loaded,
             sherpa_onnx_engine::commands::sherpa_onnx_get_current_model,
             sherpa_onnx_engine::commands::sherpa_onnx_get_models_directory,
+            sherpa_onnx_engine::commands::set_models_directory_custom,
             model_download::get_downloadable_models,
             model_download::download_model,
             model_download::cancel_model_download,
