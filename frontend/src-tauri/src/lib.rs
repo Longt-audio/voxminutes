@@ -648,6 +648,19 @@ async fn list_remote_models() -> Result<serde_json::Value, String> {
     Ok(json.get("data").cloned().unwrap_or_else(|| serde_json::json!([])))
 }
 
+/// 一键清除所有模型后台，释放内存：
+/// - ASR（sherpa-onnx：SenseVoice / X-ASR）
+/// - 翻译（OPUS-MT 引擎）
+/// - Hy-MT2 翻译 + 会议总结（llama-helper sidecar，直接 kill 释放 GGUF 模型）
+#[tauri::command]
+fn clear_all_model_backends() -> Result<(), String> {
+    sherpa_onnx_engine::commands::unload_all_engines();
+    translation::unload_opus_engines();
+    llama_sidecar::kill_helper();
+    log_info!("All model backends cleared");
+    Ok(())
+}
+
 // Internal helper function to get language preference (for use within Rust code)
 pub fn get_language_preference_internal() -> Option<String> {
     LANGUAGE_PREFERENCE.lock().ok().map(|lang| lang.clone())
@@ -942,6 +955,7 @@ pub fn run() {
             get_remote_enabled,
             get_remote_models,
             list_remote_models,
+            clear_all_model_backends,
             remote_messages::fetch_remote_messages,
             notifications::commands::get_notification_settings,
             notifications::commands::set_notification_settings,

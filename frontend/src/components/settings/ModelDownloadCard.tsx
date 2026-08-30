@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import {
   sherpaOnnxGetModelsDirectory,
   deleteModel,
+  clearAllModelBackends,
 } from '@/services/ipc'
 import type { DownloadableModelInfo } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -48,6 +49,15 @@ export function ModelDownloadCard() {
       toast.error(t.setDeleteFailed.replace('{error}', String(e)))
     } finally {
       refresh()
+    }
+  }
+
+  const handleClearMemory = async () => {
+    try {
+      await clearAllModelBackends()
+      toast.success(t.setMemoryCleared)
+    } catch (e) {
+      toast.error(t.setClearFailed.replace('{error}', String(e)))
     }
   }
 
@@ -155,6 +165,14 @@ export function ModelDownloadCard() {
         <span className="text-xs text-muted-foreground">{t.setModelDir}</span>
         <Input readOnly value={modelsDir} placeholder={t.comLoading} />
         <span className="text-xs text-muted-foreground/70">{t.setModelDirHint}</span>
+      </div>
+
+      {/* 一键清除模型内存 */}
+      <div className="mt-3 flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={handleClearMemory}>
+          {t.setClearMemory}
+        </Button>
+        <span className="text-xs text-muted-foreground">{t.setClearMemoryHint}</span>
       </div>
 
       {/* 可下载模型列表（按类别分组） */}

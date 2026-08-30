@@ -15,6 +15,23 @@ static LOADED_MODEL_NAME: Mutex<Option<String>> = Mutex::new(None);
 /// change forces a reload).
 static LOADED_LANGUAGE: Mutex<Option<String>> = Mutex::new(None);
 
+/// 卸载所有 sherpa-onnx 引擎（SenseVoice + X-ASR），释放内存。
+/// 同时清空加载状态，使下次加载重新初始化。
+pub fn unload_all_engines() {
+    if let Ok(mut e) = SHERPA_ONNX_ENGINE.lock() {
+        *e = None;
+    }
+    if let Ok(mut e) = XASR_ONLINE_ENGINE.lock() {
+        *e = None;
+    }
+    if let Ok(mut n) = LOADED_MODEL_NAME.lock() {
+        *n = None;
+    }
+    if let Ok(mut l) = LOADED_LANGUAGE.lock() {
+        *l = None;
+    }
+}
+
 /// Try to find project-local models directory (for development).
 /// From CWD (typically frontend/), walk up to project root and look for models/.
 fn find_local_models_dir() -> Option<PathBuf> {
