@@ -55,6 +55,7 @@ pub mod state;
 pub mod summary;
 pub mod translation;
 pub mod tray;
+pub mod subtitle_overlay;
 
 pub mod bundle_paths;
 pub mod utils;
@@ -225,6 +226,7 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
         Ok(_) => {
             RECORDING_FLAG.store(false, Ordering::SeqCst);
             tray::update_tray_menu(&app);
+            subtitle_overlay::clear_subtitle_segments_internal();
 
             if let Some(parent) = std::path::Path::new(&args.save_path).parent() {
                 if !parent.exists() {
@@ -820,11 +822,28 @@ pub fn run() {
                 }
             }
 
+            // 恢复字幕悬浮窗的可见状态
+            {
+                let app_for_subtitle = _app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    subtitle_overlay::restore_subtitle_overlay_on_startup(&app_for_subtitle).await;
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             focus_main_window,
             start_window_drag,
+            subtitle_overlay::push_subtitle_segment,
+            subtitle_overlay::push_subtitle_translation,
+            subtitle_overlay::get_subtitle_segments,
+            subtitle_overlay::clear_subtitle_segments,
+            subtitle_overlay::show_subtitle_window,
+            subtitle_overlay::hide_subtitle_window,
+            subtitle_overlay::toggle_subtitle_window,
+            subtitle_overlay::get_subtitle_window_state,
+            subtitle_overlay::start_subtitle_drag,
             start_recording,
             stop_recording,
             is_recording,
