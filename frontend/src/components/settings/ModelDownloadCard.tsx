@@ -31,6 +31,7 @@ export function ModelDownloadCard() {
     startDownload,
     cancelDownload,
     importModel,
+    importModelFolder,
     isModelBusy,
   } = useModelDownload()
 
@@ -103,6 +104,9 @@ export function ModelDownloadCard() {
               {/* 不同模型可并行下载/导入；仅同一模型互斥（后端校验） */}
               <Button variant="outline" size="sm" onClick={() => importModel(m.id)}>
                 {t.setImport}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => importModelFolder(m.id)}>
+                {t.setImportFolder}
               </Button>
               <Button size="sm" onClick={() => startDownload(m.id)}>
                 {t.comDownload}

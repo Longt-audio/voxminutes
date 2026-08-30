@@ -28,6 +28,7 @@ export interface SettingsMessages {
   setDownloadDone: string
   setDownloadFailed: string
   setImport: string
+  setImportFolder: string
   setImportDone: string
   setImportFailed: string
   setLinks: string
@@ -141,6 +142,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setDownloadDone: "Model downloaded",
     setDownloadFailed: "Model download failed",
     setImport: "Import",
+    setImportFolder: "Import folder",
     setImportDone: "Model imported",
     setImportFailed: "Model import failed: {error}",
     setLinks: "Links",
@@ -252,6 +254,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setDownloadDone: "模型下载完成",
     setDownloadFailed: "模型下载失败",
     setImport: "导入",
+    setImportFolder: "导入文件夹",
     setImportDone: "模型导入完成",
     setImportFailed: "模型导入失败：{error}",
     setLinks: "链接",
@@ -363,6 +366,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setDownloadDone: "모델 다운로드가 완료되었습니다",
     setDownloadFailed: "모델 다운로드에 실패했습니다",
     setImport: "가져오기",
+    setImportFolder: "폴더 가져오기",
     setImportDone: "모델을 가져왔습니다",
     setImportFailed: "모델 가져오기 실패: {error}",
     setLinks: "링크",
@@ -474,6 +478,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setDownloadDone: "モデルのダウンロードが完了しました",
     setDownloadFailed: "モデルのダウンロードに失敗しました",
     setImport: "インポート",
+    setImportFolder: "フォルダをインポート",
     setImportDone: "モデルをインポートしました",
     setImportFailed: "モデルのインポートに失敗しました: {error}",
     setLinks: "リンク",

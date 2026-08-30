@@ -876,6 +876,7 @@ pub fn run() {
             model_download::cancel_model_download,
             model_download::delete_model,
             model_download::import_model_file,
+            model_download::import_model_folder,
             model_download::summary_local_models,
             get_audio_devices,
             get_default_audio_devices,
