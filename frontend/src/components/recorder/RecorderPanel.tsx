@@ -9,6 +9,7 @@ import { useAudioLevel } from '@/hooks/useAudioLevel'
 import {
   sherpaOnnxGetModels,
   onModelDownloadProgress,
+  getDownloadableModels,
   getDefaultAudioDevices,
   apiGetTranscriptConfig,
   setMicMute as ipcSetMicMute,
@@ -29,7 +30,8 @@ import { RecordingSetupDialog, type RecordingSetup } from './RecordingSetupDialo
 import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
-import type { ModelInfo, TranslationEngine } from '@/types'
+import { availableTranslationEngines } from '@/lib/translationEngines'
+import type { ModelInfo, TranslationEngine, DownloadableModelInfo } from '@/types'
 
 function formatDuration(totalSeconds: number): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -138,7 +140,19 @@ export function RecorderControls() {
 
   const [setupOpen, setSetupOpen] = useState(false)
   const [subtitleVisible, setSubtitleVisible] = useState(false)
+  const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
   const home = useLanguageStore((s) => s.language)
+
+  useEffect(() => {
+    getDownloadableModels()
+      .then(setTranslationModels)
+      .catch(() => setTranslationModels([]))
+  }, [])
+
+  // 未加载完成时先显示全部引擎，加载后按已下载过滤
+  const translationEngines = translationModels === null
+    ? (['opus', 'hymt2'] as const)
+    : availableTranslationEngines(translationModels)
 
   const handleSubtitleToggle = async () => {
     const next = !subtitleVisible
@@ -278,8 +292,8 @@ export function RecorderControls() {
                 onChange={(e) => handleEngineChange(e.target.value as TranslationEngine)}
                 title={t.recTranslateEngine}
               >
-                <option value="opus">{t.recEngineOpus}</option>
-                <option value="hymt2">{t.recEngineHymt2}</option>
+                {translationEngines.includes('opus') && <option value="opus">{t.recEngineOpus}</option>}
+                {translationEngines.includes('hymt2') && <option value="hymt2">{t.recEngineHymt2}</option>}
               </select>
             </>
           )}

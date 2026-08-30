@@ -10,13 +10,14 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/state'
-import { listAudioDevices, getDefaultAudioDevices, openSystemSoundSettings, setTranslationEnabled as ipcSetTranslationEnabled, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationEngine as ipcSetTranslationEngine } from '@/services/ipc'
+import { listAudioDevices, getDownloadableModels, getDefaultAudioDevices, openSystemSoundSettings, setTranslationEnabled as ipcSetTranslationEnabled, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationEngine as ipcSetTranslationEngine } from '@/services/ipc'
 import { cn } from '@/lib/utils'
 import { Check, ExternalLink, Mic, MonitorSpeaker } from 'lucide-react'
 import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
-import type { AudioDevice, DefaultDevicesInfo, TranslationEngine } from '@/types'
+import { availableTranslationEngines } from '@/lib/translationEngines'
+import type { AudioDevice, DefaultDevicesInfo, TranslationEngine, DownloadableModelInfo } from '@/types'
 
 export interface RecordingSetup {
   modelName: string
@@ -58,6 +59,17 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
   const [language, setLanguage] = useState('auto')
   const [devices, setDevices] = useState<AudioDevice[]>([])
   const [defaults, setDefaults] = useState<DefaultDevicesInfo>({ microphone: null, speaker: null })
+  const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
+
+  useEffect(() => {
+    getDownloadableModels()
+      .then(setTranslationModels)
+      .catch(() => setTranslationModels([]))
+  }, [])
+
+  const translationEngines = translationModels === null
+    ? (['opus', 'hymt2'] as const)
+    : availableTranslationEngines(translationModels)
 
   const localModels = useMemo(() => models.filter((m) => !m.hidden && !m.is_remote), [models])
   const micOptions = useMemo(() => devices.filter((d) => d.device_type === 'Input'), [devices])
@@ -259,8 +271,8 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
                     value={translationEngine}
                     onChange={(e) => handleEngineChange(e.target.value as TranslationEngine)}
                   >
-                    <option value="opus">{t.recEngineOpus}</option>
-                    <option value="hymt2">{t.recEngineHymt2}</option>
+                    {translationEngines.includes('opus') && <option value="opus">{t.recEngineOpus}</option>}
+                    {translationEngines.includes('hymt2') && <option value="hymt2">{t.recEngineHymt2}</option>}
                   </select>
                 </label>
               )}
