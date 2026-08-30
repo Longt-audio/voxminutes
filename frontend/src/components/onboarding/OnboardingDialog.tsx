@@ -211,19 +211,38 @@ export function OnboardingDialog() {
             </ul>
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-muted-foreground/70">{stepIndicator}</span>
-              <Button onClick={() => setStep(1)}>{t.onbStart}</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={finish}>{t.onbUseRemote}</Button>
+                <Button onClick={() => setStep(1)}>{t.onbStart}</Button>
+              </div>
             </div>
           </>
         )}
 
-        {/* 步骤 1：ASR 模型（必装一个） */}
+        {/* 步骤 1：所有模型同页（ASR 必装 + 翻译/总结可选，可并行下载） */}
         {step === 1 && (
           <>
             <DialogHeader>
               <DialogTitle>{t.onbStepAsrTitle}</DialogTitle>
               <DialogDescription>{t.onbStepAsrDesc}</DialogDescription>
             </DialogHeader>
-            <div className="flex flex-col gap-3">{ASR_OPTIONS.map((ids) => renderOption(ids))}</div>
+            <div className="flex max-h-[48vh] flex-col gap-4 overflow-y-auto pr-1">
+              <div>
+                <h4 className="mb-2 text-sm font-medium">{t.setGroupAsr}</h4>
+                <div className="flex flex-col gap-3">{ASR_OPTIONS.map((ids) => renderOption(ids))}</div>
+              </div>
+              <div>
+                <h4 className="mb-2 text-sm font-medium">{t.setGroupTranslate}</h4>
+                <div className="flex flex-col gap-3">
+                  {renderOption(TRANSLATE_OPTIONS[0], t.onbOpusPairTitle)}
+                  {renderOption(TRANSLATE_OPTIONS[1])}
+                </div>
+              </div>
+              <div>
+                <h4 className="mb-2 text-sm font-medium">{t.setGroupSummary}</h4>
+                <div className="flex flex-col gap-3">{SUMMARY_OPTIONS.map((ids) => renderOption(ids))}</div>
+              </div>
+            </div>
             <div className="flex items-center justify-between pt-2">
               <Button variant="ghost" onClick={() => setStep(0)}>
                 {t.onbBack}
@@ -240,49 +259,8 @@ export function OnboardingDialog() {
           </>
         )}
 
-        {/* 步骤 2：翻译模型（可选） */}
+        {/* 步骤 2：完成页 */}
         {step === 2 && (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t.onbStepTranslateTitle}</DialogTitle>
-              <DialogDescription>{t.onbStepTranslateDesc}</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-3">
-              {renderOption(TRANSLATE_OPTIONS[0], t.onbOpusPairTitle)}
-              {renderOption(TRANSLATE_OPTIONS[1])}
-            </div>
-            <div className="flex items-center justify-between pt-2">
-              <Button variant="ghost" onClick={() => setStep(1)}>
-                {t.onbBack}
-              </Button>
-              <Button onClick={() => setStep(3)}>
-                {groupInstalled('translate') ? t.onbNext : t.onbSkip}
-              </Button>
-            </div>
-          </>
-        )}
-
-        {/* 步骤 3：总结模型（可选） */}
-        {step === 3 && (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t.onbStepSummaryTitle}</DialogTitle>
-              <DialogDescription>{t.onbStepSummaryDesc}</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-3">{SUMMARY_OPTIONS.map((ids) => renderOption(ids))}</div>
-            <div className="flex items-center justify-between pt-2">
-              <Button variant="ghost" onClick={() => setStep(2)}>
-                {t.onbBack}
-              </Button>
-              <Button onClick={() => setStep(4)}>
-                {groupInstalled('summary') ? t.onbNext : t.onbSkip}
-              </Button>
-            </div>
-          </>
-        )}
-
-        {/* 步骤 4：完成页 */}
-        {step === 4 && (
           <>
             <DialogHeader>
               <DialogTitle>{t.onbStepDoneTitle}</DialogTitle>
