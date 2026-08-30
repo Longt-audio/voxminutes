@@ -95,6 +95,7 @@ function useRecorderInit() {
 
   // 模型下载完成后刷新模型列表（修复：引导下载完模型仍显示「未下载」/ 不自动选中）
   useEffect(() => {
+    let disposed = false
     let unlisten: (() => void) | undefined
     onModelDownloadProgress((p) => {
       if (p.stage === 'done') {
@@ -112,9 +113,11 @@ function useRecorderInit() {
           .catch(() => {})
       }
     }).then((fn) => {
-      unlisten = fn
+      if (disposed) fn()
+      else unlisten = fn
     })
     return () => {
+      disposed = true
       unlisten?.()
     }
   }, [setModels, setSelectedModel])
