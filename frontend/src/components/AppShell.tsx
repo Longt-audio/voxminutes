@@ -4,13 +4,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
-import { FileText, History, Settings, Minus, Square, X, Copy, Languages } from 'lucide-react'
+import { FileText, History, Settings, Minus, Square, X, Copy, Languages, Cpu } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useMessages } from '@/i18n/useMessages'
 import { useModelLoadingToasts } from '@/hooks/useModelLoadingToasts'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
+import { clearAllModelBackends } from '@/services/ipc'
 
 /**
  * VoxMinutes 应用外壳：无边框窗口的自定义标题栏（拖动区 + 导航 + 窗口控制按钮）。
@@ -78,6 +80,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     getVersion().then(setVersion).catch(() => {})
   }, [])
 
+  const handleClearMemory = async () => {
+    try {
+      await clearAllModelBackends()
+      toast.success(t.setMemoryCleared)
+    } catch (e) {
+      toast.error(t.setClearFailed.replace('{error}', String(e)))
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <header
@@ -120,6 +131,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex items-center gap-3 self-stretch">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+            onClick={handleClearMemory}
+            title={t.setClearMemoryHint}
+          >
+            <Cpu className="h-3.5 w-3.5" />
+          </Button>
           <LanguageSwitcher />
           <WindowControls />
         </div>
