@@ -20,6 +20,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SettingsSection } from './SettingsSection'
 import { useMessages } from '@/i18n/useMessages'
 
+/** 格式化模型单价为可读积分消耗文案，如「0.05 积分/秒」。 */
+function formatModelPrice(m: RemoteModelItem): string {
+  const price = m.price ?? 0
+  if (price <= 0) return '免费'
+  const unit = m.price_unit === 'second' ? '秒' : m.price_unit === 'char' ? '字符' : 'token'
+  const priceStr = price >= 0.01 ? price.toFixed(2) : price.toFixed(4)
+  return `${priceStr} 积分/${unit}`
+}
+
 /** 设置页 API tab：远程服务配置（服务器地址 + 授权码 + 总开关），ASR/翻译/TTS 三者共用 */
 export function RemoteAsrSection() {
   const t = useMessages()
@@ -170,6 +179,9 @@ export function RemoteAsrSection() {
                       .map((m) => (
                         <SelectItem key={m.id} value={m.id} className="text-xs">
                           {m.owned_by} / {m.id}
+                          <span className="ml-1 text-muted-foreground/70">
+                            {formatModelPrice(m)}
+                          </span>
                         </SelectItem>
                       ))}
                   </SelectContent>

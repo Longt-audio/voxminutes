@@ -336,6 +336,8 @@ export interface RemoteModelItem {
   object: string
   owned_by: string
   kind: 'asr' | 'translate' | 'tts'
+  price?: number
+  price_unit?: string
 }
 
 /** 网关 /v1/models 全量列表（供模型选择器下拉） */
