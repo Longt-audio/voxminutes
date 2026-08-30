@@ -6,12 +6,13 @@ import { ArrowLeftRight, Copy, Check, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { Button } from '@/components/ui/button'
-import { translateText, getTranslationEngine, setTranslationEngine as ipcSetTranslationEngine, getTranslationTargetLang, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationHomeLang, onTranslateTextStream } from '@/services/ipc'
+import { translateText, getTranslationEngine, setTranslationEngine as ipcSetTranslationEngine, getTranslationTargetLang, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationHomeLang, onTranslateTextStream, getDownloadableModels } from '@/services/ipc'
 import { useTranslatePageStore } from '@/stores/translatePageStore'
 import { useLanguageStore } from '@/stores/languageStore'
 import { useMessages } from '@/i18n/useMessages'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
-import type { TranslationEngine } from '@/types'
+import { availableTranslationEngines } from '@/lib/translationEngines'
+import type { TranslationEngine, DownloadableModelInfo } from '@/types'
 
 /** 与后端一致的 CJK 启发式：非空白字符中 CJK 占比 > 30% 视为中文 */
 function detectIsZh(text: string): boolean {
@@ -38,6 +39,17 @@ export default function TranslatePage() {
   const [copied, setCopied] = useState(false)
   const [modelMissing, setModelMissing] = useState(false)
   const [engine, setEngine] = useState<TranslationEngine>('opus')
+  const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
+
+  useEffect(() => {
+    getDownloadableModels()
+      .then(setTranslationModels)
+      .catch(() => setTranslationModels([]))
+  }, [])
+
+  const translationEngines = translationModels === null
+    ? (['opus', 'hymt2'] as const)
+    : availableTranslationEngines(translationModels)
   // 请求代际：取消时 +1，迟到结果比对不一致则丢弃
   const requestIdRef = useRef(0)
   // 当前流式请求的 request_id：匹配才接受 delta，取消/结束后置空
@@ -222,8 +234,8 @@ export default function TranslatePage() {
           onChange={(e) => handleEngineChange(e.target.value as TranslationEngine)}
           title={t.trEngine}
         >
-          <option value="opus">{t.trEngineOpus}</option>
-          <option value="hymt2">{t.trEngineHymt2}</option>
+          {translationEngines.includes('opus') && <option value="opus">{t.trEngineOpus}</option>}
+          {translationEngines.includes('hymt2') && <option value="hymt2">{t.trEngineHymt2}</option>}
         </select>
 
         <div className="flex-1" />
