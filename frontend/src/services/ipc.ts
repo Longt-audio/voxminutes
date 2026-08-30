@@ -153,6 +153,11 @@ export async function deleteModel(modelId: string): Promise<void> {
   return invoke('delete_model', { modelId })
 }
 
+/** 一键清除所有模型后台（ASR/翻译/总结 LLM），释放内存。 */
+export async function clearAllModelBackends(): Promise<void> {
+  return invoke('clear_all_model_backends')
+}
+
 /** 从本地文件/文件夹导入模型；后端弹原生选择框，进度走 model-download-progress 事件。 */
 export async function importModelFile(modelId: string): Promise<ImportModelResult> {
   return invoke<ImportModelResult>('import_model_file', { modelId })

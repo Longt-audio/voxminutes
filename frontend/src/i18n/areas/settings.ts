@@ -13,6 +13,10 @@ export interface SettingsMessages {
   setGroupSummary: string
   setModelDir: string
   setModelDirHint: string
+  setClearMemory: string
+  setClearMemoryHint: string
+  setMemoryCleared: string
+  setClearFailed: string
   setNoModels: string
   setInstalled: string
   setDownloading: string
@@ -122,6 +126,10 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setGroupSummary: "Summary models",
     setModelDir: "Model directory",
     setModelDirHint: "Where model files are stored",
+    setClearMemory: "Clear model memory",
+    setClearMemoryHint: "Release all loaded AI models (ASR / translation / summary); they reload on next use.",
+    setMemoryCleared: "Model memory cleared",
+    setClearFailed: "Failed to clear: {error}",
     setNoModels: "No models available for download",
     setInstalled: "Installed",
     setDownloading: "Downloading",
@@ -229,6 +237,10 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setGroupSummary: "总结模型",
     setModelDir: "模型目录",
     setModelDirHint: "模型文件存放位置",
+    setClearMemory: "清除模型内存",
+    setClearMemoryHint: "释放所有已加载的 AI 模型（ASR / 翻译 / 总结），下次使用会重新加载。",
+    setMemoryCleared: "模型内存已清除",
+    setClearFailed: "清除失败：{error}",
     setNoModels: "暂无可下载的模型",
     setInstalled: "已安装",
     setDownloading: "下载中",
@@ -336,6 +348,10 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setGroupSummary: "요약 모델",
     setModelDir: "모델 디렉터리",
     setModelDirHint: "모델 파일이 저장되는 위치",
+    setClearMemory: "모델 메모리 비우기",
+    setClearMemoryHint: "로드된 모든 AI 모델(ASR/번역/요약)을 해제하며, 다음 사용 시 다시 로드됩니다.",
+    setMemoryCleared: "모델 메모리가 비워졌습니다",
+    setClearFailed: "비우기 실패: {error}",
     setNoModels: "다운로드할 수 있는 모델이 없습니다",
     setInstalled: "설치됨",
     setDownloading: "다운로드 중",
@@ -443,6 +459,10 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setGroupSummary: "要約モデル",
     setModelDir: "モデルディレクトリ",
     setModelDirHint: "モデルファイルの保存場所",
+    setClearMemory: "モデルメモリを解放",
+    setClearMemoryHint: "ロード中のすべての AI モデル（ASR/翻訳/要約）を解放します。次回利用時に再ロードされます。",
+    setMemoryCleared: "モデルメモリを解放しました",
+    setClearFailed: "解放に失敗: {error}",
     setNoModels: "ダウンロード可能なモデルはありません",
     setInstalled: "インストール済み",
     setDownloading: "ダウンロード中",
