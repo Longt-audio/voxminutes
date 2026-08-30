@@ -81,6 +81,9 @@ dashmap = "6.1.0"
 # Directories
 dirs = "5.0.1"
 
+# OS keychain (Windows Credential Manager / macOS Keychain / Linux Secret Service)
+keyring = "3"
+
 # Additional dependencies for notification system
 url = "2.5.0"
 

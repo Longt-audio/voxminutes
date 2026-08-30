@@ -10,6 +10,7 @@
 pub mod commands;
 pub mod engine;
 pub mod llm;
+pub mod remote;
 
 use serde::Serialize;
 use std::collections::{HashSet, VecDeque};
@@ -41,7 +42,11 @@ pub(crate) static TRANSLATION_ENGINE: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new("opus".to_string()));
 
 /// 当前翻译引擎 id（"opus" | "hymt2"）。
+/// 远程服务总开关开启且已配置时，强制返回 "remote"。
 pub fn current_engine() -> String {
+    if crate::audio::transcription::remote_enabled() {
+        return "remote".to_string();
+    }
     TRANSLATION_ENGINE
         .lock()
         .map(|e| e.clone())
@@ -230,7 +235,7 @@ pub struct TranslateUpdate {
 /// 返回 (direction, source_lang, effective_target)；目标语言不被当前引擎
 /// 支持时也返回 None（跳过）。
 fn resolve_direction(text: &str, target: &str) -> Option<(String, String, String)> {
-    if current_engine() == "hymt2" {
+    if matches!(current_engine().as_str(), "hymt2" | "remote") {
         // Hy-MT2 LLM 引擎：13 种语言互译，源语言按文本特征检测
         let source_lang = detect_source_lang(text);
         // 兼容存量 "auto"：按 home 的默认目标解析
@@ -351,55 +356,102 @@ pub async fn process_pending_translations<R: Runtime>(app: AppHandle<R>) {
         let text = task.text.clone();
         let seq = task.sequence_id;
         let engine_kind = current_engine();
+        let is_remote = engine_kind == "remote";
+        let is_hymt2 = engine_kind == "hymt2";
         let direction_for_task = direction.clone();
-        let app_for_stream = app.clone();
-        let original_for_stream = task.text.clone();
-        let source_lang_stream = source_lang.clone();
-        let target_lang_stream = effective_target.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            if engine_kind == "hymt2" {
-                // Hy-MT2 LLM 引擎：走 llama-helper sidecar，ASR 模式指令；
-                // 流式生成，节流 emit 部分译文（原始输出快照，未清洗）
-                let mut partial = String::new();
-                let mut tokens_since_emit = 0usize;
-                let mut last_emit = std::time::Instant::now();
-                llm::translate(
-                    &text,
-                    &direction_for_task,
-                    true,
-                    Some(&mut |delta: &str| {
-                        partial.push_str(delta);
-                        tokens_since_emit += 1;
-                        if tokens_since_emit >= 8
-                            || last_emit.elapsed() >= std::time::Duration::from_millis(250)
-                        {
-                            tokens_since_emit = 0;
-                            last_emit = std::time::Instant::now();
-                            let update = TranslateUpdate {
-                                sequence_id: seq,
-                                original_text: original_for_stream.clone(),
-                                translated_text: partial.clone(),
-                                source_lang: source_lang_stream.clone(),
-                                target_lang: target_lang_stream.clone(),
-                                is_partial: true,
-                            };
-                            if let Err(e) = app_for_stream.emit("translate-update", &update) {
-                                log::warn!("translate-update (partial) emit failed: {}", e);
-                            }
+        let original_for_task = task.text.clone();
+        let source_lang_task = source_lang.clone();
+        let target_lang_task = effective_target.clone();
+
+        let result: Result<String, String> = if is_remote {
+            // 远程引擎：走网关 chat completions（SSE 流式，异步）
+            let app_stream = app.clone();
+            let original = original_for_task.clone();
+            let src_lang = source_lang_task.clone();
+            let tgt_lang = target_lang_task.clone();
+            let mut partial = String::new();
+            let mut tokens_since_emit = 0usize;
+            let mut last_emit = std::time::Instant::now();
+            remote::translate_remote(
+                &text,
+                &direction_for_task,
+                true,
+                Some(&mut |delta: &str| {
+                    partial.push_str(delta);
+                    tokens_since_emit += 1;
+                    if tokens_since_emit >= 8
+                        || last_emit.elapsed() >= std::time::Duration::from_millis(250)
+                    {
+                        tokens_since_emit = 0;
+                        last_emit = std::time::Instant::now();
+                        let update = TranslateUpdate {
+                            sequence_id: seq,
+                            original_text: original.clone(),
+                            translated_text: partial.clone(),
+                            source_lang: src_lang.clone(),
+                            target_lang: tgt_lang.clone(),
+                            is_partial: true,
+                        };
+                        if let Err(e) = app_stream.emit("translate-update", &update) {
+                            log::warn!("translate-update (partial) emit failed: {}", e);
                         }
-                    }),
-                )
-            } else {
-                get_engine(&direction_for_task).and_then(|engine| {
-                    // 实时路径用贪心解码：句级输入质量已足够，速度优先（~0.3-1s/句）
-                    engine.translate_greedy(&text).map_err(|e| e.to_string())
-                })
-            }
-        })
-        .await;
+                    }
+                }),
+            )
+            .await
+        } else {
+            let app_stream = app.clone();
+            let original = original_for_task.clone();
+            let src_lang = source_lang_task.clone();
+            let tgt_lang = target_lang_task.clone();
+            let text_for_blocking = text.clone();
+            let direction_for_blocking = direction_for_task.clone();
+            tokio::task::spawn_blocking(move || {
+                if is_hymt2 {
+                    // Hy-MT2 LLM 引擎：走 llama-helper sidecar，ASR 模式指令；
+                    // 流式生成，节流 emit 部分译文（原始输出快照，未清洗）
+                    let mut partial = String::new();
+                    let mut tokens_since_emit = 0usize;
+                    let mut last_emit = std::time::Instant::now();
+                    llm::translate(
+                        &text_for_blocking,
+                        &direction_for_blocking,
+                        true,
+                        Some(&mut |delta: &str| {
+                            partial.push_str(delta);
+                            tokens_since_emit += 1;
+                            if tokens_since_emit >= 8
+                                || last_emit.elapsed() >= std::time::Duration::from_millis(250)
+                            {
+                                tokens_since_emit = 0;
+                                last_emit = std::time::Instant::now();
+                                let update = TranslateUpdate {
+                                    sequence_id: seq,
+                                    original_text: original.clone(),
+                                    translated_text: partial.clone(),
+                                    source_lang: src_lang.clone(),
+                                    target_lang: tgt_lang.clone(),
+                                    is_partial: true,
+                                };
+                                if let Err(e) = app_stream.emit("translate-update", &update) {
+                                    log::warn!("translate-update (partial) emit failed: {}", e);
+                                }
+                            }
+                        }),
+                    )
+                } else {
+                    get_engine(&direction_for_blocking).and_then(|engine| {
+                        // 实时路径用贪心解码：句级输入质量已足够，速度优先（~0.3-1s/句）
+                        engine.translate_greedy(&text_for_blocking).map_err(|e| e.to_string())
+                    })
+                }
+            })
+            .await
+            .unwrap_or_else(|e| Err(format!("翻译任务失败: {}", e)))
+        };
 
         match result {
-            Ok(Ok(translated)) => {
+            Ok(translated) => {
                 let update = TranslateUpdate {
                     sequence_id: seq,
                     original_text: task.text.clone(),
@@ -412,11 +464,8 @@ pub async fn process_pending_translations<R: Runtime>(app: AppHandle<R>) {
                     log::warn!("translate-update emit failed: {}", e);
                 }
             }
-            Ok(Err(e)) => {
-                log::warn!("Translation failed for seq={}: {}", seq, e);
-            }
             Err(e) => {
-                log::warn!("Translation task join error: {}", e);
+                log::warn!("Translation failed for seq={}: {}", seq, e);
             }
         }
     }

@@ -51,6 +51,26 @@ impl TranscriptionEngine {
 
 static REMOTE_ASR_ENDPOINT: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 static REMOTE_ASR_MODEL: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+static REMOTE_TRANSLATE_MODEL: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+static REMOTE_TTS_MODEL: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+static REMOTE_LICENSE: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+static REMOTE_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// 设置远程服务总开关（开启 + 已配置 endpoint 才真正生效）。
+pub fn set_remote_enabled(v: bool) {
+    REMOTE_ENABLED.store(v, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// 远程服务是否可用（开关开启 && 已配置服务器地址）。
+/// ASR / 翻译端据此切换到远程路径。
+pub fn remote_enabled() -> bool {
+    REMOTE_ENABLED.load(std::sync::atomic::Ordering::SeqCst) && is_remote_asr_configured()
+}
+
+/// 远程开关的原始状态（不含「是否已配置 endpoint」判断，供设置页回显）。
+pub fn remote_enabled_raw() -> bool {
+    REMOTE_ENABLED.load(std::sync::atomic::Ordering::SeqCst)
+}
 
 pub fn set_remote_asr_config(endpoint: &str, model_name: &str) {
     if let Ok(mut e) = REMOTE_ASR_ENDPOINT.lock() {
@@ -59,13 +79,37 @@ pub fn set_remote_asr_config(endpoint: &str, model_name: &str) {
     if let Ok(mut m) = REMOTE_ASR_MODEL.lock() {
         *m = model_name.to_string();
     }
-    // Persist to disk so the config survives app restarts
     let config = RemoteAsrPersistedConfig {
         endpoint: endpoint.to_string(),
         model: model_name.to_string(),
+        translate_model: get_remote_translate_model(),
+        tts_model: get_remote_tts_model(),
     };
     if let Err(e) = save_remote_asr_config_to_disk(&config) {
         warn!("Failed to persist remote ASR config: {}", e);
+    }
+}
+
+/// 设置远程服务（server_url + license + model）；license 存 OS keychain，不落明文 JSON。
+pub fn set_remote_config(endpoint: &str, license: &str, model_name: &str) {
+    if let Ok(mut e) = REMOTE_ASR_ENDPOINT.lock() {
+        *e = endpoint.to_string();
+    }
+    if let Ok(mut l) = REMOTE_LICENSE.lock() {
+        *l = license.to_string();
+    }
+    if let Ok(mut m) = REMOTE_ASR_MODEL.lock() {
+        *m = model_name.to_string();
+    }
+    save_license_to_keyring(license);
+    let config = RemoteAsrPersistedConfig {
+        endpoint: endpoint.to_string(),
+        model: model_name.to_string(),
+        translate_model: get_remote_translate_model(),
+        tts_model: get_remote_tts_model(),
+    };
+    if let Err(e) = save_remote_asr_config_to_disk(&config) {
+        warn!("Failed to persist remote config: {}", e);
     }
 }
 
@@ -77,9 +121,65 @@ pub fn get_remote_asr_model() -> String {
     REMOTE_ASR_MODEL.lock().map(|m| m.clone()).unwrap_or_default()
 }
 
+pub fn get_remote_translate_model() -> String {
+    REMOTE_TRANSLATE_MODEL.lock().map(|m| m.clone()).unwrap_or_default()
+}
+
+pub fn get_remote_tts_model() -> String {
+    REMOTE_TTS_MODEL.lock().map(|m| m.clone()).unwrap_or_default()
+}
+
+pub fn get_remote_license() -> String {
+    REMOTE_LICENSE.lock().map(|l| l.clone()).unwrap_or_default()
+}
+
+/// 设置三种能力各自的远程模型（模型选择器），并持久化到磁盘。
+pub fn set_remote_models(
+    asr: Option<String>,
+    translate: Option<String>,
+    tts: Option<String>,
+) -> Result<(), String> {
+    if let Some(m) = asr {
+        if let Ok(mut g) = REMOTE_ASR_MODEL.lock() {
+            *g = m;
+        }
+    }
+    if let Some(m) = translate {
+        if let Ok(mut g) = REMOTE_TRANSLATE_MODEL.lock() {
+            *g = m;
+        }
+    }
+    if let Some(m) = tts {
+        if let Ok(mut g) = REMOTE_TTS_MODEL.lock() {
+            *g = m;
+        }
+    }
+    let config = RemoteAsrPersistedConfig {
+        endpoint: get_remote_asr_endpoint(),
+        model: get_remote_asr_model(),
+        translate_model: get_remote_translate_model(),
+        tts_model: get_remote_tts_model(),
+    };
+    save_remote_asr_config_to_disk(&config)
+}
+
 pub fn is_remote_asr_configured() -> bool {
     let endpoint = get_remote_asr_endpoint();
     !endpoint.is_empty()
+}
+
+/// 网关 /v1 根地址（未配置时返回 None）。ASR / 翻译都拼在其后。
+pub fn remote_api_base() -> Option<String> {
+    let endpoint = get_remote_asr_endpoint();
+    if endpoint.is_empty() {
+        return None;
+    }
+    Some(format!("{}/v1", endpoint.trim_end_matches('/')))
+}
+
+/// 健康检查地址（网关 /health，无需鉴权）。
+pub fn remote_health_url(endpoint: &str) -> String {
+    format!("{}/health", endpoint.trim_end_matches('/'))
 }
 
 // ── Persistence ──────────────────────────────────────────────────────
@@ -90,6 +190,10 @@ pub fn is_remote_asr_configured() -> bool {
 struct RemoteAsrPersistedConfig {
     endpoint: String,
     model: String,
+    #[serde(default)]
+    translate_model: String,
+    #[serde(default)]
+    tts_model: String,
 }
 
 fn get_remote_asr_config_path() -> Option<PathBuf> {
@@ -115,10 +219,35 @@ fn save_remote_asr_config_to_disk(config: &RemoteAsrPersistedConfig) -> Result<(
     Ok(())
 }
 
-/// Load the remote ASR config from disk and populate the in-memory statics.
-/// Called once during app startup. Remote ASR is a reserved (stub) interface
-/// in the open-source MVP: no default endpoint is provided — if the user has
-/// not configured one, remote ASR simply stays unconfigured.
+// ── License 存 OS keychain ────────────────────────────────────────────
+// Windows 走凭据管理器，macOS 走钥匙串，Linux 走 Secret Service（libsecret）。
+// 读取在启动时做一次并缓存到 REMOTE_LICENSE，热路径不再访问 keychain。
+
+const KEYRING_SERVICE: &str = "voxminutes";
+const KEYRING_USER: &str = "remote-license";
+
+fn save_license_to_keyring(license: &str) {
+    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+        Ok(entry) => {
+            if license.is_empty() {
+                let _ = entry.delete_credential();
+            } else if let Err(e) = entry.set_password(license) {
+                warn!("Failed to save license to keychain: {}", e);
+            }
+        }
+        Err(e) => warn!("Keychain unavailable, license not persisted: {}", e),
+    }
+}
+
+fn load_license_from_keyring() -> String {
+    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+        Ok(entry) => entry.get_password().unwrap_or_default(),
+        Err(_) => String::new(),
+    }
+}
+
+/// Load the remote config from disk and populate the in-memory statics.
+/// Called once during app startup.
 pub fn load_remote_asr_config_from_disk() {
     let path = match get_remote_asr_config_path() {
         Some(p) => p,
@@ -135,21 +264,35 @@ pub fn load_remote_asr_config_from_disk() {
                         if let Ok(mut m) = REMOTE_ASR_MODEL.lock() {
                             *m = config.model.clone();
                         }
+                        if let Ok(mut m) = REMOTE_TRANSLATE_MODEL.lock() {
+                            *m = config.translate_model.clone();
+                        }
+                        if let Ok(mut m) = REMOTE_TTS_MODEL.lock() {
+                            *m = config.tts_model.clone();
+                        }
                         info!(
-                            "Loaded remote ASR config from {}: {} (model: {})",
+                            "Loaded remote config from {}: {} (model: {})",
                             path.display(),
                             config.endpoint,
                             config.model
                         );
                     }
                     Err(e) => {
-                        warn!("Failed to parse remote ASR config from {}: {}", path.display(), e);
+                        warn!("Failed to parse remote config from {}: {}", path.display(), e);
                     }
                 }
             }
             Err(e) => {
-                warn!("Failed to read remote ASR config from {}: {}", path.display(), e);
+                warn!("Failed to read remote config from {}: {}", path.display(), e);
             }
+        }
+    }
+
+    // license 从 OS keychain 读回（与 JSON 解耦）
+    let license = load_license_from_keyring();
+    if !license.is_empty() {
+        if let Ok(mut l) = REMOTE_LICENSE.lock() {
+            *l = license;
         }
     }
 }
