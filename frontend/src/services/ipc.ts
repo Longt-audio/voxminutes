@@ -163,6 +163,11 @@ export async function importModelFile(modelId: string): Promise<ImportModelResul
   return invoke<ImportModelResult>('import_model_file', { modelId })
 }
 
+/** 导入一个已解压好的模型文件夹（任意模型类型）。 */
+export async function importModelFolder(modelId: string): Promise<ImportModelResult> {
+  return invoke<ImportModelResult>('import_model_folder', { modelId })
+}
+
 export function onModelDownloadProgress(
   callback: (progress: ModelDownloadProgress) => void
 ): Promise<UnlistenFn> {

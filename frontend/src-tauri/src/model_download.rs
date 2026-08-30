@@ -359,6 +359,15 @@ fn source_label(url: &str) -> &'static str {
     }
 }
 
+/// 是否为国内镜像源（gh-proxy / hf-mirror / ModelScope），用于「镜像优先」排序。
+fn is_mirror_source(source: &ModelSource) -> bool {
+    let url = match source {
+        ModelSource::Archive { url } => url,
+        ModelSource::Files { base_url, .. } => base_url,
+    };
+    url.contains("gh-proxy.com") || url.contains("hf-mirror.com") || url.contains("modelscope.cn")
+}
+
 /// 生成某个源的完整文件直链列表（与下载逻辑同一套 URL 拼接规则）。
 fn source_urls(source: &ModelSource) -> Vec<String> {
     match source {
@@ -550,7 +559,38 @@ pub async fn import_model_file<R: Runtime>(
     // Per-model exclusivity; different models may import/download concurrently.
     let cancel_flag = register_task(model.id)?;
 
-    let result = run_import(&app, model, &cancel_flag).await;
+    let result = run_import(&app, model, &cancel_flag, None).await;
+
+    finish_task(model.id);
+
+    match result {
+        Ok(r) => {
+            match r.status.as_str() {
+                "done" => emit_progress(&app, model.id, "done", 1, 1, None, None),
+                "cancelled" => emit_progress(&app, model.id, "cancelled", 0, 1, None, None),
+                _ => {}
+            }
+            Ok(r)
+        }
+        Err(e) => {
+            emit_progress(&app, model.id, "error", 0, 1, Some(e.clone()), None);
+            Err(e)
+        }
+    }
+}
+
+/// 导入一个已解压好的模型文件夹（任意模型类型都支持，用于复用已下载的模型，
+/// 例如从 voxnow 或其他机器拷过来的模型目录，无需重新下载）。
+#[tauri::command]
+pub async fn import_model_folder<R: Runtime>(
+    app: AppHandle<R>,
+    model_id: String,
+) -> Result<ModelImportResult, String> {
+    let model = find_model(&model_id).ok_or_else(|| format!("Unknown model: {}", model_id))?;
+
+    let cancel_flag = register_task(model.id)?;
+
+    let result = run_import(&app, model, &cancel_flag, Some(ImportKind::Folder)).await;
 
     finish_task(model.id);
 
@@ -601,10 +641,15 @@ async fn run_download<R: Runtime>(
     std::fs::create_dir_all(models_dir)
         .map_err(|e| format!("Failed to create models directory: {}", e))?;
 
-    // 指定 source_index 时只用该源；否则按序尝试全部源，全失败才报错。
+    // 指定 source_index 时只用该源；否则「镜像优先」：gh-proxy / hf-mirror / ModelScope
+    // 排前面，官方源（github / huggingface）靠后，全部失败才报错。
     let sources_to_try: Vec<&ModelSource> = match source_index {
         Some(i) => model.sources.iter().skip(i).take(1).collect(),
-        None => model.sources.iter().collect(),
+        None => {
+            let mut all: Vec<&ModelSource> = model.sources.iter().collect();
+            all.sort_by_key(|s| if is_mirror_source(s) { 0 } else { 1 });
+            all
+        }
     };
     let mut failures: Vec<String> = Vec::new();
     for source in sources_to_try {
@@ -929,8 +974,9 @@ async fn run_import<R: Runtime>(
     app: &AppHandle<R>,
     model: &'static DownloadableModel,
     cancel: &AtomicBool,
+    forced_kind: Option<ImportKind>,
 ) -> Result<ModelImportResult, String> {
-    let kind = import_kind(model);
+    let kind = forced_kind.unwrap_or_else(|| import_kind(model));
 
     // File/folder picker must run on a blocking thread (see
     // audio/import.rs select_and_validate_audio_command).

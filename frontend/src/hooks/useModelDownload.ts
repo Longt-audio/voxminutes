@@ -7,6 +7,7 @@ import {
   downloadModel,
   cancelModelDownload,
   importModelFile,
+  importModelFolder,
   onModelDownloadProgress,
 } from '@/services/ipc'
 import type { DownloadableModelInfo, ModelDownloadProgress } from '@/types'
@@ -115,6 +116,28 @@ export function useModelDownload() {
     [refresh]
   )
 
+  const importModelFolderLocal = useCallback(
+    async (modelId: string) => {
+      importingModels.add(modelId)
+      setImportingIds((prev) => [...prev, modelId])
+      try {
+        const res = await importModelFolder(modelId)
+        if (res.status === 'done') {
+          toast.success(tRef.current.setImportDone)
+        } else if (res.status === 'error') {
+          toast.error(res.message || tRef.current.setImportFailed.replace('{error}', ''))
+        }
+      } catch (e) {
+        toast.error(tRef.current.setImportFailed.replace('{error}', String(e)))
+      } finally {
+        importingModels.delete(modelId)
+        setImportingIds((prev) => prev.filter((id) => id !== modelId))
+        refresh()
+      }
+    },
+    [refresh]
+  )
+
   const isModelBusy = useCallback(
     (m: DownloadableModelInfo) => m.downloading || !!progressMap[m.id] || importingIds.includes(m.id),
     [progressMap, importingIds]
@@ -128,6 +151,7 @@ export function useModelDownload() {
     startDownload,
     cancelDownload,
     importModel,
+    importModelFolder: importModelFolderLocal,
     isModelBusy,
   }
 }
