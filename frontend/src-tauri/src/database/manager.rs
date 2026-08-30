@@ -1,4 +1,4 @@
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::fs;
 use tauri::Manager;
 
@@ -20,12 +20,17 @@ impl DatabaseManager {
         fs::create_dir_all(&app_data_dir).map_err(sqlx::Error::Io)?;
 
         let db_path = app_data_dir.join(DB_FILE_NAME);
-        let db_url = format!("sqlite:{}", db_path.to_string_lossy());
 
         log::info!("Opening SQLite database at {}", db_path.display());
+        // Use SqliteConnectOptions::filename so the path is passed directly
+        // (no URL parsing) — the app data dir contains a space on macOS
+        // ("Application Support"), which breaks `sqlite:` URL parsing.
+        let options = SqliteConnectOptions::new()
+            .filename(&db_path)
+            .create_if_missing(true);
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
-            .connect(&db_url)
+            .connect_with(options)
             .await?;
 
         sqlx::migrate!("./migrations").run(&pool).await?;
