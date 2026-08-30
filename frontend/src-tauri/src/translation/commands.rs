@@ -30,11 +30,8 @@ pub async fn translate_text(
         return Ok(String::new());
     }
 
-    if current_engine() == "hymt2" {
-        // Hy-MT2 LLM 引擎：校验模型已安装，走 llama-helper sidecar
-        if !crate::model_download::hy_mt2_installed() {
-            return Err("Hy-MT2 翻译模型未安装，请先到设置页下载。".to_string());
-        }
+    let engine = current_engine();
+    if engine == "hymt2" || engine == "remote" {
         let explicit = llm::parse_direction(&direction);
         // 源语言：显式方向优先，否则按文本特征检测
         let src = explicit
@@ -63,6 +60,32 @@ pub async fn translate_text(
             return Ok(text);
         }
         let resolved = format!("{}-{}", src, tgt);
+
+        if engine == "remote" {
+            // 远程引擎：走网关 chat completions（SSE 流式）
+            use tauri::Emitter;
+            match request_id.clone() {
+                Some(rid) => {
+                    let app2 = app.clone();
+                    let mut cb = move |delta: &str| {
+                        let _ = app2.emit(
+                            "translate-text-stream",
+                            serde_json::json!({ "request_id": rid, "delta": delta }),
+                        );
+                    };
+                    return super::remote::translate_remote(&text, &resolved, false, Some(&mut cb))
+                        .await;
+                }
+                None => {
+                    return super::remote::translate_remote(&text, &resolved, false, None).await;
+                }
+            }
+        }
+
+        // Hy-MT2 LLM 引擎：校验模型已安装，走 llama-helper sidecar
+        if !crate::model_download::hy_mt2_installed() {
+            return Err("Hy-MT2 翻译模型未安装，请先到设置页下载。".to_string());
+        }
         return tokio::task::spawn_blocking(move || {
             use tauri::Emitter;
             if let Some(request_id) = request_id {

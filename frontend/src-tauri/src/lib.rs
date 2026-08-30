@@ -522,6 +522,129 @@ async fn get_remote_asr_config() -> Result<serde_json::Value, String> {
     }))
 }
 
+/// 设置远程服务（server_url + license + model）；license 存 OS keychain。
+#[tauri::command]
+async fn set_remote_config(
+    server_url: String,
+    license: String,
+    model_name: Option<String>,
+) -> Result<(), String> {
+    let model = model_name.unwrap_or_else(|| "remote".to_string());
+    log_info!("Setting remote config: {} (model: {})", server_url, model);
+    audio::transcription::set_remote_config(&server_url, &license, &model);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_remote_config() -> Result<serde_json::Value, String> {
+    let endpoint = audio::transcription::get_remote_asr_endpoint();
+    let model = audio::transcription::get_remote_asr_model();
+    let license = audio::transcription::get_remote_license();
+    Ok(serde_json::json!({
+        "serverUrl": endpoint,
+        "license": license,
+        "model": model,
+        "configured": !endpoint.is_empty()
+    }))
+}
+
+/// 设置三种能力各自的远程模型（模型选择器）。
+#[tauri::command]
+async fn set_remote_model_choice(
+    asr: Option<String>,
+    translate: Option<String>,
+    tts: Option<String>,
+) -> Result<(), String> {
+    audio::transcription::set_remote_models(asr, translate, tts)
+}
+
+/// 读回三种能力的远程模型（模型选择器回显）。
+#[tauri::command]
+async fn get_remote_model_choice() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "asr": audio::transcription::get_remote_asr_model(),
+        "translate": audio::transcription::get_remote_translate_model(),
+        "tts": audio::transcription::get_remote_tts_model(),
+    }))
+}
+
+/// 远程服务总开关（持久化到 tauri store 的 settings.json）。
+#[tauri::command]
+async fn set_remote_enabled(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    audio::transcription::set_remote_enabled(enabled);
+    use tauri_plugin_store::StoreExt;
+    let store = app
+        .store("settings.json")
+        .map_err(|e| format!("打开设置存储失败: {}", e))?;
+    store.set("remote.enabled".to_string(), serde_json::json!(enabled));
+    store.save().map_err(|e| format!("保存设置失败: {}", e))?;
+    log_info!("Remote service enabled: {}", enabled);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_remote_enabled() -> Result<bool, String> {
+    Ok(audio::transcription::remote_enabled_raw())
+}
+
+/// 从网关 /v1/models 拉取当前启用的 ASR/翻译/TTS 模型名（kind → id）。
+#[tauri::command]
+async fn get_remote_models() -> Result<serde_json::Value, String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/models", base))
+        .bearer_auth(license)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("网关返回 HTTP {}", resp.status()));
+    }
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    let mut asr = String::new();
+    let mut translate = String::new();
+    let mut tts = String::new();
+    if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
+        for m in data {
+            let kind = m.get("kind").and_then(|k| k.as_str()).unwrap_or("");
+            let id = m.get("id").and_then(|i| i.as_str()).unwrap_or("");
+            match kind {
+                "asr" => asr = id.to_string(),
+                "translate" => translate = id.to_string(),
+                "tts" => tts = id.to_string(),
+                _ => {}
+            }
+        }
+    }
+    Ok(serde_json::json!({ "asr": asr, "translate": translate, "tts": tts }))
+}
+
+/// 拉取网关 /v1/models 全量列表（供模型选择器下拉）。
+#[tauri::command]
+async fn list_remote_models() -> Result<serde_json::Value, String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/models", base))
+        .bearer_auth(license)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("网关返回 HTTP {}", resp.status()));
+    }
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(json.get("data").cloned().unwrap_or_else(|| serde_json::json!([])))
+}
+
 // Internal helper function to get language preference (for use within Rust code)
 pub fn get_language_preference_internal() -> Option<String> {
     LANGUAGE_PREFERENCE.lock().ok().map(|lang| lang.clone())
@@ -684,6 +807,19 @@ pub fn run() {
             // Restore remote ASR endpoint config from disk (survives app restarts)
             audio::transcription::load_remote_asr_config_from_disk();
 
+            // 恢复远程服务总开关（存于 tauri-plugin-store 的 settings.json）
+            {
+                use tauri_plugin_store::StoreExt;
+                if let Ok(store) = _app.store("settings.json") {
+                    let enabled = store
+                        .get("remote.enabled")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    audio::transcription::set_remote_enabled(enabled);
+                    log::info!("Restored remote.enabled = {}", enabled);
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -778,6 +914,14 @@ pub fn run() {
             set_remote_asr_endpoint,
             check_remote_asr_health_cmd,
             get_remote_asr_config,
+            set_remote_config,
+            get_remote_config,
+            set_remote_model_choice,
+            get_remote_model_choice,
+            set_remote_enabled,
+            get_remote_enabled,
+            get_remote_models,
+            list_remote_models,
             notifications::commands::get_notification_settings,
             notifications::commands::set_notification_settings,
             notifications::commands::request_notification_permission,
