@@ -13,6 +13,7 @@ import { useMessages } from '@/i18n/useMessages'
 import { useModelLoadingToasts } from '@/hooks/useModelLoadingToasts'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
 import { RemoteMessages } from '@/components/RemoteMessages'
+import { UpdateBanner } from '@/components/UpdateBanner'
 import { clearAllModelBackends } from '@/services/ipc'
 
 /**
@@ -146,6 +147,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <WindowControls />
         </div>
       </header>
+
+      {/* 软件更新提醒横幅（页首，新版本可用时显示） */}
+      <UpdateBanner />
 
       <main className="flex-1 overflow-hidden relative">{children}</main>
 
