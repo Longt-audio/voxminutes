@@ -73,8 +73,8 @@ export function useTranscripts() {
         }).catch(() => {})
       })
       if (cancelled) {
-        unlisten()
-        translateUnlisten()
+        try { unlisten() } catch {}
+        try { translateUnlisten() } catch {}
       } else {
         unlistenRef.current = unlisten
         translateUnlistenRef.current = translateUnlisten
@@ -84,11 +84,11 @@ export function useTranscripts() {
     return () => {
       cancelled = true
       if (unlistenRef.current) {
-        unlistenRef.current()
+        try { unlistenRef.current() } catch {}
         unlistenRef.current = null
       }
       if (translateUnlistenRef.current) {
-        translateUnlistenRef.current()
+        try { translateUnlistenRef.current() } catch {}
         translateUnlistenRef.current = null
       }
     }

@@ -159,7 +159,14 @@ export function useRecorder() {
     }
     registerEvents()
     return () => {
-      unlisteners.current.forEach((u) => u())
+      unlisteners.current.forEach((u) => {
+        try {
+          u()
+        } catch {
+          // 忽略重复 unlisten 的竞态错误
+        }
+      })
+      unlisteners.current = []
       clearStopFallback()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
