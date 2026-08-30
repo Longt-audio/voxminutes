@@ -20,7 +20,7 @@ import { formatSize, stageText, modelGroup, modelDesc, modelDisplayName } from '
 export const OPEN_ONBOARDING_EVENT = 'vox:open-onboarding'
 
 /** 向导步骤：0 欢迎 / 1 ASR / 2 翻译 / 3 总结 / 4 完成 */
-const TOTAL_STEPS = 5
+const TOTAL_STEPS = 3
 
 /** 各步骤的模型选项（多 id 表示一张卡对应多个模型，如 OPUS-MT 中英双向） */
 const ASR_OPTIONS: string[][] = [['x-asr-480ms'], ['sense-voice']]
@@ -212,8 +212,8 @@ export function OnboardingDialog() {
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-muted-foreground/70">{stepIndicator}</span>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" onClick={finish}>{t.onbUseRemote}</Button>
-                <Button onClick={() => setStep(1)}>{t.onbStart}</Button>
+                <Button variant="outline" onClick={() => setStep(1)}>{t.onbSetupLocal}</Button>
+                <Button onClick={finish}>{t.onbUseRemote}</Button>
               </div>
             </div>
           </>
@@ -248,10 +248,7 @@ export function OnboardingDialog() {
                 {t.onbBack}
               </Button>
               <div className="flex items-center gap-3">
-                {!asrInstalled && (
-                  <span className="text-xs text-muted-foreground">{t.onbAsrRequiredHint}</span>
-                )}
-                <Button disabled={!asrInstalled} onClick={() => setStep(2)}>
+                <Button onClick={() => setStep(2)}>
                   {t.onbNext}
                 </Button>
               </div>
