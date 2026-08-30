@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { useAppStore } from '@/state'
-import { onTranscriptUpdate, onTranslateUpdate } from '@/services/ipc'
+import { onTranscriptUpdate, onTranslateUpdate, pushSubtitleSegment, pushSubtitleTranslation } from '@/services/ipc'
 import type { TranscriptSegment } from '@/types'
 
 let idCounter = 0
@@ -49,6 +49,13 @@ export function useTranscripts() {
           source: update.source,
         }
         addTranscript(segment)
+
+        // 转发到桌面字幕悬浮窗（非阻塞）
+        pushSubtitleSegment({
+          sequence_id: update.sequence_id,
+          text: update.text,
+          is_partial: update.is_partial,
+        }).catch(() => {})
       })
       const translateUnlisten = await onTranslateUpdate((update) => {
         if (!update.translated_text) return
@@ -58,6 +65,12 @@ export function useTranscripts() {
         } else {
           addTranslation(update.sequence_id, update.translated_text)
         }
+
+        // 转发到桌面字幕悬浮窗（非阻塞）
+        pushSubtitleTranslation({
+          sequence_id: update.sequence_id,
+          translated_text: update.translated_text,
+        }).catch(() => {})
       })
       if (cancelled) {
         unlisten()

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>桌面字幕</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+    background: transparent;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #root {
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+  }
+
+  #container {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  #dragbar {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 12px;
+    background: rgba(255, 255, 255, 0.06);
+    cursor: grab;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  #dragbar:active { cursor: grabbing; }
+  #container:hover #dragbar { opacity: 1; }
+
+  #dragbar .title {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.55);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #dragbar .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 6px #22c55e;
+  }
+  #dragbar .dot.idle {
+    background: #9ca3af;
+    box-shadow: none;
+  }
+
+  #close-btn {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.65);
+    transition: background 0.15s, color 0.15s;
+  }
+  #close-btn:hover {
+    background: rgba(239, 68, 68, 0.85);
+    color: #fff;
+  }
+  #close-btn svg {
+    width: 12px; height: 12px;
+  }
+
+  #content {
+    flex: 1;
+    min-height: 0;
+    padding: 12px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .segment {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  .original {
+    font-size: 14px;
+    line-height: 1.6;
+    font-weight: 500;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    white-space: normal;
+    word-break: break-word;
+  }
+  .original.partial {
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .translation {
+    font-size: 12px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.78);
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .empty {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.45);
+    text-align: center;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+  <div id="root">
+    <div id="container">
+      <div id="dragbar">
+        <div class="title">
+          <span id="status-dot" class="dot idle"></span>
+          <span>桌面字幕</span>
+        </div>
+        <div id="close-btn" title="关闭字幕">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </div>
+      </div>
+      <div id="content">
+        <div class="empty">等待识别结果…</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var content = document.getElementById('content');
+      var dragbar = document.getElementById('dragbar');
+      var closeBtn = document.getElementById('close-btn');
+      var statusDot = document.getElementById('status-dot');
+
+      var lastSegmentsJson = '';
+      var isRecording = false;
+
+      function tauriInvoke(cmd, args) {
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            return window.__TAURI_INTERNALS__.invoke(cmd, args || {});
+          }
+        } catch(e) {}
+        return Promise.resolve();
+      }
+
+      function render(segments) {
+        content.innerHTML = '';
+        if (!segments || segments.length === 0) {
+          var empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = isRecording ? '等待识别结果…' : '录音未开始';
+          content.appendChild(empty);
+          statusDot.classList.toggle('idle', !isRecording);
+          return;
+        }
+
+        statusDot.classList.remove('idle');
+        segments.forEach(function(seg) {
+          var segEl = document.createElement('div');
+          segEl.className = 'segment';
+
+          var origEl = document.createElement('div');
+          origEl.className = 'original' + (seg.is_partial ? ' partial' : '');
+          origEl.textContent = seg.text || '';
+          segEl.appendChild(origEl);
+
+          if (seg.translation) {
+            var transEl = document.createElement('div');
+            transEl.className = 'translation';
+            transEl.textContent = seg.translation;
+            segEl.appendChild(transEl);
+          }
+
+          content.appendChild(segEl);
+        });
+
+        // Auto-scroll to bottom so the latest segment is visible
+        content.scrollTop = content.scrollHeight;
+      }
+
+      function segmentsEqual(a, b) {
+        if (!a || !b || a.length !== b.length) return false;
+        for (var i = 0; i < a.length; i++) {
+          if (a[i].sequence_id !== b[i].sequence_id) return false;
+          if (a[i].text !== b[i].text) return false;
+          if (a[i].is_partial !== b[i].is_partial) return false;
+          if (a[i].translation !== b[i].translation) return false;
+        }
+        return true;
+      }
+
+      async function pollSegments() {
+        try {
+          var segments = await tauriInvoke('get_subtitle_segments');
+          var json = JSON.stringify(segments || []);
+          if (json !== lastSegmentsJson) {
+            lastSegmentsJson = json;
+            render(segments || []);
+          }
+        } catch(e) {
+          console.error('[Subtitle] pollSegments failed:', e);
+        }
+      }
+
+      async function pollRecordingState() {
+        try {
+          var recording = await tauriInvoke('is_recording');
+          isRecording = !!recording;
+        } catch(e) {
+          isRecording = false;
+        }
+      }
+
+      // --- Dragging ---
+      var dragStart = null;
+      var isDragging = false;
+
+      function startDrag(e) {
+        if (e.button !== 0) return;
+        dragStart = { x: e.screenX, y: e.screenY };
+        isDragging = false;
+      }
+
+      function onMouseMove(e) {
+        if (!dragStart) return;
+        var dx = e.screenX - dragStart.x;
+        var dy = e.screenY - dragStart.y;
+        if (!isDragging && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+          isDragging = true;
+          dragStart = null;
+          tauriInvoke('start_subtitle_drag');
+        }
+      }
+
+      function onMouseUp() {
+        dragStart = null;
+        isDragging = false;
+      }
+
+      dragbar.addEventListener('mousedown', startDrag);
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+
+      // --- Close button ---
+      closeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        tauriInvoke('hide_subtitle_window');
+      });
+
+      // --- Polling fallback (reliable in static HTML windows) ---
+      pollRecordingState();
+      pollSegments();
+      setInterval(pollRecordingState, 1000);
+      setInterval(pollSegments, 200);
+    })();
+  </script>
+</body>
+</html>

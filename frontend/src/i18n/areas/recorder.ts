@@ -12,6 +12,8 @@ export interface RecorderMessages {
   recTranslate: string
   recTranslating: string
   recTranslateTitle: string
+  recSubtitle: string
+  recSubtitleTitle: string
   recTargetLang: string
   recTranslateAuto: string
   recTranslateToEn: string
@@ -84,6 +86,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslate: 'Translate',
     recTranslating: 'Translating',
     recTranslateTitle: 'Real-time translation: show a translation under each recognized segment',
+    recSubtitle: 'Subtitle',
+    recSubtitleTitle: 'Show desktop subtitle overlay',
     recTargetLang: 'Target language',
     recTranslateAuto: 'Auto both ways',
     recTranslateToEn: 'Into English',
@@ -154,6 +158,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslate: '翻译',
     recTranslating: '翻译中',
     recTranslateTitle: '实时翻译：每段识别结果下方显示译文',
+    recSubtitle: '字幕',
+    recSubtitleTitle: '显示桌面字幕悬浮窗',
     recTargetLang: '目标语言',
     recTranslateAuto: '自动互译',
     recTranslateToEn: '译成英文',
@@ -224,6 +230,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslate: '번역',
     recTranslating: '번역 중',
     recTranslateTitle: '실시간 번역: 인식된 각 문장 아래에 번역을 표시합니다',
+    recSubtitle: '자막',
+    recSubtitleTitle: '데스크톱 자막 오버레이 표시',
     recTargetLang: '대상 언어',
     recTranslateAuto: '자동 양방향',
     recTranslateToEn: '영어로 번역',
@@ -294,6 +302,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslate: '翻訳',
     recTranslating: '翻訳中',
     recTranslateTitle: 'リアルタイム翻訳：認識された各セグメントの下に訳文を表示します',
+    recSubtitle: '字幕',
+    recSubtitleTitle: 'デスクトップ字幕オーバーレイを表示',
     recTargetLang: '対象言語',
     recTranslateAuto: '自動で双方向',
     recTranslateToEn: '英語に翻訳',

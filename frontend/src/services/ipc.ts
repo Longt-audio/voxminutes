@@ -670,3 +670,46 @@ export async function summaryExportMarkdown(
     outputDir: outputDir ?? null,
   })
 }
+
+// ── 桌面字幕悬浮窗 ─────────────────────────────────────────────────────────────
+
+export async function showSubtitleWindow(): Promise<void> {
+  return invoke('show_subtitle_window')
+}
+
+export async function hideSubtitleWindow(): Promise<void> {
+  return invoke('hide_subtitle_window')
+}
+
+export async function toggleSubtitleWindow(): Promise<boolean> {
+  return invoke<boolean>('toggle_subtitle_window')
+}
+
+export async function getSubtitleWindowState(): Promise<boolean> {
+  return invoke<boolean>('get_subtitle_window_state')
+}
+
+export function onSubtitleWindowState(
+  callback: (payload: { visible: boolean }) => void
+): Promise<UnlistenFn> {
+  return listen<{ visible: boolean }>('subtitle-window-state', (event) => callback(event.payload))
+}
+
+export interface SubtitleSegmentInput {
+  sequence_id: number
+  text: string
+  is_partial: boolean
+}
+
+export interface SubtitleTranslationInput {
+  sequence_id: number
+  translated_text: string
+}
+
+export async function pushSubtitleSegment(update: SubtitleSegmentInput): Promise<void> {
+  return invoke('push_subtitle_segment', { update })
+}
+
+export async function pushSubtitleTranslation(update: SubtitleTranslationInput): Promise<void> {
+  return invoke('push_subtitle_translation', { update })
+}

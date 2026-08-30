@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Mic, Square, Pause, Play, MicOff, Speaker, Languages } from 'lucide-react'
+import { Mic, Square, Pause, Play, MicOff, Speaker, Languages, Captions } from 'lucide-react'
 import { useAppStore } from '@/state'
 import { useRecorder, useRecordingTimer, DEFAULT_ASR_MODEL } from '@/hooks/useRecorder'
 import { useAudioLevel } from '@/hooks/useAudioLevel'
@@ -19,6 +19,7 @@ import {
   setTranslationTargetLang as ipcSetTranslationTargetLang,
   setTranslationEngine as ipcSetTranslationEngine,
   setTranslationHomeLang,
+  toggleSubtitleWindow,
 } from '@/services/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -109,7 +110,18 @@ export function RecorderControls() {
   const setTranslationEngine = useAppStore((s) => s.setTranslationEngine)
 
   const [setupOpen, setSetupOpen] = useState(false)
+  const [subtitleVisible, setSubtitleVisible] = useState(false)
   const home = useLanguageStore((s) => s.language)
+
+  const handleSubtitleToggle = async () => {
+    const next = !subtitleVisible
+    setSubtitleVisible(next)
+    try {
+      setSubtitleVisible(await toggleSubtitleWindow())
+    } catch {
+      setSubtitleVisible(!next)
+    }
+  }
 
   const handleTranslateToggle = () => {
     const next = !translateEnabled
@@ -208,6 +220,16 @@ export function RecorderControls() {
           >
             <Languages className="h-4 w-4" />
             {translateEnabled ? t.recTranslating : t.recTranslate}
+          </Button>
+          <Button
+            variant={subtitleVisible ? 'default' : 'outline'}
+            size="sm"
+            className="gap-2 w-[120px] font-medium px-3"
+            onClick={handleSubtitleToggle}
+            title={t.recSubtitleTitle}
+          >
+            <Captions className="h-4 w-4" />
+            {t.recSubtitle}
           </Button>
           {translateEnabled && (
             <>
