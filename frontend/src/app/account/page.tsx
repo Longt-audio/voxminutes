@@ -9,6 +9,7 @@ import {
   type RemoteMessage,
 } from '@/services/ipc'
 import { RemoteAsrSection } from '@/components/settings/RemoteAsrSection'
+import { SummarySection } from '@/components/settings/SummarySection'
 import { Button } from '@/components/ui/button'
 import { useMessages } from '@/i18n/useMessages'
 
@@ -113,6 +114,7 @@ export default function AccountPage() {
               </div>
             </div>
           )}
+          <SummarySection />
           <RemoteAsrSection />
         </div>
       </div>

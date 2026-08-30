@@ -9,6 +9,7 @@ export interface OnboardingMessages {
   onbWelcomePoint3: string
   onbStart: string
   onbUseRemote: string
+  onbSetupLocal: string
   onbStepIndicator: string
   onbStepAsrTitle: string
   onbStepAsrDesc: string
@@ -35,6 +36,7 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbWelcomePoint3: "All data stays on your device — nothing leaves it",
     onbStart: "Get started",
     onbUseRemote: "Use remote models",
+    onbSetupLocal: "Set up local models",
     onbStepIndicator: "Step {n} of {total}",
     onbStepAsrTitle: "Speech recognition model (required)",
     onbStepAsrDesc: "Pick one ASR model and download it, or import it from a local file.",
@@ -59,6 +61,7 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbWelcomePoint3: "所有数据保存在本机，不出设备",
     onbStart: "开始设置",
     onbUseRemote: "使用远程模型",
+    onbSetupLocal: "设置本地模型",
     onbStepIndicator: "第 {n} / {total} 步",
     onbStepAsrTitle: "语音识别模型（必装一个）",
     onbStepAsrDesc: "选择一个 ASR 模型下载，或从本地文件导入。",
@@ -83,6 +86,7 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbWelcomePoint3: "모든 데이터는 기기에만 저장되며 외부로 나가지 않습니다",
     onbStart: "시작하기",
     onbUseRemote: "원격 모델 사용",
+    onbSetupLocal: "로컬 모델 설정",
     onbStepIndicator: "{total}단계 중 {n}단계",
     onbStepAsrTitle: "음성 인식 모델 (필수)",
     onbStepAsrDesc: "ASR 모델 하나를 선택해 다운로드하거나 로컬 파일에서 가져오세요.",
@@ -107,6 +111,7 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbWelcomePoint3: "すべてのデータは端末内に保存され、外部に出ません",
     onbStart: "はじめる",
     onbUseRemote: "リモートモデルを使用",
+    onbSetupLocal: "ローカルモデルを設定",
     onbStepIndicator: "ステップ {n} / {total}",
     onbStepAsrTitle: "音声認識モデル（必須）",
     onbStepAsrDesc: "ASR モデルを 1 つ選んでダウンロードするか、ローカルファイルからインポートしてください。",
