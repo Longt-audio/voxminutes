@@ -127,7 +127,7 @@ pub(crate) fn resolve_helper_exe() -> Option<PathBuf> {
     candidates.push(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("binaries")
-            .join(format!("llama-helper-x86_64-pc-windows-msvc{}", EXE_SUFFIX)),
+            .join(format!("llama-helper-{}{}", TARGET_TRIPLE, EXE_SUFFIX)),
     );
 
     // 3. Dev: workspace target dir (exe is target/{profile}/voxminutes.exe).

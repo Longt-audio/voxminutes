@@ -6,7 +6,7 @@
     "build": {
         "frontendDist": "../out",
         "devUrl": "http://localhost:3118",
-        "beforeDevCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev-server.ps1",
+        "beforeDevCommand": "pnpm dev",
         "beforeBuildCommand": "pnpm build"
     },
     "app": {
@@ -96,7 +96,8 @@
     "bundle": {
         "active": true,
         "targets": [
-            "nsis"
+            "nsis",
+            "dmg"
         ],
         "createUpdaterArtifacts": false,
         "icon": [
