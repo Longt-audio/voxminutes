@@ -82,6 +82,13 @@ export interface SettingsMessages {
   setEndpointSaved: string
   setSaveFailed: string
   setRemoteNote: string
+  setRemoteEnable: string
+  setRemoteEnabledOn: string
+  setRemoteEnabledOff: string
+  setRemoteLicense: string
+  setEnterLicense: string
+  setRemoteModelsTitle: string
+  setRemoteKindTranslate: string
   setAdvancedTitle: string
   setPlanned: string
   setAdvTtsName: string
@@ -183,7 +190,14 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setEnterEndpoint: "Please enter the remote ASR endpoint",
     setEndpointSaved: "Remote ASR endpoint saved",
     setSaveFailed: "Save failed: {error}",
-    setRemoteNote: "Remote ASR is reserved for the paid version and is unavailable in the open-source MVP.",
+    setRemoteNote: "Connect your server URL and license to route ASR / translation to the cloud gateway.",
+    setRemoteEnable: "Enable remote service",
+    setRemoteEnabledOn: "Remote service enabled",
+    setRemoteEnabledOff: "Remote service disabled",
+    setRemoteLicense: "License (authorization code)",
+    setEnterLicense: "Please enter the license",
+    setRemoteModelsTitle: "Remote models (published in the admin console)",
+    setRemoteKindTranslate: "Translate",
     setAdvancedTitle: "Coming soon",
     setPlanned: "Planned",
     setAdvTtsName: "TTS voice synthesis",
@@ -283,7 +297,14 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setEnterEndpoint: "请输入远程 ASR 服务地址",
     setEndpointSaved: "远程 ASR 地址已保存",
     setSaveFailed: "保存失败：{error}",
-    setRemoteNote: "远程 ASR 为付费版预留接口，开源 MVP 版本不可用。",
+    setRemoteNote: "填写服务器地址与授权码后，ASR / 翻译将切换到云端网关。",
+    setRemoteEnable: "启用远程服务",
+    setRemoteEnabledOn: "远程服务已启用",
+    setRemoteEnabledOff: "远程服务已停用",
+    setRemoteLicense: "授权码",
+    setEnterLicense: "请输入授权码",
+    setRemoteModelsTitle: "远程模型（后台已上架）",
+    setRemoteKindTranslate: "翻译",
     setAdvancedTitle: "即将上线",
     setPlanned: "规划中",
     setAdvTtsName: "TTS 语音合成",
@@ -383,7 +404,14 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setEnterEndpoint: "원격 ASR 서비스 주소를 입력하세요",
     setEndpointSaved: "원격 ASR 주소가 저장되었습니다",
     setSaveFailed: "저장 실패: {error}",
-    setRemoteNote: "원격 ASR은 유료 버전을 위해 예약된 인터페이스로, 오픈소스 MVP 버전에서는 사용할 수 없습니다.",
+    setRemoteNote: "서버 주소와 라이선스를 입력하면 ASR / 번역이 클라우드 게이트웨이로 전환됩니다.",
+    setRemoteEnable: "원격 서비스 사용",
+    setRemoteEnabledOn: "원격 서비스 사용됨",
+    setRemoteEnabledOff: "원격 서비스 사용 안 함",
+    setRemoteLicense: "라이선스(인증 코드)",
+    setEnterLicense: "라이선스를 입력하세요",
+    setRemoteModelsTitle: "원격 모델(관리자 콘솔에 게시됨)",
+    setRemoteKindTranslate: "번역",
     setAdvancedTitle: "출시 예정",
     setPlanned: "계획 중",
     setAdvTtsName: "TTS 음성 합성",
@@ -483,7 +511,14 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setEnterEndpoint: "リモート ASR サービスアドレスを入力してください",
     setEndpointSaved: "リモート ASR アドレスを保存しました",
     setSaveFailed: "保存に失敗しました: {error}",
-    setRemoteNote: "リモート ASR は有料版向けに予約されたインターフェースで、オープンソース MVP 版では利用できません。",
+    setRemoteNote: "サーバーアドレスとライセンスを入力すると、ASR / 翻訳がクラウドゲートウェイに切り替わります。",
+    setRemoteEnable: "リモートサービスを有効化",
+    setRemoteEnabledOn: "リモートサービス有効",
+    setRemoteEnabledOff: "リモートサービス無効",
+    setRemoteLicense: "ライセンス(認証コード)",
+    setEnterLicense: "ライセンスを入力してください",
+    setRemoteModelsTitle: "リモートモデル(管理コンソールに公開済み)",
+    setRemoteKindTranslate: "翻訳",
     setAdvancedTitle: "近日公開",
     setPlanned: "計画中",
     setAdvTtsName: "TTS 音声合成",
