@@ -2,6 +2,7 @@
 
 import { RecorderControls, RecorderInfo } from '@/components/recorder/RecorderPanel'
 import { TranscriptPanel } from '@/components/recorder/TranscriptPanel'
+import { RemoteMessages } from '@/components/RemoteMessages'
 
 export default function HomePage() {
   return (
@@ -11,10 +12,13 @@ export default function HomePage() {
         <RecorderControls />
       </div>
 
-      {/* 右栏：信息行 + 转录文本 */}
+      {/* 右栏：信息行 + 远程消息 + 转录文本 */}
       <div className="flex flex-col min-h-0 pr-5 pb-5">
         <div className="shrink-0 pt-8 pb-3">
           <RecorderInfo />
+        </div>
+        <div className="shrink-0 pb-3">
+          <RemoteMessages />
         </div>
         <TranscriptPanel />
       </div>

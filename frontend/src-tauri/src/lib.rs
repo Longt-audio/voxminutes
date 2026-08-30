@@ -56,6 +56,7 @@ pub mod summary;
 pub mod translation;
 pub mod tray;
 pub mod subtitle_overlay;
+pub mod remote_messages;
 
 pub mod bundle_paths;
 pub mod utils;
@@ -941,6 +942,7 @@ pub fn run() {
             get_remote_enabled,
             get_remote_models,
             list_remote_models,
+            remote_messages::fetch_remote_messages,
             notifications::commands::get_notification_settings,
             notifications::commands::set_notification_settings,
             notifications::commands::request_notification_permission,

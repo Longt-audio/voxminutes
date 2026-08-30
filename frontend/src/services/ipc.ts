@@ -713,3 +713,29 @@ export async function pushSubtitleSegment(update: SubtitleSegmentInput): Promise
 export async function pushSubtitleTranslation(update: SubtitleTranslationInput): Promise<void> {
   return invoke('push_subtitle_translation', { update })
 }
+
+// ── 远程推送消息（tips / 公告 / 最新版本） ─────────────────────────────────────
+
+export interface RemoteMessage {
+  id: string
+  type: string
+  title: string
+  body: string
+  severity: string
+  dismissible: boolean
+  created_at: string
+}
+
+export interface RemoteLatestVersion {
+  version: string
+  release_notes: string
+  download_url: string
+  published_at: string
+}
+
+export async function fetchRemoteMessages(): Promise<{
+  announcements: RemoteMessage[]
+  latestVersion: RemoteLatestVersion | null
+}> {
+  return invoke('fetch_remote_messages')
+}
