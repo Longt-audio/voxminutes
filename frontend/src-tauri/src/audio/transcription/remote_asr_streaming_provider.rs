@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
 use log::{info, warn};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Runtime};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
@@ -235,27 +234,15 @@ fn format_timestamp() -> String {
 }
 
 fn urlencoding(s: &str) -> String {
-    s.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '~' {
-                c.to_string()
-            } else {
-                c.utf8_encode()
-            }
-        })
-        .collect()
-}
-
-/// 简单 percent-encoding（UTF-8 字节 → %XX）。
-trait Utf8Encode {
-    fn utf8_encode(self) -> String;
-}
-impl Utf8Encode for char {
-    fn utf8_encode(self) -> String {
-        let mut buf = [0u8; 4];
-        let s = self.encode_utf8(&mut buf);
-        s.bytes().map(|b| format!("%{:02X}", b)).collect()
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.' || b == b'~' {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{:02X}", b));
+        }
     }
+    out
 }
 
 // 让 provider 也能走统一 trait（虽非流式路径会用它，但保留兼容）
@@ -287,8 +274,3 @@ impl TranscriptionProvider for RemoteAsrStreamingProvider {
         self
     }
 }
-
-#[allow(dead_code)]
-fn _unused_mutex<T>(_m: &Mutex<Option<T>>) {}
-#[allow(dead_code)]
-fn _unused_arc<T>(_a: &Arc<T>) {}
