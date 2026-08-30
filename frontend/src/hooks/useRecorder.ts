@@ -76,6 +76,7 @@ export function useRecorder() {
   }, [])
 
   useEffect(() => {
+    let disposed = false
     const registerEvents = async () => {
       const u1 = await onRecordingStarted(() => {
         setRecording(true)
@@ -145,6 +146,12 @@ export function useRecorder() {
           duration: 5000,
         })
       })
+      // 若在 await 注册过程中组件已卸载，立即释放已注册的监听，避免泄漏
+      if (disposed) {
+        const arr = [u1, u2, u3, u4, u5, u6, u7]
+        arr.forEach((u) => { try { u() } catch {} })
+        return
+      }
       unlisteners.current = [u1, u2, u3, u4, u5, u6, u7]
 
       // 与后端同步状态（防止组件重挂载后丢失事件）
@@ -159,6 +166,7 @@ export function useRecorder() {
     }
     registerEvents()
     return () => {
+      disposed = true
       unlisteners.current.forEach((u) => {
         try {
           u()
@@ -180,7 +188,11 @@ export function useRecorder() {
       setProcessing(true)
       setAsrModelStatus('loading')
       try {
-        const modelToUse = options.modelName || DEFAULT_ASR_MODEL
+        let modelToUse = options.modelName || DEFAULT_ASR_MODEL
+        // 前端「远程模型」占位名统一映射到后端识别的 qwen3-asr-remote
+        if (modelToUse === 'remote') {
+          modelToUse = 'qwen3-asr-remote'
+        }
 
         // 先写语言偏好：SenseVoice 引擎在模型加载时读取该偏好构造识别器
         if (options.language) {
@@ -188,7 +200,11 @@ export function useRecorder() {
         }
         await sherpaOnnxLoadModel(modelToUse)
         await apiSaveTranscriptConfig(
-          modelToUse.startsWith('x-asr-') ? 'x-asr' : 'sherpaonnx',
+          modelToUse.startsWith('x-asr-')
+            ? 'x-asr'
+            : modelToUse.startsWith('qwen3-asr-remote')
+              ? 'remote-qwen3-asr'
+              : 'sherpaonnx',
           modelToUse,
           null
         )

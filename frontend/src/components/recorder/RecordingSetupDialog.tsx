@@ -83,8 +83,10 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
   const systemOptions = useMemo(() => devices.filter((d) => d.device_type === 'Output'), [devices])
 
   const isXAsr = modelName.startsWith('x-asr-')
+  const isRemote = modelName === 'remote' || modelName.startsWith('qwen3-asr-remote')
   const selectedInfo = localModels.find((m) => m.name === modelName)
-  const canStart = !!selectedInfo && selectedInfo.status !== 'Missing'
+  // 远程 ASR 不依赖本地模型下载，只要开关开启即可开始
+  const canStart = isRemote ? remoteEnabled : !!selectedInfo && selectedInfo.status !== 'Missing'
 
   const languageOptions = [
     { code: 'auto', name: t.recLangAuto },

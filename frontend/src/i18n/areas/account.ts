@@ -14,6 +14,8 @@ export interface AccountMessages {
   accFeedbackEmpty: string
   accFeedbackSent: string
   accFeedbackFailed: string
+  accRefresh: string
+  accRefreshed: string
 }
 
 export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
@@ -30,6 +32,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accFeedbackEmpty: 'Please enter feedback content',
     accFeedbackSent: 'Feedback sent, thanks!',
     accFeedbackFailed: 'Failed to send: {error}',
+    accRefresh: 'Refresh',
+    accRefreshed: 'Refreshed',
   },
   zh: {
     accTitle: '用户中心',
@@ -44,6 +48,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accFeedbackEmpty: '请输入反馈内容',
     accFeedbackSent: '反馈已提交，感谢！',
     accFeedbackFailed: '提交失败：{error}',
+    accRefresh: '刷新',
+    accRefreshed: '已刷新',
   },
   ko: {
     accTitle: '계정',
@@ -58,6 +64,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accFeedbackEmpty: '피드백 내용을 입력하세요',
     accFeedbackSent: '피드백이 제출되었습니다. 감사합니다!',
     accFeedbackFailed: '제출 실패: {error}',
+    accRefresh: '새로고침',
+    accRefreshed: '새로고침됨',
   },
   ja: {
     accTitle: 'アカウント',
@@ -72,5 +80,7 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accFeedbackEmpty: 'フィードバック内容を入力してください',
     accFeedbackSent: 'フィードバックを送信しました。ありがとうございます！',
     accFeedbackFailed: '送信に失敗: {error}',
+    accRefresh: '更新',
+    accRefreshed: '更新しました',
   },
 }

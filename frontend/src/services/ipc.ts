@@ -1,6 +1,6 @@
 // VoxMinutes MVP IPC 层 —— 只包含 MVP 后端命令
 import { invoke } from '@tauri-apps/api/core'
-import { listen, UnlistenFn } from '@tauri-apps/api/event'
+import { listen as tauriListen, UnlistenFn } from '@tauri-apps/api/event'
 import type {
   TranscriptSegment,
   TranscriptUpdate,
@@ -37,6 +37,35 @@ import type {
   ModelLoadingEvent,
   ImportModelResult,
 } from '@/types'
+
+// ── 事件监听安全包装 ──────────────────────────────────────────────────────────
+// Tauri 的 listen 返回的 unlisten 是 async 函数，重复调用（React StrictMode 双
+// 挂载 / 组件重渲染清理竞态）会抛 `listeners[eventId].handlerId` 未定义错误。
+// 这里包一层：unlisten 只执行一次，且吞掉同步异常与异步 rejection。
+
+import type { EventName, EventCallback, Options } from '@tauri-apps/api/event'
+
+function listen<T>(
+  event: EventName,
+  handler: EventCallback<T>,
+  options?: Options,
+): Promise<UnlistenFn> {
+  return tauriListen<T>(event, handler, options).then((raw) => {
+    let called = false
+    return () => {
+      if (called) return
+      called = true
+      try {
+        const r = raw() as unknown
+        if (r && typeof (r as Promise<void>).catch === 'function') {
+          ;(r as Promise<void>).catch(() => {})
+        }
+      } catch {
+        // 重复 unlisten：忽略
+      }
+    }
+  })
+}
 
 // ── 录音控制 ──────────────────────────────────────────────────────────────────
 
