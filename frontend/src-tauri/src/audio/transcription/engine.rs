@@ -325,7 +325,8 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
     let is_xasr = config.model.starts_with("x-asr-");
     let is_remote = config.model == "qwen3-asr-remote"
         || config.model.starts_with("qwen3-asr-remote")
-        || config.provider == "remote-qwen3-asr";
+        || config.provider == "remote-qwen3-asr"
+        || remote_enabled();
 
     if is_xasr {
         info!("🔍 Validating X-ASR model: {}", config.model);
@@ -419,7 +420,8 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
     let is_xasr = config.model.starts_with("x-asr-");
     let is_remote = config.model == "qwen3-asr-remote"
         || config.model.starts_with("qwen3-asr-remote")
-        || config.provider == "remote-qwen3-asr";
+        || config.provider == "remote-qwen3-asr"
+        || remote_enabled();
 
     if is_xasr {
         info!("🦊 Initializing X-ASR streaming transcription engine (Rust-native): {}", config.model);

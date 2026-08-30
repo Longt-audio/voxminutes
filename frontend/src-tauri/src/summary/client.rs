@@ -173,6 +173,80 @@ fn parse_sse_data(data: &str, is_openai: bool) -> Result<SseAction, String> {
     }
 }
 
+/// 远程总结：走自建网关 /v1/chat/completions（OpenAI 兼容 SSE），复用远程服务
+/// 的 server_url + license，不接触上游 API key。
+async fn stream_completion_gateway<F: FnMut(String)>(
+    config: &SummaryApiConfig,
+    prompt: &str,
+    max_tokens: Option<u32>,
+    temperature: Option<f32>,
+    cancel: &AtomicBool,
+    mut on_token: F,
+) -> Result<String, String> {
+    use futures_util::StreamExt;
+    let api_base = crate::audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置（缺少服务器地址）".to_string())?;
+    let license = crate::audio::transcription::get_remote_license();
+    if license.is_empty() {
+        return Err("远程服务未配置（缺少授权码）".to_string());
+    }
+
+    let body = serde_json::json!({
+        "model": config.model,
+        "stream": true,
+        "max_tokens": max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+        "temperature": temperature.unwrap_or(DEFAULT_TEMPERATURE),
+        "messages": [{ "role": "user", "content": prompt }],
+    });
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/chat/completions", api_base))
+        .bearer_auth(&license)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("远程总结请求失败: {}", e))?;
+    let status = resp.status();
+    if !status.is_success() {
+        let detail = resp.text().await.unwrap_or_default();
+        return Err(format!("远程总结错误 (HTTP {}): {}", status, detail));
+    }
+
+    let mut accumulated = String::new();
+    let mut buf = String::new();
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        if cancel.load(Ordering::SeqCst) {
+            return Ok(accumulated);
+        }
+        let chunk = chunk.map_err(|e| format!("远程总结流错误: {}", e))?;
+        buf.push_str(&String::from_utf8_lossy(&chunk));
+        while let Some(pos) = buf.find('\n') {
+            let line = buf[..pos].trim().to_string();
+            buf.drain(..=pos);
+            let data = match line.strip_prefix("data:") {
+                Some(d) => d.trim(),
+                None => continue,
+            };
+            if data.is_empty() {
+                continue;
+            }
+            if data == "[DONE]" {
+                return Ok(accumulated);
+            }
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
+                if let Some(delta) = v["choices"][0]["delta"]["content"].as_str() {
+                    let delta = delta.to_string();
+                    accumulated.push_str(&delta);
+                    on_token(delta);
+                }
+            }
+        }
+    }
+    Ok(accumulated)
+}
+
 /// Run one streaming completion, invoking `on_token` per text chunk.
 /// Returns the full accumulated text. A cancelled stream returns the text
 /// accumulated so far (treated as a normal completion by the caller).
@@ -185,6 +259,11 @@ async fn stream_completion<F: FnMut(String)>(
     on_token: F,
 ) -> Result<String, String> {
     use futures_util::StreamExt;
+
+    if config.protocol == "gateway" {
+        return stream_completion_gateway(config, prompt, max_tokens, temperature, cancel, on_token)
+            .await;
+    }
 
     let is_openai = config.protocol == "openai";
     let (url, body) = if is_openai {
@@ -291,7 +370,7 @@ pub async fn summary_generate<R: Runtime>(
     max_tokens: Option<u32>,
     temperature: Option<f32>,
 ) -> Result<(), String> {
-    if config.protocol != "openai" && config.protocol != "anthropic" {
+    if config.protocol != "openai" && config.protocol != "anthropic" && config.protocol != "gateway" {
         return Err(format!("Unknown summary protocol: {}", config.protocol));
     }
     let flag = Arc::new(AtomicBool::new(false));

@@ -36,6 +36,7 @@ export interface SummaryMessages {
   sumApiKey: string
   sumApiKeyHint: string
   sumApiModel: string
+  sumRemoteNote: string
   sumApiFetchModels: string
   sumApiTest: string
   sumApiTestOk: string
@@ -96,6 +97,7 @@ export const SUMMARY_MESSAGES: Record<Language, SummaryMessages> = {
     sumApiKey: 'API key',
     sumApiKeyHint: 'Leave empty for local/LAN endpoints',
     sumApiModel: 'Model',
+    sumRemoteNote: 'Summaries now run through the remote gateway (configured in the Remote Service tab). Choose the summary model below.',
     sumApiFetchModels: 'Fetch models',
     sumApiTest: 'Test connection',
     sumApiTestOk: 'Connection successful',
@@ -154,6 +156,7 @@ export const SUMMARY_MESSAGES: Record<Language, SummaryMessages> = {
     sumApiKey: 'API 密钥',
     sumApiKeyHint: '本地/局域网端点可留空',
     sumApiModel: '模型',
+    sumRemoteNote: '会议总结已改为走远程服务网关（在「远程服务」tab 配置服务器地址与授权码），请在下方选择总结模型。',
     sumApiFetchModels: '获取模型列表',
     sumApiTest: '测试连接',
     sumApiTestOk: '连接成功',
@@ -212,6 +215,7 @@ export const SUMMARY_MESSAGES: Record<Language, SummaryMessages> = {
     sumApiKey: 'API 키',
     sumApiKeyHint: '로컬/LAN 엔드포인트는 비워 둘 수 있습니다',
     sumApiModel: '모델',
+    sumRemoteNote: '회의 요약은 이제 원격 게이트웨이(원격 서비스 탭에서 구성)를 사용합니다. 아래에서 요약 모델을 선택하세요.',
     sumApiFetchModels: '모델 목록 가져오기',
     sumApiTest: '연결 테스트',
     sumApiTestOk: '연결 성공',
@@ -270,6 +274,7 @@ export const SUMMARY_MESSAGES: Record<Language, SummaryMessages> = {
     sumApiKey: 'API キー',
     sumApiKeyHint: 'ローカル/LAN エンドポイントでは空欄可',
     sumApiModel: 'モデル',
+    sumRemoteNote: '会議要約はリモートゲートウェイ（リモートサービス タブで構成）を使用します。以下で要約モデルを選択してください。',
     sumApiFetchModels: 'モデル一覧を取得',
     sumApiTest: '接続をテスト',
     sumApiTestOk: '接続に成功しました',
