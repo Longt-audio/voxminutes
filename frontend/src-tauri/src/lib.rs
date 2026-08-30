@@ -661,6 +661,56 @@ fn clear_all_model_backends() -> Result<(), String> {
     Ok(())
 }
 
+/// 拉取积分余额（网关 /v1/usage）。
+#[tauri::command]
+async fn get_remote_usage() -> Result<serde_json::Value, String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/usage", base))
+        .bearer_auth(license)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("网关返回 HTTP {}", resp.status()));
+    }
+    resp.json().await.map_err(|e| e.to_string())
+}
+
+/// 提交用户反馈（文字 + 可选截图 base64 + 联系方式）到网关 /v1/feedback。
+#[tauri::command]
+async fn submit_feedback(
+    text: String,
+    screenshot: Option<String>,
+    contact: Option<String>,
+) -> Result<(), String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let body = serde_json::json!({
+        "text": text,
+        "screenshot": screenshot,
+        "contact": contact,
+        "license": license,
+    });
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/feedback", base))
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("提交失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("网关返回 HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
 // Internal helper function to get language preference (for use within Rust code)
 pub fn get_language_preference_internal() -> Option<String> {
     LANGUAGE_PREFERENCE.lock().ok().map(|lang| lang.clone())
@@ -958,6 +1008,8 @@ pub fn run() {
             get_remote_models,
             list_remote_models,
             clear_all_model_backends,
+            get_remote_usage,
+            submit_feedback,
             remote_messages::fetch_remote_messages,
             notifications::commands::get_notification_settings,
             notifications::commands::set_notification_settings,

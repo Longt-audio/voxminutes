@@ -754,3 +754,21 @@ export async function fetchRemoteMessages(): Promise<{
 }> {
   return invoke('fetch_remote_messages')
 }
+
+/** 拉取积分余额（网关 /v1/usage）。 */
+export async function getRemoteUsage(): Promise<{ license: string; name: string; credits: number }> {
+  return invoke('get_remote_usage')
+}
+
+/** 提交用户反馈（文字 + 可选截图 base64 + 联系方式）。 */
+export async function submitFeedback(
+  text: string,
+  screenshot?: string | null,
+  contact?: string | null
+): Promise<void> {
+  return invoke('submit_feedback', {
+    text,
+    screenshot: screenshot ?? null,
+    contact: contact ?? null,
+  })
+}

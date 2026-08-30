@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
-import { FileText, History, Settings, Minus, Square, X, Copy, Languages, Cpu } from 'lucide-react'
+import { FileText, History, Settings, Minus, Square, X, Copy, Languages, Cpu, User } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/history', msgKey: 'navHistory', icon: History },
   { href: '/translate', msgKey: 'navTranslate', icon: Languages },
   { href: '/settings', msgKey: 'navSettings', icon: Settings },
+  { href: '/account', msgKey: 'navAccount', icon: User },
 ] as const
 
 const appWindow = () => getCurrentWindow()
