@@ -8,6 +8,7 @@ import { useRecorder, useRecordingTimer, DEFAULT_ASR_MODEL } from '@/hooks/useRe
 import { useAudioLevel } from '@/hooks/useAudioLevel'
 import {
   sherpaOnnxGetModels,
+  onModelDownloadProgress,
   getDefaultAudioDevices,
   apiGetTranscriptConfig,
   setMicMute as ipcSetMicMute,
@@ -88,6 +89,32 @@ function useRecorderInit() {
         useAppStore.getState().setTranslateTargetLang(target)
         if (target !== l) ipcSetTranslationTargetLang(target).catch(() => {})
       })
+  }, [setModels, setSelectedModel])
+
+  // 模型下载完成后刷新模型列表（修复：引导下载完模型仍显示「未下载」/ 不自动选中）
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    onModelDownloadProgress((p) => {
+      if (p.stage === 'done') {
+        sherpaOnnxGetModels()
+          .then((list) => {
+            setModels(list)
+            // 若当前未选中任何可用模型，自动选中第一个已下载的
+            const cur = useAppStore.getState().selectedModel
+            const stillAvailable = list.some((m) => m.name === cur && m.status !== 'Missing')
+            if (!stillAvailable) {
+              const first = list.find((m) => !m.hidden && !m.is_remote && m.status !== 'Missing')
+              if (first) setSelectedModel(first.name)
+            }
+          })
+          .catch(() => {})
+      }
+    }).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      unlisten?.()
+    }
   }, [setModels, setSelectedModel])
 }
 
