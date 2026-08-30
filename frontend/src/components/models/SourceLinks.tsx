@@ -36,27 +36,35 @@ export function SourceLinksPanel({
       <p className="text-xs text-muted-foreground mb-2">{t.setLinksHint}</p>
       <div className="flex flex-col gap-1.5">
         {model.sources.map((s, i) => (
-          <div key={s.label} className="flex items-center gap-2">
-            <span className="flex-1 min-w-0 truncate text-xs" title={s.urls.join('\n')}>
-              {s.label}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              disabled={disabled}
-              onClick={() => onUseSource(i)}
-            >
-              {t.setDownloadThisSource}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => copyLinks(s.label, s.urls)}
-            >
-              {t.setCopyLinks}
-            </Button>
+          <div key={s.label} className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="flex-1 min-w-0 truncate text-xs font-medium" title={s.urls.join('\n')}>
+                {s.label}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs shrink-0"
+                disabled={disabled}
+                onClick={() => onUseSource(i)}
+              >
+                {t.setDownloadThisSource}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs shrink-0"
+                onClick={() => copyLinks(s.label, s.urls)}
+              >
+                {t.setCopyLinks}
+              </Button>
+            </div>
+            {/* 文本形式的下载链接，方便复制到下载器 */}
+            {s.urls.map((url) => (
+              <p key={url} className="break-all font-mono text-[11px] leading-4 text-muted-foreground select-all">
+                {url}
+              </p>
+            ))}
           </div>
         ))}
       </div>
