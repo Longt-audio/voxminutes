@@ -6,6 +6,7 @@ export interface CoreMessages {
   navHistory: string
   navTranslate: string
   navSettings: string
+  navAccount: string
   sloganFooter: string
   emptyTitle: string
   emptyHint: string
@@ -45,6 +46,7 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     navHistory: 'History',
     navTranslate: 'Translate',
     navSettings: 'Settings',
+    navAccount: 'Account',
     sloganFooter: 'Your local meeting assistant · Records system audio & mic together · Real-time transcription, translation & summaries — all on your device.',
     emptyTitle: 'No transcripts yet',
     emptyHint: 'Start recording to see live speech recognition',
@@ -82,6 +84,7 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     navHistory: '历史记录',
     navTranslate: '翻译',
     navSettings: '设置',
+    navAccount: '用户中心',
     sloganFooter: '您的本地会议助手 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备',
     emptyTitle: '暂无转录内容',
     emptyHint: '开始录音以查看实时语音识别',
@@ -119,6 +122,7 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     navHistory: '기록',
     navTranslate: '번역',
     navSettings: '설정',
+    navAccount: '계정',
     sloganFooter: '로컬 회의 어시스턴트 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다.',
     emptyTitle: '아직 받아쓰기 내용이 없습니다',
     emptyHint: '녹음을 시작하면 실시간 음성 인식이 표시됩니다',
@@ -156,6 +160,7 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     navHistory: '履歴',
     navTranslate: '翻訳',
     navSettings: '設定',
+    navAccount: 'アカウント',
     sloganFooter: 'ローカル会議アシスタント · システム音声とマイクを同時録音 · リアルタイム文字起こし・翻訳・要約。データはデバイスの外に出ません。',
     emptyTitle: '文字起こし結果はまだありません',
     emptyHint: '録音を開始すると、リアルタイムの音声認識が表示されます',

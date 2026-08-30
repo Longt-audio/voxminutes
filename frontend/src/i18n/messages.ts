@@ -6,6 +6,7 @@ import { SETTINGS_MESSAGES, type SettingsMessages } from './areas/settings'
 import { TRANSLATE_MESSAGES, type TranslateMessages } from './areas/translate'
 import { SUMMARY_MESSAGES, type SummaryMessages } from './areas/summary'
 import { ONBOARDING_MESSAGES, type OnboardingMessages } from './areas/onboarding'
+import { ACCOUNT_MESSAGES, type AccountMessages } from './areas/account'
 
 export type { Language } from './languages'
 export { LANGUAGE_OPTIONS } from './languages'
@@ -16,7 +17,8 @@ export type Messages = CoreMessages &
   SettingsMessages &
   TranslateMessages &
   SummaryMessages &
-  OnboardingMessages
+  OnboardingMessages &
+  AccountMessages
 
 export const MESSAGES: Record<Language, Messages> = {
   en: {
@@ -27,6 +29,7 @@ export const MESSAGES: Record<Language, Messages> = {
     ...TRANSLATE_MESSAGES.en,
     ...SUMMARY_MESSAGES.en,
     ...ONBOARDING_MESSAGES.en,
+    ...ACCOUNT_MESSAGES.en,
   },
   zh: {
     ...CORE_MESSAGES.zh,
@@ -36,6 +39,7 @@ export const MESSAGES: Record<Language, Messages> = {
     ...TRANSLATE_MESSAGES.zh,
     ...SUMMARY_MESSAGES.zh,
     ...ONBOARDING_MESSAGES.zh,
+    ...ACCOUNT_MESSAGES.zh,
   },
   ko: {
     ...CORE_MESSAGES.ko,
@@ -45,6 +49,7 @@ export const MESSAGES: Record<Language, Messages> = {
     ...TRANSLATE_MESSAGES.ko,
     ...SUMMARY_MESSAGES.ko,
     ...ONBOARDING_MESSAGES.ko,
+    ...ACCOUNT_MESSAGES.ko,
   },
   ja: {
     ...CORE_MESSAGES.ja,
@@ -54,5 +59,6 @@ export const MESSAGES: Record<Language, Messages> = {
     ...TRANSLATE_MESSAGES.ja,
     ...SUMMARY_MESSAGES.ja,
     ...ONBOARDING_MESSAGES.ja,
+    ...ACCOUNT_MESSAGES.ja,
   },
 }
