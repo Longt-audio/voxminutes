@@ -221,7 +221,8 @@ export interface RetranscriptionPartial {
 // ── 远程 ASR（预留接口，MVP 不实现） ──────────────────────────────────────────
 
 export interface RemoteAsrConfig {
-  endpoint: string
+  serverUrl: string
+  license: string
   model: string
   configured: boolean
 }

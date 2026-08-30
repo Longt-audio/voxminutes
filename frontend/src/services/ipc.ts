@@ -289,18 +289,57 @@ export async function selectRecordingFolder(): Promise<string | null> {
   return invoke<string | null>('select_recording_folder')
 }
 
-// ── 远程 ASR（预留接口） ──────────────────────────────────────────────────────
+// ── 远程服务（网关：ASR / 翻译 / TTS 共用） ─────────────────────────────────────
 
-export async function setRemoteAsrEndpoint(endpoint: string, modelName?: string): Promise<void> {
-  return invoke('set_remote_asr_endpoint', { endpoint, modelName: modelName ?? null })
+export async function setRemoteConfig(serverUrl: string, license: string, modelName?: string): Promise<void> {
+  return invoke('set_remote_config', { serverUrl, license, modelName: modelName ?? null })
 }
 
 export async function checkRemoteAsrHealth(endpoint: string): Promise<boolean> {
   return invoke<boolean>('check_remote_asr_health_cmd', { endpoint })
 }
 
-export async function getRemoteAsrConfig(): Promise<RemoteAsrConfig> {
-  return invoke<RemoteAsrConfig>('get_remote_asr_config')
+export async function getRemoteConfig(): Promise<RemoteAsrConfig> {
+  return invoke<RemoteAsrConfig>('get_remote_config')
+}
+
+export async function setRemoteEnabled(enabled: boolean): Promise<void> {
+  return invoke('set_remote_enabled', { enabled })
+}
+
+export async function getRemoteEnabled(): Promise<boolean> {
+  return invoke<boolean>('get_remote_enabled')
+}
+
+/** 网关当前启用的远程模型（asr/translate/tts 各自的模型 id） */
+export async function getRemoteModels(): Promise<{ asr: string; translate: string; tts: string }> {
+  return invoke('get_remote_models')
+}
+
+export interface RemoteModelItem {
+  id: string
+  object: string
+  owned_by: string
+  kind: 'asr' | 'translate' | 'tts'
+}
+
+/** 网关 /v1/models 全量列表（供模型选择器下拉） */
+export async function listRemoteModels(): Promise<RemoteModelItem[]> {
+  return invoke<RemoteModelItem[]>('list_remote_models')
+}
+
+/** 读回三种能力的远程模型选择 */
+export async function getRemoteModelChoice(): Promise<{ asr: string; translate: string; tts: string }> {
+  return invoke('get_remote_model_choice')
+}
+
+/** 设置三种能力的远程模型选择 */
+export async function setRemoteModelChoice(choice: { asr?: string; translate?: string; tts?: string }): Promise<void> {
+  return invoke('set_remote_model_choice', {
+    asr: choice.asr ?? null,
+    translate: choice.translate ?? null,
+    tts: choice.tts ?? null,
+  })
 }
 
 // ── 文件导入 ──────────────────────────────────────────────────────────────────
