@@ -47,14 +47,17 @@ if (platform === 'linux' && feature === 'cuda') {
   env.CMAKE_POSITION_INDEPENDENT_CODE = 'ON';
 }
 
-// Build the tauri command
+// Build the tauri command.
+// NOTE: the voxminutes main crate has no GPU features — hardware acceleration
+// for the translation engine lives in the separate `llama-helper` sidecar,
+// built with `cargo build -p llama-helper [--features cuda|metal|vulkan]`.
+// Passing GPU features to `tauri dev/build` fails with
+// "package 'voxminutes' does not contain this feature".
 let tauriCmd = `tauri ${command}`;
-if (feature && feature !== 'none') {
-  tauriCmd += ` -- --features ${feature}`;
-  console.log(`🚀 Running: tauri ${command} with features: ${feature}`);
-} else {
-  console.log(`🚀 Running: tauri ${command} (CPU-only mode)`);
+if (feature) {
+  console.log(`ℹ️  GPU detected (${feature}) — applies to llama-helper sidecar, not the main crate`);
 }
+console.log(`🚀 Running: tauri ${command}`);
 console.log('');
 
 // Execute the command
