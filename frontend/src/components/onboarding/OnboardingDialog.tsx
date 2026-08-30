@@ -6,7 +6,11 @@ import {
   apiSaveSetting,
   getDownloadableModels,
   onFirstLaunchDetected,
+  sherpaOnnxGetModelsDirectory,
+  setModelsDirectoryCustom,
 } from '@/services/ipc'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +41,7 @@ export function OnboardingDialog() {
   const [step, setStep] = useState(0)
   // 每个模型卡的"链接"面板展开状态
   const [linksOpen, setLinksOpen] = useState<Record<string, boolean>>({})
+  const [modelsDir, setModelsDir] = useState('')
   const {
     models,
     progressMap,
@@ -100,6 +105,26 @@ export function OnboardingDialog() {
   const asrInstalled = models.some((m) => modelGroup(m.id) === 'asr' && m.installed)
   const groupInstalled = (group: 'translate' | 'summary') =>
     models.some((m) => modelGroup(m.id) === group && m.installed)
+
+  // 首次使用确认模型存放目录（可修改）
+  useEffect(() => {
+    sherpaOnnxGetModelsDirectory()
+      .then(setModelsDir)
+      .catch(() => {})
+  }, [])
+
+  const handleChangeModelsDir = async () => {
+    try {
+      const selected = await openDialog({ directory: true, title: t.setModelDir })
+      if (!selected) return
+      const dir = typeof selected === 'string' ? selected : selected?.[0]
+      if (!dir) return
+      const effective = await setModelsDirectoryCustom(dir)
+      setModelsDir(effective)
+    } catch {
+      // 静默
+    }
+  }
 
   // 模型选项卡：标题 + 描述 + 体积 + 下载/导入/取消 + 进度条
   const renderOption = (ids: string[], customTitle?: string) => {
@@ -226,6 +251,14 @@ export function OnboardingDialog() {
               <DialogTitle>{t.onbStepAsrTitle}</DialogTitle>
               <DialogDescription>{t.onbStepAsrDesc}</DialogDescription>
             </DialogHeader>
+            {/* 模型存放目录：首次使用可确认/修改 */}
+            <div className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2">
+              <span className="text-xs text-muted-foreground shrink-0">{t.setModelDir}</span>
+              <span className="flex-1 min-w-0 truncate text-xs text-muted-foreground">{modelsDir || t.comLoading}</span>
+              <Button variant="outline" size="sm" className="shrink-0" onClick={handleChangeModelsDir}>
+                {t.setModelDirChange}
+              </Button>
+            </div>
             <div className="flex max-h-[48vh] flex-col gap-4 overflow-y-auto pr-1">
               <div>
                 <h4 className="mb-2 text-sm font-medium">{t.setGroupAsr}</h4>

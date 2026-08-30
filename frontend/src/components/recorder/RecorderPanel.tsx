@@ -22,6 +22,7 @@ import {
   setTranslationEngine as ipcSetTranslationEngine,
   setTranslationHomeLang,
   toggleSubtitleWindow,
+  getRemoteEnabled,
 } from '@/services/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -144,12 +145,16 @@ export function RecorderControls() {
   const [setupOpen, setSetupOpen] = useState(false)
   const [subtitleVisible, setSubtitleVisible] = useState(false)
   const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
+  const [remoteEnabled, setRemoteEnabled] = useState(false)
   const home = useLanguageStore((s) => s.language)
 
   useEffect(() => {
     getDownloadableModels()
       .then(setTranslationModels)
       .catch(() => setTranslationModels([]))
+    getRemoteEnabled()
+      .then(setRemoteEnabled)
+      .catch(() => setRemoteEnabled(false))
   }, [])
 
   // 未加载完成时先显示全部引擎，加载后按已下载过滤
@@ -297,6 +302,7 @@ export function RecorderControls() {
               >
                 {translationEngines.includes('opus') && <option value="opus">{t.recEngineOpus}</option>}
                 {translationEngines.includes('hymt2') && <option value="hymt2">{t.recEngineHymt2}</option>}
+                {remoteEnabled && <option value="remote">{t.recEngineRemote}</option>}
               </select>
             </>
           )}
