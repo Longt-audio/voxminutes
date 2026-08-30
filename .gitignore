@@ -126,3 +126,7 @@ docs/promotion/
 # Sidecar binaries (platform-specific, built locally / not committed)
 frontend/src-tauri/binaries/
 !frontend/src-tauri/example_audio.wav
+
+# tauri icon 生成的移动端图标（桌面应用不用）
+frontend/src-tauri/icons/android/
+frontend/src-tauri/icons/ios/
