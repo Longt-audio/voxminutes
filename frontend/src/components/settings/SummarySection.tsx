@@ -2,73 +2,35 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import {
-  summaryGetConfig,
-  summaryListModels,
-  summarySaveConfig,
-  summaryTestConnection,
-} from '@/services/ipc'
+import { listRemoteModels, summaryGetConfig, summarySaveConfig, type RemoteModelItem } from '@/services/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SettingsSection } from './SettingsSection'
 import { useMessages } from '@/i18n/useMessages'
 
-/** 设置页：会议总结 / AI —— API 协议、端点、密钥、模型配置 */
+/** 设置页：会议总结 / AI —— 走远程服务网关（去掉了自定义 API），选择总结模型 */
 export function SummarySection() {
   const t = useMessages()
-  const [protocol, setProtocol] = useState('openai')
-  const [endpoint, setEndpoint] = useState('')
-  const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
-  const [fetchedModels, setFetchedModels] = useState<string[]>([])
-  const [testing, setTesting] = useState(false)
-  const [fetching, setFetching] = useState(false)
+  const [models, setModels] = useState<RemoteModelItem[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    listRemoteModels()
+      .then((list) => setModels(list.filter((m) => m.kind === 'translate')))
+      .catch(() => {})
     summaryGetConfig()
-      .then((config) => {
-        if (!config) return
-        setProtocol(config.protocol || 'openai')
-        setEndpoint(config.endpoint)
-        setApiKey(config.apiKey)
-        setModel(config.model)
+      .then((c) => {
+        if (c?.model) setModel(c.model)
       })
       .catch(() => {})
   }, [])
 
-  const currentConfig = () => ({ protocol, endpoint: endpoint.trim(), apiKey, model: model.trim() })
-
-  const handleFetchModels = async () => {
-    setFetching(true)
-    try {
-      const models = await summaryListModels(currentConfig())
-      setFetchedModels(models)
-      if (models.length > 0 && !models.includes(model.trim())) setModel(models[0])
-    } catch (e) {
-      toast.error(t.sumFetchModelsFailed.replace('{error}', String(e)))
-    } finally {
-      setFetching(false)
-    }
-  }
-
-  const handleTest = async () => {
-    setTesting(true)
-    try {
-      await summaryTestConnection(currentConfig())
-      toast.success(t.sumApiTestOk)
-    } catch (e) {
-      toast.error(t.sumApiTestFailed.replace('{error}', String(e)))
-    } finally {
-      setTesting(false)
-    }
-  }
-
   const handleSave = async () => {
     setSaving(true)
     try {
-      await summarySaveConfig(currentConfig())
+      await summarySaveConfig({ protocol: 'gateway', endpoint: '', apiKey: '', model: model.trim() })
       toast.success(t.sumApiSaved)
     } catch (e) {
       toast.error(t.sumApiSaveFailed.replace('{error}', String(e)))
@@ -79,65 +41,33 @@ export function SummarySection() {
 
   return (
     <SettingsSection title={t.sumSettingsTitle} description={t.sumSettingsHint}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">{t.sumApiProtocol}</span>
-          <Select value={protocol} onValueChange={setProtocol}>
-            <SelectTrigger className="text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="openai">{t.sumProtocolOpenAI}</SelectItem>
-              <SelectItem value="anthropic">{t.sumProtocolAnthropic}</SelectItem>
-            </SelectContent>
-          </Select>
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">{t.sumApiEndpoint}</span>
-          <Input
-            value={endpoint}
-            placeholder={t.sumEndpointPlaceholder}
-            onChange={(e) => setEndpoint(e.target.value)}
-          />
-        </label>
-      </div>
-
-      <div className="mt-4 flex flex-col gap-1.5">
-        <span className="text-xs text-muted-foreground">{t.sumApiKey}</span>
-        <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-        <span className="text-[11px] text-muted-foreground/80">{t.sumApiKeyHint}</span>
+      <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        {t.sumRemoteNote}
       </div>
 
       <div className="mt-4 flex flex-col gap-1.5">
         <span className="text-xs text-muted-foreground">{t.sumApiModel}</span>
-        <div className="flex items-center gap-2">
-          <Input className="flex-1 min-w-0" value={model} onChange={(e) => setModel(e.target.value)} />
-          <Button variant="outline" className="shrink-0" disabled={fetching} onClick={handleFetchModels}>
-            {fetching ? t.comLoading : t.sumApiFetchModels}
-          </Button>
-        </div>
-        {fetchedModels.length > 0 && (
+        {models.length > 0 ? (
           <Select value={model} onValueChange={setModel}>
             <SelectTrigger className="text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {fetchedModels.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
+              {models.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.owned_by} / {m.id}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+        ) : (
+          <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="deepseek-chat" />
         )}
       </div>
 
-      <div className="mt-4 flex items-center gap-2">
-        <Button variant="outline" disabled={testing} onClick={handleTest}>
-          {testing ? t.comLoading : t.sumApiTest}
-        </Button>
+      <div className="mt-4">
         <Button disabled={saving} onClick={handleSave}>
-          {t.comSave}
+          {saving ? t.comLoading : t.comSave}
         </Button>
       </div>
     </SettingsSection>
