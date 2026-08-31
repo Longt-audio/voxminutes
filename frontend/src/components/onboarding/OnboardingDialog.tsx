@@ -28,8 +28,8 @@ import { formatSize, stageText, modelGroup, modelDesc, modelDisplayName } from '
 /** 设置页"重新打开新手指引"通过该窗口事件通知 AppShell 里的向导弹出 */
 export const OPEN_ONBOARDING_EVENT = 'vox:open-onboarding'
 
-/** 向导步骤：0 欢迎 / 1 远程服务(可跳过) / 2 本地模型 / 3 完成 */
-const TOTAL_STEPS = 4
+/** 向导步骤：0 欢迎+远程配置(可跳过) / 1 本地模型 / 2 完成 */
+const TOTAL_STEPS = 3
 
 /** 各步骤的模型选项（多 id 表示一张卡对应多个模型，如 OPUS-MT 中英双向） */
 const ASR_OPTIONS: string[][] = [['x-asr-480ms'], ['sense-voice']]
@@ -271,7 +271,7 @@ export function OnboardingDialog() {
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : finish())}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto custom-scrollbar">
-        {/* 步骤 0：欢迎页（右上角放语言切换，首次使用即可选界面语言） */}
+        {/* 步骤 0：欢迎 + 远程配置（合并：第一页即可配置远程服务，可跳过） */}
         {step === 0 && (
           <>
             <div className="absolute right-12 top-4">
@@ -297,87 +297,71 @@ export function OnboardingDialog() {
               <li>{t.onbWelcomePoint2}</li>
               <li>{t.onbWelcomePoint3}</li>
             </ul>
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-muted-foreground/70">{stepIndicator}</span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setStep(2)}>{t.onbSetupLocal}</Button>
-                <Button onClick={() => setStep(1)}>{t.onbUseRemote}</Button>
-              </div>
-            </div>
-          </>
-        )}
 
-        {/* 步骤 1：远程服务设置（可跳过） */}
-        {step === 1 && (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t.onbRemoteTitle}</DialogTitle>
-              <DialogDescription>{t.onbRemoteDesc}</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={remoteEnable}
-                  onChange={(e) => setRemoteEnable(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                <span>{t.onbRemoteEnable}</span>
-              </label>
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs text-muted-foreground">{t.onbRemoteUrl}</span>
-                <Input
-                  value={remoteUrl}
-                  onChange={(e) => {
-                    setRemoteUrl(e.target.value)
-                    setRemoteHealth(null)
-                  }}
-                  placeholder="http://127.0.0.1:8788"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs text-muted-foreground">{t.onbRemoteKey}</span>
-                <div className="flex items-center gap-2">
-                  <Input
-                    className="flex-1 min-w-0"
-                    value={remoteKey}
-                    onChange={(e) => setRemoteKey(e.target.value)}
-                    placeholder="sk-…"
-                    type="password"
+            {/* 远程服务配置（可跳过；填了地址+授权码才保存） */}
+            <div className="mt-3 rounded-md border border-border/60 px-4 py-3">
+              <div className="text-sm font-medium">{t.onbRemoteTitle}</div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t.onbRemoteDesc}</p>
+              <div className="mt-3 flex flex-col gap-2.5">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={remoteEnable}
+                    onChange={(e) => setRemoteEnable(e.target.checked)}
+                    className="h-4 w-4"
                   />
-                  <Button variant="outline" className="shrink-0" onClick={handleRemoteTest} disabled={remoteChecking}>
-                    {remoteChecking ? t.onbRemoteTesting : t.onbRemoteTest}
-                  </Button>
-                  {remoteHealth !== null && (
-                    <Badge variant={remoteHealth ? 'success' : 'destructive'}>
-                      {remoteHealth ? t.setOnline : t.setOffline}
-                    </Badge>
-                  )}
+                  <span>{t.onbRemoteEnable}</span>
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-muted-foreground">{t.onbRemoteUrl}</span>
+                  <Input
+                    value={remoteUrl}
+                    onChange={(e) => {
+                      setRemoteUrl(e.target.value)
+                      setRemoteHealth(null)
+                    }}
+                    placeholder="http://127.0.0.1:8788"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-muted-foreground">{t.onbRemoteKey}</span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      className="flex-1 min-w-0"
+                      value={remoteKey}
+                      onChange={(e) => setRemoteKey(e.target.value)}
+                      placeholder="sk-…"
+                      type="password"
+                    />
+                    <Button variant="outline" className="shrink-0" onClick={handleRemoteTest} disabled={remoteChecking}>
+                      {remoteChecking ? t.onbRemoteTesting : t.onbRemoteTest}
+                    </Button>
+                    {remoteHealth !== null && (
+                      <Badge variant={remoteHealth ? 'success' : 'destructive'}>
+                        {remoteHealth ? t.setOnline : t.setOffline}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+
             <div className="flex items-center justify-between pt-2">
-              <Button variant="ghost" onClick={() => setStep(0)}>
-                {t.onbBack}
-              </Button>
+              <span className="text-xs text-muted-foreground/70">{stepIndicator}</span>
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={handleRemoteSkip}>
-                  {t.onbRemoteSkipStep}
-                </Button>
-                <Button onClick={handleRemoteNext} disabled={remoteSaving}>
-                  {t.onbNext}
-                </Button>
+                <Button variant="outline" onClick={handleRemoteSkip}>{t.onbRemoteSkipStep}</Button>
+                <Button onClick={handleRemoteNext} disabled={remoteSaving}>{t.onbNext}</Button>
               </div>
             </div>
           </>
         )}
 
-        {/* 步骤 2：本地模型（原步骤 1） */}
-        {step === 2 && (
+        {/* 步骤 1：本地模型（合并远程后的第二步） */}
+        {step === 1 && (
           <>
             <DialogHeader>
-              <DialogTitle>{t.onbStepAsrTitle}</DialogTitle>
-              <DialogDescription>{t.onbStepAsrDesc}</DialogDescription>
+              <DialogTitle>{t.onbStepLocalModelsTitle}</DialogTitle>
+              <DialogDescription>{t.onbStepLocalModelsDesc}</DialogDescription>
             </DialogHeader>
             {/* 模型存放目录：首次使用可确认/修改 */}
             <div className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2">
@@ -405,11 +389,11 @@ export function OnboardingDialog() {
               </div>
             </div>
             <div className="flex items-center justify-between pt-2">
-              <Button variant="ghost" onClick={() => setStep(1)}>
+              <Button variant="ghost" onClick={() => setStep(0)}>
                 {t.onbBack}
               </Button>
               <div className="flex items-center gap-3">
-                <Button onClick={() => setStep(3)}>
+                <Button onClick={() => setStep(2)}>
                   {t.onbNext}
                 </Button>
               </div>
@@ -417,8 +401,8 @@ export function OnboardingDialog() {
           </>
         )}
 
-        {/* 步骤 3：完成页（原步骤 2） */}
-        {step === 3 && (
+        {/* 步骤 2：完成页 */}
+        {step === 2 && (
           <>
             <DialogHeader>
               <DialogTitle>{t.onbStepDoneTitle}</DialogTitle>
