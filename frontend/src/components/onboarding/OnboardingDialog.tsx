@@ -169,11 +169,11 @@ export function OnboardingDialog() {
       }
       setRemoteSaving(false)
     }
-    setStep(2)
+    setStep(1)
   }
 
   const handleRemoteSkip = () => {
-    setStep(2)
+    setStep(1)
   }
 
   const handleChangeModelsDir = async () => {
