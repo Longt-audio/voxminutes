@@ -6,7 +6,7 @@
 
 **您的本地会议助手 · 完全免费 · 系统声音与麦克风同步录制 · 实时转写、13 语言翻译与 AI 总结，数据不出设备**
 
-**[English](README.md) | 中文 | [한국어](README.ko.md) | [日本語](README.ja.md)**
+**[English](README.en.md) | 中文 | [한국어](README.ko.md) | [日本語](README.ja.md)**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
