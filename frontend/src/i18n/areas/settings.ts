@@ -7,6 +7,9 @@ export interface SettingsMessages {
   setTabAudioExport: string
   setTabApi: string
   setTabAdvanced: string
+  setGeneralTitle: string
+  setGeneralHint: string
+  setStartupNotice: string
   setAsrModels: string
   setGroupAsr: string
   setGroupTranslate: string
@@ -124,6 +127,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setTabAudioExport: "Audio & export",
     setTabApi: "API",
     setTabAdvanced: "Advanced",
+    setGeneralTitle: "General",
+    setGeneralHint: "Startup notice and other general options.",
+    setStartupNotice: "Show startup notices on app launch",
     setAsrModels: "Models",
     setGroupAsr: "ASR models",
     setGroupTranslate: "Translation models",
@@ -239,6 +245,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setTabAudioExport: "音频与导出",
     setTabApi: "API",
     setTabAdvanced: "高级",
+    setGeneralTitle: "通用",
+    setGeneralHint: "启动提示弹窗等通用选项。",
+    setStartupNotice: "打开软件时显示启动提示弹窗",
     setAsrModels: "模型",
     setGroupAsr: "ASR 模型",
     setGroupTranslate: "翻译模型",
@@ -354,6 +363,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setTabAudioExport: "오디오 및 내보내기",
     setTabApi: "API",
     setTabAdvanced: "고급",
+    setGeneralTitle: "일반",
+    setGeneralHint: "시작 알림 등 일반 옵션.",
+    setStartupNotice: "앱 시작 시 시작 알림 표시",
     setAsrModels: "모델",
     setGroupAsr: "ASR 모델",
     setGroupTranslate: "번역 모델",
@@ -469,6 +481,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setTabAudioExport: "オーディオとエクスポート",
     setTabApi: "API",
     setTabAdvanced: "詳細",
+    setGeneralTitle: "一般",
+    setGeneralHint: "起動時のお知らせなどの一般オプション。",
+    setStartupNotice: "アプリ起動時にお知らせを表示",
     setAsrModels: "モデル",
     setGroupAsr: "ASR モデル",
     setGroupTranslate: "翻訳モデル",

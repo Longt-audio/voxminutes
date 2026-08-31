@@ -37,6 +37,9 @@ export interface OnboardingMessages {
   onbRemoteSaveFailed: string
   onbRemoteNeedUrl: string
   onbRemoteNeedKey: string
+  onbNoticeClose: string
+  onbNoticeDismissThis: string
+  onbNoticeDisableAll: string
 }
 
 export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
@@ -76,6 +79,9 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbRemoteSaveFailed: "Save failed: {error}",
     onbRemoteNeedUrl: "Enter a server address first",
     onbRemoteNeedKey: "Enter a license first to test connection",
+    onbNoticeClose: "Close",
+    onbNoticeDismissThis: "Don\'t show this again",
+    onbNoticeDisableAll: "Don\'t show startup notices",
   },
   zh: {
     onbWelcomeTitle: "欢迎使用 VoxMinutes",
@@ -113,6 +119,9 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbRemoteSaveFailed: "保存失败：{error}",
     onbRemoteNeedUrl: "请先填写服务器地址",
     onbRemoteNeedKey: "请先填写授权码再测试连接",
+    onbNoticeClose: "关闭",
+    onbNoticeDismissThis: "不再显示本条",
+    onbNoticeDisableAll: "不再显示启动提示",
   },
   ko: {
     onbWelcomeTitle: "VoxMinutes에 오신 것을 환영합니다",
@@ -150,6 +159,9 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbRemoteSaveFailed: "저장 실패: {error}",
     onbRemoteNeedUrl: "먼저 서버 주소를 입력하세요",
     onbRemoteNeedKey: "연결 테스트 전에 라이선스를 입력하세요",
+    onbNoticeClose: "닫기",
+    onbNoticeDismissThis: "이 항목 다시 보지 않기",
+    onbNoticeDisableAll: "시작 알림 다시 보지 않기",
   },
   ja: {
     onbWelcomeTitle: "VoxMinutes へようこそ",
@@ -187,5 +199,8 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbRemoteSaveFailed: "保存失敗: {error}",
     onbRemoteNeedUrl: "先にサーバーアドレスを入力してください",
     onbRemoteNeedKey: "接続テストの前にライセンスを入力してください",
+    onbNoticeClose: "閉じる",
+    onbNoticeDismissThis: "この項目を今後表示しない",
+    onbNoticeDisableAll: "起動時のお知らせを今後表示しない",
   },
 }
