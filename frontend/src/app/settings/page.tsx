@@ -61,6 +61,11 @@ export default function SettingsPage() {
         ))}
       </div>
 
+      {/* 通用偏好（启动弹窗开关等）：固定显示，所有 tab 可见 */}
+      <div className="shrink-0 max-w-[860px] pt-2">
+        <GeneralSection />
+      </div>
+
       {/* 内容区（可滚动，最大宽度 860px） */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
         <div className="flex flex-col gap-6 max-w-[860px] pt-4 pb-6">
@@ -69,7 +74,6 @@ export default function SettingsPage() {
             <>
               <AudioSection />
               <ExportSection />
-              <GeneralSection />
             </>
           )}
         </div>
