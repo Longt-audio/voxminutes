@@ -25,6 +25,18 @@ export interface OnboardingMessages {
   onbBack: string
   onbSkip: string
   onbFinish: string
+  onbRemoteTitle: string
+  onbRemoteDesc: string
+  onbRemoteUrl: string
+  onbRemoteKey: string
+  onbRemoteEnable: string
+  onbRemoteTest: string
+  onbRemoteTesting: string
+  onbRemoteSkipStep: string
+  onbRemoteSaved: string
+  onbRemoteSaveFailed: string
+  onbRemoteNeedUrl: string
+  onbRemoteNeedKey: string
 }
 
 export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
@@ -52,6 +64,18 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbBack: "Back",
     onbSkip: "Skip",
     onbFinish: "Finish",
+    onbRemoteTitle: "Remote service (optional)",
+    onbRemoteDesc: "Use the gateway for cloud ASR / translation / summary. You can skip this and use local models instead.",
+    onbRemoteUrl: "Server address",
+    onbRemoteKey: "License (authorization code)",
+    onbRemoteEnable: "Enable remote service",
+    onbRemoteTest: "Test connection",
+    onbRemoteTesting: "Testing…",
+    onbRemoteSkipStep: "Skip remote service",
+    onbRemoteSaved: "Saved",
+    onbRemoteSaveFailed: "Save failed: {error}",
+    onbRemoteNeedUrl: "Enter a server address first",
+    onbRemoteNeedKey: "Enter a license first to test connection",
   },
   zh: {
     onbWelcomeTitle: "欢迎使用 VoxMinutes",
@@ -77,6 +101,18 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbBack: "上一步",
     onbSkip: "跳过",
     onbFinish: "完成",
+    onbRemoteTitle: "远程服务（可选）",
+    onbRemoteDesc: "通过网关使用云端 ASR / 翻译 / 总结。可以跳过，改用本地模型。",
+    onbRemoteUrl: "服务器地址",
+    onbRemoteKey: "授权码",
+    onbRemoteEnable: "启用远程服务",
+    onbRemoteTest: "测试连接",
+    onbRemoteTesting: "检测中…",
+    onbRemoteSkipStep: "跳过远程服务",
+    onbRemoteSaved: "已保存",
+    onbRemoteSaveFailed: "保存失败：{error}",
+    onbRemoteNeedUrl: "请先填写服务器地址",
+    onbRemoteNeedKey: "请先填写授权码再测试连接",
   },
   ko: {
     onbWelcomeTitle: "VoxMinutes에 오신 것을 환영합니다",
@@ -102,6 +138,18 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbBack: "이전",
     onbSkip: "걄너뛰기",
     onbFinish: "완료",
+    onbRemoteTitle: "원격 서비스 (선택)",
+    onbRemoteDesc: "게이트웨이로 클라우드 ASR / 번역 / 요약을 사용합니다. 걸어넘고 로컬 모델을 쓸 수도 있습니다.",
+    onbRemoteUrl: "서버 주소",
+    onbRemoteKey: "라이선스(인증 코드)",
+    onbRemoteEnable: "원격 서비스 사용",
+    onbRemoteTest: "연결 테스트",
+    onbRemoteTesting: "테스트 중…",
+    onbRemoteSkipStep: "원격 서비스 걸어넘기",
+    onbRemoteSaved: "저장됨",
+    onbRemoteSaveFailed: "저장 실패: {error}",
+    onbRemoteNeedUrl: "먼저 서버 주소를 입력하세요",
+    onbRemoteNeedKey: "연결 테스트 전에 라이선스를 입력하세요",
   },
   ja: {
     onbWelcomeTitle: "VoxMinutes へようこそ",
@@ -127,5 +175,17 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbBack: "戻る",
     onbSkip: "スキップ",
     onbFinish: "完了",
+    onbRemoteTitle: "リモートサービス（任意）",
+    onbRemoteDesc: "ゲートウェイ経由でクラウド ASR / 翻訳 / 要約を利用します。スキップしてローカルモデルでも使えます。",
+    onbRemoteUrl: "サーバーアドレス",
+    onbRemoteKey: "ライセンス(認証コード)",
+    onbRemoteEnable: "リモートサービスを有効化",
+    onbRemoteTest: "接続テスト",
+    onbRemoteTesting: "テスト中…",
+    onbRemoteSkipStep: "リモートサービスをスキップ",
+    onbRemoteSaved: "保存しました",
+    onbRemoteSaveFailed: "保存失敗: {error}",
+    onbRemoteNeedUrl: "先にサーバーアドレスを入力してください",
+    onbRemoteNeedKey: "接続テストの前にライセンスを入力してください",
   },
 }
