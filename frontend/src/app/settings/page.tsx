@@ -5,7 +5,7 @@ import { Rocket } from 'lucide-react'
 import { ModelDownloadCard } from '@/components/settings/ModelDownloadCard'
 import { AudioSection } from '@/components/settings/AudioSection'
 import { ExportSection } from '@/components/settings/ExportSection'
-import { GeneralSection } from '@/components/settings/GeneralSection'
+import { StartupNoticeControl } from '@/components/settings/StartupNoticeControl'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useMessages } from '@/i18n/useMessages'
@@ -37,10 +37,14 @@ export default function SettingsPage() {
           <h1 className="text-lg font-semibold tracking-tight">{t.navSettings}</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{t.setPageSubtitle}</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={reopenOnboarding}>
-          <Rocket className="h-3.5 w-3.5" />
-          {t.setReopenOnboarding}
-        </Button>
+        <div className="flex items-center gap-3 shrink-0">
+          {/* 启动弹窗开关 + 再次弹出（与新手指引同排） */}
+          <StartupNoticeControl />
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={reopenOnboarding}>
+            <Rocket className="h-3.5 w-3.5" />
+            {t.setReopenOnboarding}
+          </Button>
+        </div>
       </header>
 
       {/* tab 栏（下划线风格，与总结对话框一致） */}
@@ -59,11 +63,6 @@ export default function SettingsPage() {
             {item.label}
           </button>
         ))}
-      </div>
-
-      {/* 通用偏好（启动弹窗开关等）：固定显示，所有 tab 可见 */}
-      <div className="shrink-0 max-w-[860px] pt-2">
-        <GeneralSection />
       </div>
 
       {/* 内容区（可滚动，最大宽度 860px） */}

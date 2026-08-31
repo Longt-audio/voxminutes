@@ -23,13 +23,15 @@ function typeLabel(type: string, t: ReturnType<typeof useMessages>): string {
   return t.msgTypeTip
 }
 
-/** 设置键：记录用户选择「不再显示」的启动弹窗消息 id；以及是否禁用启动弹窗。 */
-const DISMISSED_ID_KEY = 'startup_notice.dismissed_id'
+/** 设置键：是否禁用启动弹窗（弹窗里「不再显示」= 设置这个键）。 */
 const DISABLED_KEY = 'startup_notice.disabled'
+
+/** 设置页「再次弹出」通过该窗口事件让弹窗重新拉取并显示（不受禁用开关影响）。 */
+export const RESHOW_STARTUP_NOTICE_EVENT = 'vox:reshow-startup-notice'
 
 /** 启动时长信息弹窗（VSCode 风格）：
  *  每次打开软件时，若有新的 channel=startup 推送消息，弹窗展示（支持图片）。
- *  「关闭」本次关闭；「不再显示本条」记住该消息 id；「不再显示」禁用后续启动弹窗（可在设置中恢复）。
+ *  「关闭」本次关闭；「不再显示」全局禁用启动弹窗（可在设置中恢复）。
  *  所有推送消息（短/长）都可在用户中心「信息发布」区域再次查看。 */
 export function StartupNoticeDialog() {
   const t = useMessages()
@@ -38,26 +40,33 @@ export function StartupNoticeDialog() {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+
+    const load = async (ignoreDisabled: boolean) => {
       try {
         const settings = await apiGetSettings()
-        if (settings[DISABLED_KEY]) return
+        if (!ignoreDisabled && settings[DISABLED_KEY]) return
         const res = await fetchRemoteMessages()
         // 取最新一条启动弹窗消息
         const startup = (res.announcements || [])
           .filter((m) => m.channel === 'startup')
           .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0]
         if (!startup || cancelled) return
-        const dismissedId = settings[DISMISSED_ID_KEY]
-        if (dismissedId === startup.id) return // 本条已选「不再显示」
         setMessage(startup)
         setOpen(true)
       } catch {
         // 网关未配置/不可达：静默忽略
       }
-    })()
+    }
+
+    void load(false)
+
+    // 设置页「再次弹出」：忽略禁用开关，强制显示
+    const onReshow = () => void load(true)
+    window.addEventListener(RESHOW_STARTUP_NOTICE_EVENT, onReshow)
+
     return () => {
       cancelled = true
+      window.removeEventListener(RESHOW_STARTUP_NOTICE_EVENT, onReshow)
     }
   }, [])
 
@@ -65,14 +74,8 @@ export function StartupNoticeDialog() {
     setOpen(false)
   }, [])
 
-  const dismissThis = useCallback(() => {
-    if (message) {
-      apiSaveSetting(DISMISSED_ID_KEY, message.id).catch(() => {})
-    }
-    setOpen(false)
-  }, [message])
-
-  const disableAll = useCallback(() => {
+  /** 「不再显示」（VSCode 风格，单一按钮）：全局禁用启动弹窗，可在设置中恢复。 */
+  const dismissForever = useCallback(() => {
     apiSaveSetting(DISABLED_KEY, 'true').catch(() => {})
     setOpen(false)
   }, [])
@@ -95,18 +98,13 @@ export function StartupNoticeDialog() {
         {message.body && (
           <DialogDescription className="text-sm whitespace-pre-wrap">{message.body}</DialogDescription>
         )}
-        <div className="flex items-center justify-between gap-2 pt-2">
-          <Button variant="ghost" size="sm" onClick={disableAll}>
-            {t.onbNoticeDisableAll}
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={dismissForever}>
+            {t.onbNoticeDismissThis}
           </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={dismissThis}>
-              {t.onbNoticeDismissThis}
-            </Button>
-            <Button size="sm" onClick={closeOnly}>
-              {t.onbNoticeClose}
-            </Button>
-          </div>
+          <Button size="sm" onClick={closeOnly}>
+            {t.onbNoticeClose}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
