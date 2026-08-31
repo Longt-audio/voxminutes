@@ -28,6 +28,9 @@ export interface CoreMessages {
   comDownload: string
   comImport: string
   comExport: string
+  msgTypeTip: string
+  msgTypeAnnouncement: string
+  msgTypeUpdate: string
   comSearch: string
   comRefresh: string
   comEdit: string
@@ -68,6 +71,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     comDownload: 'Download',
     comImport: 'Import',
     comExport: 'Export',
+    msgTypeTip: 'Tip',
+    msgTypeAnnouncement: 'Announcement',
+    msgTypeUpdate: 'Update',
     comSearch: 'Search',
     comRefresh: 'Refresh',
     comEdit: 'Edit',
@@ -106,6 +112,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     comDownload: '下载',
     comImport: '导入',
     comExport: '导出',
+    msgTypeTip: '技巧',
+    msgTypeAnnouncement: '公告',
+    msgTypeUpdate: '更新',
     comSearch: '搜索',
     comRefresh: '刷新',
     comEdit: '编辑',
@@ -144,6 +153,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     comDownload: '다운로드',
     comImport: '가져오기',
     comExport: '내보내기',
+    msgTypeTip: '팁',
+    msgTypeAnnouncement: '공지',
+    msgTypeUpdate: '업데이트',
     comSearch: '검색',
     comRefresh: '새로고침',
     comEdit: '편집',
@@ -182,6 +194,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     comDownload: 'ダウンロード',
     comImport: 'インポート',
     comExport: 'エクスポート',
+    msgTypeTip: 'ヒント',
+    msgTypeAnnouncement: 'お知らせ',
+    msgTypeUpdate: '更新',
     comSearch: '検索',
     comRefresh: '更新',
     comEdit: '編集',
