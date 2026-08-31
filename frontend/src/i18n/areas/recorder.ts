@@ -24,6 +24,8 @@ export interface RecorderMessages {
   recEngineRemote: string
   recRemoteModel: string
   recRemoteModelDesc: string
+  recRemoteModelSelect: string
+  recRemoteNoModels: string
   recModelXAsr: string
   recModelSenseVoice: string
   recNoModel: string
@@ -101,6 +103,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recEngineRemote: 'Remote',
     recRemoteModel: 'Remote ASR',
     recRemoteModelDesc: 'Cloud ASR via the remote gateway',
+    recRemoteModelSelect: 'Remote ASR model',
+    recRemoteNoModels: 'No remote ASR models published in the admin console yet',
     recModelXAsr: 'X-ASR Streaming (ZH/EN)',
     recModelSenseVoice: 'SenseVoice Multilingual',
     recNoModel: 'Not selected',
@@ -176,6 +180,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recEngineRemote: '远程',
     recRemoteModel: '远程 ASR',
     recRemoteModelDesc: '走远程网关的高精度 ASR',
+    recRemoteModelSelect: '远程 ASR 模型',
+    recRemoteNoModels: '后台尚未上架可用的远程 ASR 模型',
     recModelXAsr: 'X-ASR 流式（中英）',
     recModelSenseVoice: 'SenseVoice 多语言',
     recNoModel: '未选择',
@@ -251,6 +257,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recEngineRemote: '원격',
     recRemoteModel: '원격 ASR',
     recRemoteModelDesc: '원격 게이트웨이의 고정밀 ASR',
+    recRemoteModelSelect: '원격 ASR 모델',
+    recRemoteNoModels: '관리 콘솔에 공개된 원격 ASR 모델이 없습니다',
     recModelXAsr: 'X-ASR 스트리밍(중/영)',
     recModelSenseVoice: 'SenseVoice 다국어',
     recNoModel: '선택되지 않음',
@@ -326,6 +334,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recEngineRemote: 'リモート',
     recRemoteModel: 'リモート ASR',
     recRemoteModelDesc: 'リモートゲートウェイの高精度 ASR',
+    recRemoteModelSelect: 'リモート ASR モデル',
+    recRemoteNoModels: '管理コンソールで利用可能なリモート ASR モデルがまだありません',
     recModelXAsr: 'X-ASR ストリーミング(中/英)',
     recModelSenseVoice: 'SenseVoice 多言語',
     recNoModel: '未選択',
