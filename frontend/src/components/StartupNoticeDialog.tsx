@@ -11,6 +11,18 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button'
 import { useMessages } from '@/i18n/useMessages'
 
+/** type → 颜色（与底部短信息一致）：tip 蓝 / announcement 绿 / update 黄。 */
+function typeColor(type: string): string {
+  if (type === 'announcement') return 'text-emerald-600'
+  if (type === 'update') return 'text-amber-600'
+  return 'text-blue-600'
+}
+function typeLabel(type: string, t: ReturnType<typeof useMessages>): string {
+  if (type === 'announcement') return t.msgTypeAnnouncement
+  if (type === 'update') return t.msgTypeUpdate
+  return t.msgTypeTip
+}
+
 /** 设置键：记录用户选择「不再显示」的启动弹窗消息 id；以及是否禁用启动弹窗。 */
 const DISMISSED_ID_KEY = 'startup_notice.dismissed_id'
 const DISABLED_KEY = 'startup_notice.disabled'
@@ -71,6 +83,7 @@ export function StartupNoticeDialog() {
     <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : closeOnly())}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
+          <div className={`text-xs font-medium ${typeColor(message.type)}`}>[{typeLabel(message.type, t)}]</div>
           <DialogTitle>{message.title}</DialogTitle>
         </DialogHeader>
         {message.image && (
