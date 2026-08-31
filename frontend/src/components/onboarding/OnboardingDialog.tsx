@@ -8,8 +8,13 @@ import {
   onFirstLaunchDetected,
   sherpaOnnxGetModelsDirectory,
   setModelsDirectoryCustom,
+  getRemoteConfig,
+  setRemoteConfig,
+  setRemoteEnabled,
+  checkRemoteAsrHealth,
 } from '@/services/ipc'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -23,8 +28,8 @@ import { formatSize, stageText, modelGroup, modelDesc, modelDisplayName } from '
 /** 设置页"重新打开新手指引"通过该窗口事件通知 AppShell 里的向导弹出 */
 export const OPEN_ONBOARDING_EVENT = 'vox:open-onboarding'
 
-/** 向导步骤：0 欢迎 / 1 ASR / 2 翻译 / 3 总结 / 4 完成 */
-const TOTAL_STEPS = 3
+/** 向导步骤：0 欢迎 / 1 远程服务(可跳过) / 2 本地模型 / 3 完成 */
+const TOTAL_STEPS = 4
 
 /** 各步骤的模型选项（多 id 表示一张卡对应多个模型，如 OPUS-MT 中英双向） */
 const ASR_OPTIONS: string[][] = [['x-asr-480ms'], ['sense-voice']]
@@ -42,6 +47,13 @@ export function OnboardingDialog() {
   // 每个模型卡的"链接"面板展开状态
   const [linksOpen, setLinksOpen] = useState<Record<string, boolean>>({})
   const [modelsDir, setModelsDir] = useState('')
+  // 远程服务设置（步骤 1）
+  const [remoteUrl, setRemoteUrl] = useState('')
+  const [remoteKey, setRemoteKey] = useState('')
+  const [remoteEnable, setRemoteEnable] = useState(false)
+  const [remoteHealth, setRemoteHealth] = useState<boolean | null>(null)
+  const [remoteChecking, setRemoteChecking] = useState(false)
+  const [remoteSaving, setRemoteSaving] = useState(false)
   const {
     models,
     progressMap,
@@ -111,7 +123,58 @@ export function OnboardingDialog() {
     sherpaOnnxGetModelsDirectory()
       .then(setModelsDir)
       .catch(() => {})
+    getRemoteConfig()
+      .then((cfg) => {
+        setRemoteUrl(cfg.serverUrl || '')
+        setRemoteKey(cfg.license || '')
+      })
+      .catch(() => {})
   }, [])
+
+  const handleRemoteTest = async () => {
+    const url = remoteUrl.trim()
+    if (!url) {
+      toast.error(t.onbRemoteNeedUrl)
+      return
+    }
+    if (!remoteKey.trim()) {
+      toast.error(t.onbRemoteNeedKey)
+      return
+    }
+    setRemoteChecking(true)
+    setRemoteHealth(null)
+    try {
+      setRemoteHealth(await checkRemoteAsrHealth(url))
+    } catch {
+      setRemoteHealth(false)
+    } finally {
+      setRemoteChecking(false)
+    }
+  }
+
+  const handleRemoteNext = async () => {
+    const url = remoteUrl.trim()
+    const key = remoteKey.trim()
+    // 填了地址+授权码才保存；否则视为跳过远程（直接下一步）
+    if (url && key) {
+      setRemoteSaving(true)
+      try {
+        await setRemoteConfig(url, key)
+        if (remoteEnable) await setRemoteEnabled(true)
+        toast.success(t.onbRemoteSaved)
+      } catch (e) {
+        toast.error(t.onbRemoteSaveFailed.replace('{error}', String(e)))
+        setRemoteSaving(false)
+        return
+      }
+      setRemoteSaving(false)
+    }
+    setStep(2)
+  }
+
+  const handleRemoteSkip = () => {
+    setStep(2)
+  }
 
   const handleChangeModelsDir = async () => {
     try {
@@ -237,15 +300,80 @@ export function OnboardingDialog() {
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-muted-foreground/70">{stepIndicator}</span>
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setStep(1)}>{t.onbSetupLocal}</Button>
-                <Button onClick={finish}>{t.onbUseRemote}</Button>
+                <Button variant="outline" onClick={() => setStep(2)}>{t.onbSetupLocal}</Button>
+                <Button onClick={() => setStep(1)}>{t.onbUseRemote}</Button>
               </div>
             </div>
           </>
         )}
 
-        {/* 步骤 1：所有模型同页（ASR 必装 + 翻译/总结可选，可并行下载） */}
+        {/* 步骤 1：远程服务设置（可跳过） */}
         {step === 1 && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t.onbRemoteTitle}</DialogTitle>
+              <DialogDescription>{t.onbRemoteDesc}</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={remoteEnable}
+                  onChange={(e) => setRemoteEnable(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span>{t.onbRemoteEnable}</span>
+              </label>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-muted-foreground">{t.onbRemoteUrl}</span>
+                <Input
+                  value={remoteUrl}
+                  onChange={(e) => {
+                    setRemoteUrl(e.target.value)
+                    setRemoteHealth(null)
+                  }}
+                  placeholder="http://127.0.0.1:8788"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-muted-foreground">{t.onbRemoteKey}</span>
+                <div className="flex items-center gap-2">
+                  <Input
+                    className="flex-1 min-w-0"
+                    value={remoteKey}
+                    onChange={(e) => setRemoteKey(e.target.value)}
+                    placeholder="sk-…"
+                    type="password"
+                  />
+                  <Button variant="outline" className="shrink-0" onClick={handleRemoteTest} disabled={remoteChecking}>
+                    {remoteChecking ? t.onbRemoteTesting : t.onbRemoteTest}
+                  </Button>
+                  {remoteHealth !== null && (
+                    <Badge variant={remoteHealth ? 'success' : 'destructive'}>
+                      {remoteHealth ? t.setOnline : t.setOffline}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <Button variant="ghost" onClick={() => setStep(0)}>
+                {t.onbBack}
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleRemoteSkip}>
+                  {t.onbRemoteSkipStep}
+                </Button>
+                <Button onClick={handleRemoteNext} disabled={remoteSaving}>
+                  {t.onbNext}
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* 步骤 2：本地模型（原步骤 1） */}
+        {step === 2 && (
           <>
             <DialogHeader>
               <DialogTitle>{t.onbStepAsrTitle}</DialogTitle>
@@ -277,11 +405,11 @@ export function OnboardingDialog() {
               </div>
             </div>
             <div className="flex items-center justify-between pt-2">
-              <Button variant="ghost" onClick={() => setStep(0)}>
+              <Button variant="ghost" onClick={() => setStep(1)}>
                 {t.onbBack}
               </Button>
               <div className="flex items-center gap-3">
-                <Button onClick={() => setStep(2)}>
+                <Button onClick={() => setStep(3)}>
                   {t.onbNext}
                 </Button>
               </div>
@@ -289,8 +417,8 @@ export function OnboardingDialog() {
           </>
         )}
 
-        {/* 步骤 2：完成页 */}
-        {step === 2 && (
+        {/* 步骤 3：完成页（原步骤 2） */}
+        {step === 3 && (
           <>
             <DialogHeader>
               <DialogTitle>{t.onbStepDoneTitle}</DialogTitle>
