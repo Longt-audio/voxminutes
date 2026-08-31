@@ -6,7 +6,7 @@
 
 **ローカル会議アシスタント · 完全無料 · システム音声とマイクを同時録音 · リアルタイム文字起こし・13言語翻訳・要約。データはデバイスの外に出ません。**
 
-**[English](README.en.md) | [中文](README.md) | [한국어](README.ko.md) | 日本語**
+**[English](README.md) | [中文](README.zh-CN.md) | [한국어](README.ko.md) | 日本語**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
@@ -25,6 +25,20 @@
 *👆 アニメーションデモ：デュアルチャンネル録音、リアルタイム文字起こし、リアルタイム翻訳、AI 議事録。音声付きのフルデモを見たい場合は、[60 秒動画](docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4) または [30 秒ハイライト版](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4) をご覧ください。*
 
 </div>
+
+---
+
+> ## 🚀 今週新バージョンリリース · New Version This Week
+>
+> **すでにダウンロード済みの方は、ぜひアップデートを！** v0.2.0 三大新機能：
+>
+> - 🪙 **クレジットシステム** — 内蔵クレジットでリモートクラウドモデルを利用（より大きなモデル、より高速に）
+> - 💬 **デスクトップ字幕** — リアルタイム文字起こしがデスクトップ字幕として表示、字幕付き動画のように会議を見られる
+> - 🔊 **翻訳 TTS** — 翻訳結果の音声読み上げ対応：文字起こし → 翻訳 → リスニング
+>
+> 👉 **[最新版を入手](https://github.com/Longt-audio/voxminutes/releases/latest)** · 今週リリース
+
+---
 
 ---
 
