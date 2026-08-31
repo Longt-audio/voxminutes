@@ -1032,6 +1032,7 @@ pub fn run() {
             get_remote_usage,
             submit_feedback,
             remote_messages::fetch_remote_messages,
+            remote_messages::fetch_notice_documents,
             run_speed_test,
             notifications::commands::get_notification_settings,
             notifications::commands::set_notification_settings,

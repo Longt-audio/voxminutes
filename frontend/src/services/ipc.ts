@@ -787,6 +787,21 @@ export interface RemoteLatestVersion {
   published_at: string
 }
 
+/** 启动文档（版本化多文档，本地缓存，离线可读）。 */
+export interface NoticeDocument {
+  version: number
+  title: string
+  body: string
+  images: string[]
+  updated_at: string
+}
+
+/** 拉取启动文档列表（最新在第一页）；离线时返回本地缓存。 */
+export async function fetchNoticeDocuments(): Promise<NoticeDocument[]> {
+  const r = await invoke<{ items: NoticeDocument[] }>('fetch_notice_documents')
+  return r.items || []
+}
+
 export async function fetchRemoteMessages(): Promise<{
   announcements: RemoteMessage[]
   latestVersion: RemoteLatestVersion | null

@@ -1,27 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import {
-  fetchRemoteMessages,
-  apiGetSettings,
-  apiSaveSetting,
-  type RemoteMessage,
-} from '@/services/ipc'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { apiGetSettings, apiSaveSetting, fetchNoticeDocuments, type NoticeDocument } from '@/services/ipc'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useMessages } from '@/i18n/useMessages'
-
-/** type → 颜色（与底部短信息一致）：tip 蓝 / announcement 绿 / update 黄。 */
-function typeColor(type: string): string {
-  if (type === 'announcement') return 'text-emerald-600'
-  if (type === 'update') return 'text-amber-600'
-  return 'text-blue-600'
-}
-function typeLabel(type: string, t: ReturnType<typeof useMessages>): string {
-  if (type === 'announcement') return t.msgTypeAnnouncement
-  if (type === 'update') return t.msgTypeUpdate
-  return t.msgTypeTip
-}
 
 /** 设置键：是否禁用启动弹窗（弹窗里「不再显示」= 设置这个键）。 */
 const DISABLED_KEY = 'startup_notice.disabled'
@@ -29,13 +13,16 @@ const DISABLED_KEY = 'startup_notice.disabled'
 /** 设置页「再次弹出」通过该窗口事件让弹窗重新拉取并显示（不受禁用开关影响）。 */
 export const RESHOW_STARTUP_NOTICE_EVENT = 'vox:reshow-startup-notice'
 
-/** 启动时长信息弹窗（VSCode 风格）：
- *  每次打开软件时，若有新的 channel=startup 推送消息，弹窗展示（支持图片）。
+/** 启动时长信息弹窗（文档式分页）：
+ *  - 每次打开软件时拉取启动文档列表（本地缓存优先，离线可读；后台有新版本则更新缓存）。
+ *  - 分页显示：最新文档在第一页，老文档往后翻页。
+ *  - 图片按原始比例显示（object-contain，不拉伸）。
  *  「关闭」本次关闭；「不再显示」全局禁用启动弹窗（可在设置中恢复）。
- *  所有推送消息（短/长）都可在用户中心「信息发布」区域再次查看。 */
+ *  设置页可点「再次弹出」强制显示。 */
 export function StartupNoticeDialog() {
   const t = useMessages()
-  const [message, setMessage] = useState<RemoteMessage | null>(null)
+  const [docs, setDocs] = useState<NoticeDocument[]>([])
+  const [index, setIndex] = useState(0)
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -45,13 +32,10 @@ export function StartupNoticeDialog() {
       try {
         const settings = await apiGetSettings()
         if (!ignoreDisabled && settings[DISABLED_KEY]) return
-        const res = await fetchRemoteMessages()
-        // 取最新一条启动弹窗消息
-        const startup = (res.announcements || [])
-          .filter((m) => m.channel === 'startup')
-          .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0]
-        if (!startup || cancelled) return
-        setMessage(startup)
+        const items = await fetchNoticeDocuments()
+        if (!items.length || cancelled) return
+        setDocs(items)
+        setIndex(0)
         setOpen(true)
       } catch {
         // 网关未配置/不可达：静默忽略
@@ -70,9 +54,7 @@ export function StartupNoticeDialog() {
     }
   }, [])
 
-  const closeOnly = useCallback(() => {
-    setOpen(false)
-  }, [])
+  const closeOnly = useCallback(() => setOpen(false), [])
 
   /** 「不再显示」（VSCode 风格，单一按钮）：全局禁用启动弹窗，可在设置中恢复。 */
   const dismissForever = useCallback(() => {
@@ -80,31 +62,68 @@ export function StartupNoticeDialog() {
     setOpen(false)
   }, [])
 
-  if (!message) return null
+  if (!docs.length) return null
+
+  const doc = docs[Math.min(index, docs.length - 1)]
+  const total = docs.length
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : closeOnly())}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <div className={`text-xs font-medium ${typeColor(message.type)}`}>[{typeLabel(message.type, t)}]</div>
-          <DialogTitle>{message.title}</DialogTitle>
+          <DialogTitle>{doc.title}</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            第 {index + 1} / {total} 页 · {doc.updated_at ? new Date(doc.updated_at).toLocaleString() : ''}
+          </p>
         </DialogHeader>
-        {message.image && (
-          <div className="rounded-md overflow-hidden border border-border/60">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={message.image} alt={message.title} className="w-full max-h-64 object-cover" />
+        {doc.images && doc.images.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {doc.images.map((img, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={img}
+                alt={`${doc.title} 图 ${i + 1}`}
+                className="w-full max-h-56 object-contain rounded-md border border-border/60"
+              />
+            ))}
           </div>
         )}
-        {message.body && (
-          <DialogDescription className="text-sm whitespace-pre-wrap">{message.body}</DialogDescription>
-        )}
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={dismissForever}>
-            {t.onbNoticeDismissThis}
-          </Button>
-          <Button size="sm" onClick={closeOnly}>
-            {t.onbNoticeClose}
-          </Button>
+        {doc.body && <p className="text-sm whitespace-pre-wrap">{doc.body}</p>}
+
+        <div className="flex items-center justify-between gap-2 pt-2">
+          <div className="flex items-center gap-1">
+            {total > 1 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={index <= 0}
+                  onClick={() => setIndex((i) => i - 1)}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={index >= total - 1}
+                  onClick={() => setIndex((i) => i + 1)}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={dismissForever}>
+              {t.onbNoticeDismissThis}
+            </Button>
+            <Button size="sm" onClick={closeOnly}>
+              {t.onbNoticeClose}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
