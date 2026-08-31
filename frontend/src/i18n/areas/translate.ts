@@ -35,6 +35,7 @@ export interface TranslateMessages {
   trCopyFailed: string
   trEngine: string
   trEngineOpus: string
+  trRemoteModel: string
   trEngineHymt2: string
 }
 
@@ -73,6 +74,7 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trTranslateFailed: 'Translation failed',
     trCopyFailed: 'Copy failed',
     trEngine: 'Engine',
+    trRemoteModel: 'Remote model',
     trEngineOpus: 'OPUS-MT (fast)',
     trEngineHymt2: 'Hy-MT2 (high quality)',
   },
@@ -110,6 +112,7 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trTranslateFailed: '翻译失败',
     trCopyFailed: '复制失败',
     trEngine: '翻译引擎',
+    trRemoteModel: '远程模型',
     trEngineOpus: 'OPUS-MT（快速）',
     trEngineHymt2: 'Hy-MT2（高质量）',
   },
@@ -147,6 +150,7 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trTranslateFailed: '번역에 실패했습니다',
     trCopyFailed: '복사에 실패했습니다',
     trEngine: '번역 엔진',
+    trRemoteModel: '원격 모델',
     trEngineOpus: 'OPUS-MT (빠름)',
     trEngineHymt2: 'Hy-MT2 (고품질)',
   },
@@ -184,6 +188,7 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trTranslateFailed: '翻訳に失敗しました',
     trCopyFailed: 'コピーに失敗しました',
     trEngine: '翻訳エンジン',
+    trRemoteModel: 'リモートモデル',
     trEngineOpus: 'OPUS-MT（高速）',
     trEngineHymt2: 'Hy-MT2（高品質）',
   },

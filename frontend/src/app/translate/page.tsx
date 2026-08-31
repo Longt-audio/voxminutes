@@ -12,6 +12,7 @@ import { useLanguageStore } from '@/stores/languageStore'
 import { useMessages } from '@/i18n/useMessages'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
 import { availableTranslationEngines } from '@/lib/translationEngines'
+import { useRemoteModelChoice, formatModelPrice } from '@/lib/remoteModelChoice'
 import type { TranslationEngine, DownloadableModelInfo } from '@/types'
 
 /** 与后端一致的 CJK 启发式：非空白字符中 CJK 占比 > 30% 视为中文 */
@@ -54,6 +55,8 @@ export default function TranslatePage() {
   const translationEngines = translationModels === null
     ? (['opus', 'hymt2'] as const)
     : availableTranslationEngines(translationModels)
+  // 远程翻译模型（engine 为 remote 时在翻译页直接选择，与后端远程模型同步）
+  const remoteTranslate = useRemoteModelChoice('translate')
   // 请求代际：取消时 +1，迟到结果比对不一致则丢弃
   const requestIdRef = useRef(0)
   // 当前流式请求的 request_id：匹配才接受 delta，取消/结束后置空
@@ -242,6 +245,22 @@ export default function TranslatePage() {
           {translationEngines.includes('hymt2') && <option value="hymt2">{t.trEngineHymt2}</option>}
           {remoteEnabled && <option value="remote">{t.recEngineRemote}</option>}
         </select>
+
+        {/* 远程翻译模型（engine 为 remote 时直接在此选择） */}
+        {engine === 'remote' && remoteTranslate.models.length > 0 && (
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none max-w-[220px]"
+            value={remoteTranslate.value}
+            onChange={(e) => remoteTranslate.set(e.target.value)}
+            title={t.trRemoteModel}
+          >
+            {remoteTranslate.models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.owned_by} / {m.id} · {formatModelPrice(m)}
+              </option>
+            ))}
+          </select>
+        )}
 
         <div className="flex-1" />
 

@@ -238,8 +238,8 @@ export type TranslationDirection = 'auto' | 'zh-en' | 'en-zh'
  */
 export type TranslateTargetLang = string
 
-/** 翻译引擎：opus = OPUS-MT（快速），hymt2 = Hy-MT2（高质量） */
-export type TranslationEngine = 'opus' | 'hymt2'
+/** 翻译引擎：opus = OPUS-MT（快速），hymt2 = Hy-MT2（高质量），remote = 远程网关 */
+export type TranslationEngine = 'opus' | 'hymt2' | 'remote'
 
 /** translate-update 事件 payload */
 export interface TranslateUpdate {

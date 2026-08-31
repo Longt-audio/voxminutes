@@ -17,6 +17,7 @@ import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
 import { availableTranslationEngines } from '@/lib/translationEngines'
+import { useRemoteModelChoice, formatModelPrice } from '@/lib/remoteModelChoice'
 import type { AudioDevice, DefaultDevicesInfo, TranslationEngine, DownloadableModelInfo } from '@/types'
 
 export interface RecordingSetup {
@@ -78,6 +79,9 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
     ? (['opus', 'hymt2'] as const)
     : availableTranslationEngines(translationModels)
 
+  // 远程 ASR 模型（在各使用处选择，与后端 set_remote_models 同步）
+  const remoteAsr = useRemoteModelChoice('asr')
+
   const localModels = useMemo(() => models.filter((m) => !m.hidden && !m.is_remote), [models])
   const micOptions = useMemo(() => devices.filter((d) => d.device_type === 'Input'), [devices])
   const systemOptions = useMemo(() => devices.filter((d) => d.device_type === 'Output'), [devices])
@@ -85,8 +89,8 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
   const isXAsr = modelName.startsWith('x-asr-')
   const isRemote = modelName === 'remote' || modelName.startsWith('qwen3-asr-remote')
   const selectedInfo = localModels.find((m) => m.name === modelName)
-  // 远程 ASR 不依赖本地模型下载，只要开关开启即可开始
-  const canStart = isRemote ? remoteEnabled : !!selectedInfo && selectedInfo.status !== 'Missing'
+  // 远程 ASR 不依赖本地模型下载，只要开关开启且已选远程模型即可开始
+  const canStart = isRemote ? remoteEnabled && !!remoteAsr.value : !!selectedInfo && selectedInfo.status !== 'Missing'
 
   const languageOptions = [
     { code: 'auto', name: t.recLangAuto },
@@ -221,6 +225,28 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
                 </button>
               )}
             </div>
+
+            {/* 远程 ASR 模型选择（选中远程后显示，与后端远程模型同步） */}
+            {modelName === 'remote' && remoteAsr.models.length > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-muted-foreground shrink-0">{t.recRemoteModelSelect}</span>
+                <select
+                  className={selectCls}
+                  value={remoteAsr.value}
+                  onChange={(e) => remoteAsr.set(e.target.value)}
+                >
+                  {remoteAsr.models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.owned_by} / {m.id}
+                      {m.mode === 'streaming' ? `（${t.accModeStreaming}）` : ''} · {formatModelPrice(m)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {modelName === 'remote' && !remoteAsr.loading && remoteAsr.models.length === 0 && (
+              <p className="mt-2 text-xs text-amber-700">{t.recRemoteNoModels}</p>
+            )}
           </section>
 
           {/* 设备选择 */}
