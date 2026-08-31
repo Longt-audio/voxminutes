@@ -6,7 +6,7 @@
 
 **ローカル会議アシスタント · 完全無料 · システム音声とマイクを同時録音 · リアルタイム文字起こし・13言語翻訳・要約。データはデバイスの外に出ません。**
 
-**[English](README.md) | [中文](README.zh-CN.md) | [한국어](README.ko.md) | 日本語**
+**[English](README.en.md) | [中文](README.md) | [한국어](README.ko.md) | 日本語**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
