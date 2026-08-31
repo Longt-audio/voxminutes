@@ -129,18 +129,27 @@ export function RemoteServiceSection({ onChanged }: { onChanged?: () => void }) 
     }
   }
 
-  const handleSpeedTest = async () => {
+  // 每个模型单独测速：key 为 kind:id
+  const handleModelSpeedTest = async (kind: 'asr' | 'llm' | 'tts', id: string) => {
+    const key = `${kind}:${id}`
+    setSpeed((s) => ({ ...s, [key]: 'running' }))
+    try {
+      const r = await runSpeedTest(kind, id)
+      setSpeed((s) => ({ ...s, [key]: r }))
+    } catch (e) {
+      setSpeed((s) => ({ ...s, [key]: { kind, model: id, ok: false, ms: 0, detail: String(e) } }))
+    }
+  }
+
+  const handleSpeedTestAll = async () => {
     setSpeedRunning(true)
-    setSpeed({})
-    const kinds = ['asr', 'llm', 'tts'] as const
-    for (const kind of kinds) {
-      setSpeed((s) => ({ ...s, [kind]: 'running' }))
-      try {
-        const r = await runSpeedTest(kind)
-        setSpeed((s) => ({ ...s, [kind]: r }))
-      } catch (e) {
-        setSpeed((s) => ({ ...s, [kind]: { kind, model: null, ok: false, ms: 0, detail: String(e) } }))
-      }
+    const tasks: Array<['asr' | 'llm' | 'tts', string]> = []
+    for (const m of modelList) {
+      const kind = m.kind === 'translate' ? 'llm' : (m.kind as 'asr' | 'tts')
+      tasks.push([kind, m.id])
+    }
+    for (const [kind, id] of tasks) {
+      await handleModelSpeedTest(kind, id)
     }
     setSpeedRunning(false)
   }
@@ -228,36 +237,52 @@ export function RemoteServiceSection({ onChanged }: { onChanged?: () => void }) 
           </div>
         )}
 
-        {/* 模型测速（#9：仅测延迟，不扣积分） */}
-        {enabled && (
+        {/* 模型测速（#9：仅测延迟，不扣积分；每个模型单独测速） */}
+        {enabled && modelList.length > 0 && (
           <div className="flex flex-col gap-2 pt-1">
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{t.accSpeedTitle}</span>
-              <Button variant="outline" size="sm" onClick={handleSpeedTest} disabled={speedRunning}>
-                {speedRunning ? t.accSpeedRunning : t.accSpeedRun}
+              <Button variant="outline" size="sm" onClick={handleSpeedTestAll} disabled={speedRunning}>
+                {speedRunning ? t.accSpeedRunning : t.accSpeedRunAll}
               </Button>
             </div>
-            {Object.keys(speed).length > 0 && (
-              <div className="flex flex-col gap-0.5 text-xs">
-                {(['asr', 'llm', 'tts'] as const).map((kind) => {
-                  const r = speed[kind]
-                  if (!r) return null
-                  const label = kind === 'asr' ? t.accModelKindAsr : kind === 'llm' ? t.accModelKindTranslate : t.accModelKindTts
-                  return (
-                    <div key={kind} className="flex items-center gap-2">
-                      <span className="w-12 text-muted-foreground">{label}</span>
-                      {r === 'running' ? (
-                        <span className="text-muted-foreground/70">{t.accSpeedRunning}</span>
-                      ) : r.ok ? (
-                        <span className="text-primary font-medium tabular-nums">{r.ms} ms</span>
-                      ) : (
-                        <span className="text-destructive">{r.detail || '—'}</span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+            {modelGroups.map((g) => {
+              const models = modelList.filter((m) => g.kinds.includes(m.kind))
+              if (models.length === 0) return null
+              return (
+                <div key={`speed-${g.key}`} className="text-xs">
+                  <span className="font-medium">{g.label}</span>
+                  <div className="mt-1 flex flex-col gap-0.5">
+                    {models.map((m) => {
+                      const kind = m.kind === 'translate' ? 'llm' : (m.kind as 'asr' | 'tts')
+                      const key = `${kind}:${m.id}`
+                      const r = speed[key]
+                      return (
+                        <div key={key} className="flex items-center gap-2 text-muted-foreground">
+                          <span className="truncate flex-1 min-w-0">{m.owned_by} / {m.id}</span>
+                          {r === 'running' ? (
+                            <span className="shrink-0 text-muted-foreground/70">{t.accSpeedRunning}</span>
+                          ) : r && r.ok ? (
+                            <span className="shrink-0 text-primary font-medium tabular-nums">{r.ms} ms</span>
+                          ) : r && !r.ok ? (
+                            <span className="shrink-0 text-destructive">{r.detail || '—'}</span>
+                          ) : null}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 px-2 text-[11px] shrink-0"
+                            disabled={speedRunning || r === 'running'}
+                            onClick={() => void handleModelSpeedTest(kind, m.id)}
+                          >
+                            {t.accSpeedTest}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
             <p className="text-[11px] text-muted-foreground/70">{t.accSpeedHint}</p>
           </div>
         )}
