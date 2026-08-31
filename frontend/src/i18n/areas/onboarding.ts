@@ -40,6 +40,8 @@ export interface OnboardingMessages {
   onbNoticeClose: string
   onbNoticeDismissThis: string
   onbNoticeDisableAll: string
+  onbStepLocalModelsTitle: string
+  onbStepLocalModelsDesc: string
 }
 
 export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
@@ -56,6 +58,8 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbStepAsrTitle: "Speech recognition model (required)",
     onbStepAsrDesc: "Pick one ASR model and download it, or import it from a local file.",
     onbAsrRequiredHint: "Install at least one speech recognition model to continue",
+    onbStepLocalModelsTitle: "Local models",
+    onbStepLocalModelsDesc: "Pick the models you need (ASR / translate / summary). You can also skip and install them later.",
     onbStepTranslateTitle: "Translation model (optional)",
     onbStepTranslateDesc: "Used by the Translate page and translation during real-time transcription. You can install one later.",
     onbOpusPairTitle: "OPUS-MT Chinese–English (2 models)",
@@ -96,6 +100,8 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbStepAsrTitle: "语音识别模型（必装一个）",
     onbStepAsrDesc: "选择一个 ASR 模型下载，或从本地文件导入。",
     onbAsrRequiredHint: "至少安装一个语音识别模型后才能继续",
+    onbStepLocalModelsTitle: "本地模型",
+    onbStepLocalModelsDesc: "选择你需要的模型（ASR / 翻译 / 总结），也可以跳过稍后再装。",
     onbStepTranslateTitle: "翻译模型（可选）",
     onbStepTranslateDesc: "用于翻译页与实时转录中的翻译功能，也可以稍后再装。",
     onbOpusPairTitle: "OPUS-MT 中英互译（2 个模型）",
@@ -136,6 +142,8 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbStepAsrTitle: "음성 인식 모델 (필수)",
     onbStepAsrDesc: "ASR 모델 하나를 선택해 다운로드하거나 로컬 파일에서 가져오세요.",
     onbAsrRequiredHint: "계속하려면 음성 인식 모델을 하나 이상 설치하세요",
+    onbStepLocalModelsTitle: "로컬 모델",
+    onbStepLocalModelsDesc: "필요한 모델(ASR / 번역 / 요약)을 선택하세요. 걸어넘고 나중에 설치해도 됩니다.",
     onbStepTranslateTitle: "번역 모델 (선택)",
     onbStepTranslateDesc: "번역 페이지와 실시간 받아쓰기 번역에 사용됩니다. 나중에 설치할 수 있습니다.",
     onbOpusPairTitle: "OPUS-MT 중-영 번역 (모델 2개)",
@@ -176,6 +184,8 @@ export const ONBOARDING_MESSAGES: Record<Language, OnboardingMessages> = {
     onbStepAsrTitle: "音声認識モデル（必須）",
     onbStepAsrDesc: "ASR モデルを 1 つ選んでダウンロードするか、ローカルファイルからインポートしてください。",
     onbAsrRequiredHint: "続行するには音声認識モデルを 1 つ以上インストールしてください",
+    onbStepLocalModelsTitle: "ローカルモデル",
+    onbStepLocalModelsDesc: "必要なモデル（ASR / 翻訳 / 要約）を選択してください。スキップして後でインストールしても構いません。",
     onbStepTranslateTitle: "翻訳モデル（任意）",
     onbStepTranslateDesc: "翻訳ページとリアルタイム文字起こしの翻訳に使用します。後からインストールも可能です。",
     onbOpusPairTitle: "OPUS-MT 中英翻訳（2 モデル）",
