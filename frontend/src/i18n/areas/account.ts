@@ -39,6 +39,8 @@ export interface AccountMessages {
   accModeBatch: string
   accSpeedTitle: string
   accSpeedRun: string
+  accSpeedRunAll: string
+  accSpeedTest: string
   accSpeedRunning: string
   accSpeedColModel: string
   accSpeedColLatency: string
@@ -86,6 +88,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accModeBatch: 'File',
     accSpeedTitle: 'Model speed test',
     accSpeedRun: 'Run speed test',
+    accSpeedRunAll: 'Test all models',
+    accSpeedTest: 'Test',
     accSpeedRunning: 'Testing…',
     accSpeedColModel: 'Model',
     accSpeedColLatency: 'Latency',
@@ -131,6 +135,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accModeBatch: '文件',
     accSpeedTitle: '模型测速',
     accSpeedRun: '开始测速',
+    accSpeedRunAll: '全部测速',
+    accSpeedTest: '测速',
     accSpeedRunning: '测速中…',
     accSpeedColModel: '模型',
     accSpeedColLatency: '延迟',
@@ -176,6 +182,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accModeBatch: '파일',
     accSpeedTitle: '모델 속도 테스트',
     accSpeedRun: '속도 테스트',
+    accSpeedRunAll: '전체 테스트',
+    accSpeedTest: '테스트',
     accSpeedRunning: '테스트 중…',
     accSpeedColModel: '모델',
     accSpeedColLatency: '지연',
@@ -221,6 +229,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accModeBatch: 'ファイル',
     accSpeedTitle: 'モデル速度テスト',
     accSpeedRun: '速度テスト',
+    accSpeedRunAll: '全モデルテスト',
+    accSpeedTest: 'テスト',
     accSpeedRunning: 'テスト中…',
     accSpeedColModel: 'モデル',
     accSpeedColLatency: '遅延',
