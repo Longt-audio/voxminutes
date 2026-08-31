@@ -795,6 +795,19 @@ export async function getRemoteUsage(): Promise<{ license: string; name: string;
   return invoke('get_remote_usage')
 }
 
+/** 模型测速（仅测往返延迟，不扣积分）：kind = asr | llm | tts。 */
+export interface SpeedTestResult {
+  kind: string
+  model: string | null
+  ok: boolean
+  ms: number
+  detail?: string
+}
+
+export async function runSpeedTest(kind: 'asr' | 'llm' | 'tts', model?: string): Promise<SpeedTestResult> {
+  return invoke<SpeedTestResult>('run_speed_test', { kind, model: model ?? null })
+}
+
 /** 提交用户反馈（文字 + 可选截图 base64 + 联系方式）。 */
 export async function submitFeedback(
   text: string,

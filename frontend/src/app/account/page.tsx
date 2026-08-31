@@ -9,13 +9,13 @@ import {
   fetchRemoteMessages,
   type RemoteMessage,
 } from '@/services/ipc'
-import { RemoteAsrSection } from '@/components/settings/RemoteAsrSection'
-import { SummarySection } from '@/components/settings/SummarySection'
+import { RemoteServiceSection } from '@/components/settings/RemoteServiceSection'
 import { Button } from '@/components/ui/button'
 import { useMessages } from '@/i18n/useMessages'
 
-/** 用户中心：积分余额 + 远程服务设置 + 信息区 + 反馈（文字/截图）。
- *  顶部「刷新」按钮重拉积分/模型/消息，让后台改动的模型与价格立即生效。 */
+/** 用户中心：积分余额（+刷新） + 积分使用说明 + 远程服务 + 信息区 + 反馈。
+ *  远程服务区域（改名「远程服务」）放在积分显示区域下方；模型只展示不选择，
+ *  选择请到各功能使用处（录制对话框 / 翻译页 / 会议总结）。 */
 export default function AccountPage() {
   const t = useMessages()
   const [usage, setUsage] = useState<{ name: string; credits: number } | null>(null)
@@ -25,7 +25,6 @@ export default function AccountPage() {
   const [contact, setContact] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  // 刷新计数：作为 Key 传给两个设置区，触发它们重新挂载并重拉模型列表
   const [refreshKey, setRefreshKey] = useState(0)
 
   const load = useCallback(() => {
@@ -39,18 +38,14 @@ export default function AccountPage() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, refreshKey])
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true)
-    try {
-      load()
-      setRefreshKey((k) => k + 1)
-      toast.success(t.accRefreshed)
-    } finally {
-      setRefreshing(false)
-    }
-  }
+    load()
+    setRefreshKey((k) => k + 1)
+    setTimeout(() => setRefreshing(false), 400)
+  }, [load])
 
   const handleScreenshot = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -81,23 +76,28 @@ export default function AccountPage() {
 
   return (
     <div className="h-full overflow-y-auto p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{t.accTitle}</h1>
-        <Button variant="outline" size="sm" className="gap-2" disabled={refreshing} onClick={handleRefresh}>
-          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          {t.accRefresh}
-        </Button>
-      </div>
+      <h1 className="text-lg font-semibold">{t.accTitle}</h1>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* 左列：积分 + 反馈 */}
+        {/* 左列：积分（+刷新）+ 积分使用说明 + 反馈 */}
         <div className="flex flex-col gap-4">
           <div className="rounded-md border border-border/60 p-4">
-            <div className="text-xs text-muted-foreground">{t.accCredits}</div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">{t.accCredits}</div>
+              <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs" disabled={refreshing} onClick={handleRefresh}>
+                <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+                {t.accRefresh}
+              </Button>
+            </div>
             <div className="mt-1 text-2xl font-semibold tabular-nums">
               {usage ? usage.credits : '—'}
             </div>
             {usage?.name && <div className="mt-1 text-xs text-muted-foreground">{usage.name}</div>}
+          </div>
+
+          <div className="rounded-md border border-border/60 p-4">
+            <div className="text-sm font-medium">{t.accBillingTitle}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{t.accBillingHint}</p>
           </div>
 
           <div className="rounded-md border border-border/60 p-4">
@@ -125,8 +125,9 @@ export default function AccountPage() {
           </div>
         </div>
 
-        {/* 右列：信息区 + 远程服务 */}
+        {/* 右列：远程服务（积分下方区域）+ 信息区 */}
         <div className="flex flex-col gap-4">
+          <RemoteServiceSection key={`remote-${refreshKey}`} onChanged={handleRefresh} />
           {messages.length > 0 && (
             <div className="rounded-md border border-border/60 p-4">
               <div className="text-sm font-medium">{t.accInfo}</div>
@@ -140,8 +141,6 @@ export default function AccountPage() {
               </div>
             </div>
           )}
-          <SummarySection key={`summary-${refreshKey}`} />
-          <RemoteAsrSection key={`remote-${refreshKey}`} />
         </div>
       </div>
     </div>

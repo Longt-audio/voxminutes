@@ -681,6 +681,27 @@ async fn get_remote_usage() -> Result<serde_json::Value, String> {
     resp.json().await.map_err(|e| e.to_string())
 }
 
+/// 模型测速（网关 /v1/speedtest，仅测延迟，不扣积分）。
+#[tauri::command]
+async fn run_speed_test(kind: String, model: Option<String>) -> Result<serde_json::Value, String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/speedtest", base))
+        .bearer_auth(license)
+        .json(&serde_json::json!({ "kind": kind, "model": model }))
+        .timeout(std::time::Duration::from_secs(60))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("网关返回 HTTP {}", resp.status()));
+    }
+    resp.json().await.map_err(|e| e.to_string())
+}
+
 /// 提交用户反馈（文字 + 可选截图 base64 + 联系方式）到网关 /v1/feedback。
 #[tauri::command]
 async fn submit_feedback(
@@ -1011,6 +1032,7 @@ pub fn run() {
             get_remote_usage,
             submit_feedback,
             remote_messages::fetch_remote_messages,
+            run_speed_test,
             notifications::commands::get_notification_settings,
             notifications::commands::set_notification_settings,
             notifications::commands::request_notification_permission,

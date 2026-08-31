@@ -16,6 +16,35 @@ export interface AccountMessages {
   accFeedbackFailed: string
   accRefresh: string
   accRefreshed: string
+  accRemoteTitle: string
+  accRemoteUrl: string
+  accRemoteKey: string
+  accRemoteEnable: string
+  accRemoteTest: string
+  accRemoteTesting: string
+  accRemoteSaved: string
+  accRemoteSaveFailed: string
+  accRemoteNeedKey: string
+  accRemoteNeedUrl: string
+  accRemoteOnline: string
+  accRemoteOffline: string
+  accRemoteAutoSaved: string
+  accModelsTitle: string
+  accModelsHint: string
+  accModelKindAsr: string
+  accModelKindTranslate: string
+  accModelKindSummary: string
+  accModelKindTts: string
+  accModeStreaming: string
+  accModeBatch: string
+  accSpeedTitle: string
+  accSpeedRun: string
+  accSpeedRunning: string
+  accSpeedColModel: string
+  accSpeedColLatency: string
+  accSpeedHint: string
+  accBillingTitle: string
+  accBillingHint: string
 }
 
 export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
@@ -34,6 +63,35 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accFeedbackFailed: 'Failed to send: {error}',
     accRefresh: 'Refresh',
     accRefreshed: 'Refreshed',
+    accRemoteTitle: 'Remote service',
+    accRemoteUrl: 'Server address',
+    accRemoteKey: 'License (authorization code)',
+    accRemoteEnable: 'Enable remote service',
+    accRemoteTest: 'Test connection',
+    accRemoteTesting: 'Testing…',
+    accRemoteSaved: 'Saved',
+    accRemoteSaveFailed: 'Save failed: {error}',
+    accRemoteNeedKey: 'Enter a license first to test connection',
+    accRemoteNeedUrl: 'Enter a server address first',
+    accRemoteOnline: 'Online',
+    accRemoteOffline: 'Offline',
+    accRemoteAutoSaved: 'Changes are saved automatically',
+    accModelsTitle: 'Available models',
+    accModelsHint: 'Model choices are made where each feature is used (recording dialog / translation page / summary).',
+    accModelKindAsr: 'ASR',
+    accModelKindTranslate: 'Translate',
+    accModelKindSummary: 'Summary',
+    accModelKindTts: 'TTS',
+    accModeStreaming: 'Streaming',
+    accModeBatch: 'File',
+    accSpeedTitle: 'Model speed test',
+    accSpeedRun: 'Run speed test',
+    accSpeedRunning: 'Testing…',
+    accSpeedColModel: 'Model',
+    accSpeedColLatency: 'Latency',
+    accSpeedHint: 'Measures round-trip latency only (no quality evaluation, no credits charged).',
+    accBillingTitle: 'Credits usage',
+    accBillingHint: 'Credits are charged on the gateway per model price × usage (ASR per second, LLM per token, TTS per char). Estimate cost from each model price below before you record or summarize.',
   },
   zh: {
     accTitle: '用户中心',
@@ -50,6 +108,35 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accFeedbackFailed: '提交失败：{error}',
     accRefresh: '刷新',
     accRefreshed: '已刷新',
+    accRemoteTitle: '远程服务',
+    accRemoteUrl: '服务器地址',
+    accRemoteKey: '授权码',
+    accRemoteEnable: '启用远程服务',
+    accRemoteTest: '测试连接',
+    accRemoteTesting: '检测中…',
+    accRemoteSaved: '已保存',
+    accRemoteSaveFailed: '保存失败：{error}',
+    accRemoteNeedKey: '请先填写授权码再测试连接',
+    accRemoteNeedUrl: '请先填写服务器地址',
+    accRemoteOnline: '在线',
+    accRemoteOffline: '离线',
+    accRemoteAutoSaved: '修改会自动保存',
+    accModelsTitle: '可用模型',
+    accModelsHint: '模型选择请到各功能使用处进行（录制对话框 / 翻译页 / 会议总结）。',
+    accModelKindAsr: 'ASR',
+    accModelKindTranslate: '翻译',
+    accModelKindSummary: '总结',
+    accModelKindTts: 'TTS',
+    accModeStreaming: '流式',
+    accModeBatch: '文件',
+    accSpeedTitle: '模型测速',
+    accSpeedRun: '开始测速',
+    accSpeedRunning: '测速中…',
+    accSpeedColModel: '模型',
+    accSpeedColLatency: '延迟',
+    accSpeedHint: '仅测往返延迟（不做质量评估，不扣积分）。',
+    accBillingTitle: '积分使用',
+    accBillingHint: '积分在网关按「模型单价 × 用量」计算：ASR 按秒、LLM 按 token、TTS 按字符。录音或总结前可参考下方各模型单价估算成本。',
   },
   ko: {
     accTitle: '계정',
@@ -66,6 +153,35 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accFeedbackFailed: '제출 실패: {error}',
     accRefresh: '새로고침',
     accRefreshed: '새로고침됨',
+    accRemoteTitle: '원격 서비스',
+    accRemoteUrl: '서버 주소',
+    accRemoteKey: '라이선스(인증 코드)',
+    accRemoteEnable: '원격 서비스 사용',
+    accRemoteTest: '연결 테스트',
+    accRemoteTesting: '테스트 중…',
+    accRemoteSaved: '저장됨',
+    accRemoteSaveFailed: '저장 실패: {error}',
+    accRemoteNeedKey: '먼저 라이선스를 입력하세요',
+    accRemoteNeedUrl: '먼저 서버 주소를 입력하세요',
+    accRemoteOnline: '온라인',
+    accRemoteOffline: '오프라인',
+    accRemoteAutoSaved: '변경 사항은 자동 저장됩니다',
+    accModelsTitle: '사용 가능한 모델',
+    accModelsHint: '모델 선택은 각 기능 사용처(녹음 대화상자 / 번역 페이지 / 요약)에서 하세요.',
+    accModelKindAsr: 'ASR',
+    accModelKindTranslate: '번역',
+    accModelKindSummary: '요약',
+    accModelKindTts: 'TTS',
+    accModeStreaming: '스트리밍',
+    accModeBatch: '파일',
+    accSpeedTitle: '모델 속도 테스트',
+    accSpeedRun: '속도 테스트',
+    accSpeedRunning: '테스트 중…',
+    accSpeedColModel: '모델',
+    accSpeedColLatency: '지연',
+    accSpeedHint: '왕복 지연만 측정합니다(품질 평가 없음, 크레딧 차감 없음).',
+    accBillingTitle: '크레딧 사용',
+    accBillingHint: '크레딧은 게이트웨이에서「모델 단가 × 사용량」으로 계산됩니다(ASR 초당, LLM 토큰당, TTS 문자당). 녹음이나 요약 전 아래 단가로 비용을 추정하세요.',
   },
   ja: {
     accTitle: 'アカウント',
@@ -82,5 +198,34 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accFeedbackFailed: '送信に失敗: {error}',
     accRefresh: '更新',
     accRefreshed: '更新しました',
+    accRemoteTitle: 'リモートサービス',
+    accRemoteUrl: 'サーバーアドレス',
+    accRemoteKey: 'ライセンス(認証コード)',
+    accRemoteEnable: 'リモートサービスを有効化',
+    accRemoteTest: '接続テスト',
+    accRemoteTesting: 'テスト中…',
+    accRemoteSaved: '保存しました',
+    accRemoteSaveFailed: '保存失敗: {error}',
+    accRemoteNeedKey: '先にライセンスを入力してください',
+    accRemoteNeedUrl: '先にサーバーアドレスを入力してください',
+    accRemoteOnline: 'オンライン',
+    accRemoteOffline: 'オフライン',
+    accRemoteAutoSaved: '変更は自動保存されます',
+    accModelsTitle: '利用可能なモデル',
+    accModelsHint: 'モデル選択は各機能の使用場所(録音ダイアログ / 翻訳ページ / 要約)で行ってください。',
+    accModelKindAsr: 'ASR',
+    accModelKindTranslate: '翻訳',
+    accModelKindSummary: '要約',
+    accModelKindTts: 'TTS',
+    accModeStreaming: 'ストリーミング',
+    accModeBatch: 'ファイル',
+    accSpeedTitle: 'モデル速度テスト',
+    accSpeedRun: '速度テスト',
+    accSpeedRunning: 'テスト中…',
+    accSpeedColModel: 'モデル',
+    accSpeedColLatency: '遅延',
+    accSpeedHint: '往復遅延のみ測定(品質評価なし、クレジット消費なし)。',
+    accBillingTitle: 'クレジット使用',
+    accBillingHint: 'クレジットはゲートウェイで「モデル単価 × 使用量」で計算されます(ASR 秒単位、LLM トークン単位、TTS 文字単位)。録音や要約の前に下の単価でコストを見積もってください。',
   },
 }
