@@ -12,6 +12,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useMessages } from '@/i18n/useMessages'
 import { useModelLoadingToasts } from '@/hooks/useModelLoadingToasts'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
+import { StartupNoticeDialog } from '@/components/StartupNoticeDialog'
 import { RemoteMessages } from '@/components/RemoteMessages'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { clearAllModelBackends } from '@/services/ipc'
@@ -155,6 +156,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* 首次启动引导：模型下载/导入向导（全局，不随路由卸载） */}
       <OnboardingDialog />
+
+      {/* 启动时长信息弹窗（channel=startup 推送，可关闭/不再显示，设置里可恢复） */}
+      <StartupNoticeDialog />
 
       {/* 底部栏：默认显示版本号 + slogan；有推送消息时轮播展示，可关闭 */}
       <footer className="shrink-0 h-8 flex items-center border-t border-border/60 bg-card/50 backdrop-blur-sm select-none px-4 min-w-0">

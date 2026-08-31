@@ -769,8 +769,12 @@ export async function pushSubtitleTranslation(update: SubtitleTranslationInput):
 export interface RemoteMessage {
   id: string
   type: string
+  /** 展示渠道：footer = 页面底部短信息；startup = 启动时长信息弹窗 */
+  channel?: 'footer' | 'startup'
   title: string
   body: string
+  /** 可选图片（data URL 或 http 链接），仅 startup 渠道显示 */
+  image?: string
   severity: string
   dismissible: boolean
   created_at: string

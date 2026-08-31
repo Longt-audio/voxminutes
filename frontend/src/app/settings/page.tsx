@@ -5,6 +5,7 @@ import { Rocket } from 'lucide-react'
 import { ModelDownloadCard } from '@/components/settings/ModelDownloadCard'
 import { AudioSection } from '@/components/settings/AudioSection'
 import { ExportSection } from '@/components/settings/ExportSection'
+import { GeneralSection } from '@/components/settings/GeneralSection'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useMessages } from '@/i18n/useMessages'
@@ -68,6 +69,7 @@ export default function SettingsPage() {
             <>
               <AudioSection />
               <ExportSection />
+              <GeneralSection />
             </>
           )}
         </div>
