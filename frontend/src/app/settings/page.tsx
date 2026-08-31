@@ -5,14 +5,13 @@ import { Rocket } from 'lucide-react'
 import { ModelDownloadCard } from '@/components/settings/ModelDownloadCard'
 import { AudioSection } from '@/components/settings/AudioSection'
 import { ExportSection } from '@/components/settings/ExportSection'
-import { AdvancedSection } from '@/components/settings/AdvancedSection'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useMessages } from '@/i18n/useMessages'
 import { apiSaveSetting } from '@/services/ipc'
 import { OPEN_ONBOARDING_EVENT } from '@/components/onboarding/OnboardingDialog'
 
-type SettingsTab = 'models' | 'audio' | 'advanced'
+type SettingsTab = 'models' | 'audio'
 
 export default function SettingsPage() {
   const t = useMessages()
@@ -21,7 +20,6 @@ export default function SettingsPage() {
   const tabs: { key: SettingsTab; label: string }[] = [
     { key: 'models', label: t.setTabModels },
     { key: 'audio', label: t.setTabAudioExport },
-    { key: 'advanced', label: t.setTabAdvanced },
   ]
 
   // 重新打开首次启动向导：清掉完成标记并通知 AppShell 弹出
@@ -72,7 +70,6 @@ export default function SettingsPage() {
               <ExportSection />
             </>
           )}
-          {tab === 'advanced' && <AdvancedSection />}
         </div>
       </div>
     </div>

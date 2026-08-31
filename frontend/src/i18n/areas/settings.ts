@@ -120,7 +120,7 @@ export interface SettingsMessages {
 export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
   en: {
     setPageSubtitle: "Model, audio and export preferences",
-    setTabModels: "Models",
+    setTabModels: "Local models",
     setTabAudioExport: "Audio & export",
     setTabApi: "API",
     setTabAdvanced: "Advanced",
@@ -235,7 +235,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
   },
   zh: {
     setPageSubtitle: "模型、音频与导出偏好",
-    setTabModels: "模型",
+    setTabModels: "本地模型",
     setTabAudioExport: "音频与导出",
     setTabApi: "API",
     setTabAdvanced: "高级",
@@ -350,7 +350,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
   },
   ko: {
     setPageSubtitle: "모델, 오디오 및 내보내기 환경 설정",
-    setTabModels: "모델",
+    setTabModels: "로컬 모델",
     setTabAudioExport: "오디오 및 내보내기",
     setTabApi: "API",
     setTabAdvanced: "고급",
@@ -465,7 +465,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
   },
   ja: {
     setPageSubtitle: "モデル・オーディオ・エクスポートの設定",
-    setTabModels: "モデル",
+    setTabModels: "ローカルモデル",
     setTabAudioExport: "オーディオとエクスポート",
     setTabApi: "API",
     setTabAdvanced: "詳細",
