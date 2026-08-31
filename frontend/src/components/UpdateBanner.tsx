@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
 import { X, Rocket } from 'lucide-react'
 import { fetchRemoteMessages, type RemoteLatestVersion } from '@/services/ipc'
+
+/** 轮询间隔（毫秒）：客户端定时向网关拉取最新版本号，版本更高才显示横幅。 */
+const POLL_INTERVAL_MS = 60_000
 
 /** 简单的 semver 比较：a > b 返回 true。 */
 function isNewer(a: string, b: string): boolean {
@@ -18,27 +21,49 @@ function isNewer(a: string, b: string): boolean {
   return false
 }
 
-/** 软件更新提醒横幅：远程 latest-version 高于当前版本时，显示在页面最上方。 */
+/** 软件更新提醒横幅：客户端定时轮询网关 latest-version，高于当前版本时显示在页面最上方。
+ *  逻辑：后台「版本更新」发布版本号 → 客户端每 60s（+启动时）拉取 → 更高才显示，可关闭（本次会话内记住）。 */
 export function UpdateBanner() {
   const [latest, setLatest] = useState<RemoteLatestVersion | null>(null)
   const [current, setCurrent] = useState('')
-  const [dismissed, setDismissed] = useState(false)
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  useEffect(() => {
-    ;(async () => {
-      try {
-        setCurrent(await getVersion())
-      } catch {}
-      try {
-        const res = await fetchRemoteMessages()
-        setLatest(res.latestVersion)
-      } catch {
-        // 网关未配置/不可达：静默忽略
+  const poll = useCallback(async (cur: string) => {
+    try {
+      const res = await fetchRemoteMessages()
+      const lv = res.latestVersion
+      if (lv && cur && isNewer(lv.version, cur)) {
+        setLatest(lv)
       }
-    })()
+    } catch {
+      // 网关未配置/不可达：静默忽略
+    }
   }, [])
 
-  const show = latest && !dismissed && current && isNewer(latest.version, current)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      let cur = ''
+      try {
+        cur = await getVersion()
+        if (!cancelled) setCurrent(cur)
+      } catch {}
+      // 启动时先拉一次
+      if (cur) void poll(cur)
+      // 定时轮询
+      timerRef.current = setInterval(() => {
+        if (cur) void poll(cur)
+      }, POLL_INTERVAL_MS)
+    })()
+    return () => {
+      cancelled = true
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [poll])
+
+  // 已关闭的版本不再显示；新版本出现则重新显示
+  const show = latest && current && isNewer(latest.version, current) && dismissedVersion !== latest.version
   if (!show || !latest) return null
 
   return (
@@ -59,7 +84,11 @@ export function UpdateBanner() {
           下载
         </a>
       )}
-      <button className="shrink-0 opacity-60 hover:opacity-100" onClick={() => setDismissed(true)} title="关闭">
+      <button
+        className="shrink-0 opacity-60 hover:opacity-100"
+        onClick={() => setDismissedVersion(latest.version)}
+        title="关闭"
+      >
         <X className="h-4 w-4" />
       </button>
     </div>

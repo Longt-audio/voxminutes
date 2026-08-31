@@ -86,6 +86,19 @@ impl AudioDevice {
 
         Ok(AudioDevice::new(name, device_type))
     }
+
+    /// 解析设备名，无 (input)/(output) 后缀时按 hint 推断类型。
+    /// 用于 macOS 系统音频设备名（如 "Mac mini扬声器"）这类不带类型后缀的设备：
+    /// 显式选择麦克风/系统声音时，类型由调用方用途决定，不应直接报错。
+    pub fn from_name_with_hint(name: &str, hint: &DeviceType) -> Result<Self> {
+        if name.trim().is_empty() {
+            return Err(anyhow!("Device name cannot be empty"));
+        }
+        if let Ok(d) = Self::from_name(name) {
+            return Ok(d);
+        }
+        Ok(AudioDevice::new(name.trim().to_string(), hint.clone()))
+    }
 }
 
 impl fmt::Display for AudioDevice {

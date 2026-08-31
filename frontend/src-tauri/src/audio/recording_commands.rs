@@ -644,9 +644,12 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     }
     info!("✅ Transcription model validation passed");
 
-    // Parse devices
+    // Parse devices（显式选择：无 (input)/(output) 后缀时按用途推断类型，如 macOS 的 "Mac mini扬声器"）
     let mic_device = if let Some(ref name) = mic_device_name {
-        Some(Arc::new(parse_audio_device(name).map_err(|e| {
+        Some(Arc::new(crate::audio::devices::configuration::AudioDevice::from_name_with_hint(
+            name,
+            &crate::audio::devices::configuration::DeviceType::Input,
+        ).map_err(|e| {
             format!("Invalid microphone device '{}': {}", name, e)
         })?))
     } else {
@@ -654,7 +657,10 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     };
 
     let system_device = if let Some(ref name) = system_device_name {
-        Some(Arc::new(parse_audio_device(name).map_err(|e| {
+        Some(Arc::new(crate::audio::devices::configuration::AudioDevice::from_name_with_hint(
+            name,
+            &crate::audio::devices::configuration::DeviceType::Output,
+        ).map_err(|e| {
             format!("Invalid system device '{}': {}", name, e)
         })?))
     } else {
