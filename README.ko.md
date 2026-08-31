@@ -6,7 +6,7 @@
 
 **로컬 회의 어시스턴트 · 완전 물 료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 13개 언어 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다**
 
-**[English](README.en.md) | [中文](README.md) | 한국어 | [日本語](README.ja.md)**
+**[English](README.md) | [中文](README.zh-CN.md) | 한국어 | [日本語](README.ja.md)**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
@@ -25,6 +25,20 @@
 *👆 애니메이션 데모: 듀얼 채널 녹음, 실시간 받아쓰기, 실시간 번역, AI 회의록. 음성 포함 전체 데모를 보고 싶다면 [60초 영상](docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4) 또는 [30초 하이라이트 버전](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4)을 확인하세요.*
 
 </div>
+
+---
+
+> ## 🚀 이번 주 새 버전 출시 · New Version This Week
+>
+> **이미 다운로드하셨나요? 업데이트하러 오세요!** v0.2.0 세 가지 주요 기능:
+>
+> - 🪙 **크레딧 시스템** — 내장 크레딧으로 원격 클라우드 모델 사용 (더 큰 모델, 더 빠른 속도)
+> - 💬 **데스크톱 자막** — 실시간 전사가 데스크톱 자막으로 표시, 자막 있는 영상처럼 회의 보기
+> - 🔊 **번역 TTS** — 번역 결과 음성 읽기 지원: 전사 → 번역 → 듣기
+>
+> 👉 **[최신 버전 받기](https://github.com/Longt-audio/voxminutes/releases/latest)** · 이번 주 출시
+
+---
 
 ---
 
