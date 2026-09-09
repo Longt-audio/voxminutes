@@ -100,6 +100,12 @@ impl ContinuousVadProcessor {
         })
     }
 
+    /// 当前是否处于「语音进行中」（VAD 已检测到人声、但尚未触发断句）。
+    /// 供上层向前端上报「正在识别，等待断句」状态。
+    pub fn is_speaking(&self) -> bool {
+        self.in_speech
+    }
+
     /// Process incoming audio samples and return any complete speech segments
     /// Handles resampling from input sample rate to 16kHz for VAD processing
     pub fn process_audio(&mut self, samples: &[f32]) -> Result<Vec<SpeechSegment>> {

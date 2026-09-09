@@ -31,6 +31,18 @@ lazy_static::lazy_static! {
 /// giving the UI enough history for a 100-150 ms time-domain waveform window.
 const SPECTRUM_RING_SIZE: usize = 16384;
 
+/// 当前 VAD 是否处于「语音进行中」（检测到人声、尚未断句）。
+/// 由 audio pipeline 的 VAD 循环更新，供 UI 层上报「正在识别」状态。
+static VAD_SPEAKING: AtomicBool = AtomicBool::new(false);
+
+pub fn set_vad_speaking(speaking: bool) {
+    VAD_SPEAKING.store(speaking, Ordering::SeqCst);
+}
+
+pub fn is_vad_speaking() -> bool {
+    VAD_SPEAKING.load(Ordering::SeqCst)
+}
+
 /// Update the global audio level store from the audio callback.
 /// Uses try_lock so it never blocks the real-time audio thread.
 pub fn update_audio_level_store(device_type: &DeviceType, rms: f32, peak: f32) {

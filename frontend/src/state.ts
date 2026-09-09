@@ -18,6 +18,8 @@ interface AppState {
   audioSpectrum: number[]
   audioActive: boolean
   audioLevels: { mic: number; system: number }
+  /** VAD 检测到人声但尚未断句（用于「正在识别」提示） */
+  vadSpeaking: boolean
   /** seq_id → 译文（实时内嵌翻译，最终版） */
   translations: Map<number, string>
   /** seq_id → 流式中的部分译文快照（最终版到达后清除） */
@@ -43,6 +45,7 @@ interface AppState {
   setAudioSpectrum: (v: number[]) => void
   setAudioActive: (v: boolean) => void
   setAudioLevels: (v: { mic: number; system: number }) => void
+  setVadSpeaking: (v: boolean) => void
   addTranslation: (seqId: number, text: string) => void
   addPartialTranslation: (seqId: number, text: string) => void
   setTranslateEnabled: (v: boolean) => void
@@ -68,6 +71,7 @@ const initialState = {
   audioSpectrum: [] as number[],
   audioActive: false,
   audioLevels: { mic: 0, system: 0 },
+  vadSpeaking: false,
   translations: new Map<number, string>(),
   partialTranslations: new Map<number, string>(),
   translateEnabled: false,
@@ -110,6 +114,7 @@ export const useAppStore = create<AppState>()((set) => ({
   setAudioSpectrum: (v) => set({ audioSpectrum: v }),
   setAudioActive: (v) => set({ audioActive: v }),
   setAudioLevels: (v) => set({ audioLevels: v }),
+  setVadSpeaking: (v) => set({ vadSpeaking: v }),
 
   addTranslation: (seqId, text) =>
     set((state) => {

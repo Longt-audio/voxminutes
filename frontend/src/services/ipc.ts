@@ -36,6 +36,7 @@ import type {
   SummaryLocalModelInfo,
   ModelLoadingEvent,
   ImportModelResult,
+  TtsSynthesisResult,
 } from '@/types'
 
 // ── 事件监听安全包装 ──────────────────────────────────────────────────────────
@@ -383,12 +384,43 @@ export async function getRemoteModelChoice(): Promise<{ asr: string; translate: 
   return invoke('get_remote_model_choice')
 }
 
-/** 设置三种能力的远程模型选择 */
-export async function setRemoteModelChoice(choice: { asr?: string; translate?: string; tts?: string }): Promise<void> {
+/** 设置三种能力的远程模型选择（asr_mode 透传网关 mode，用于决定流式/非流式） */
+export async function setRemoteModelChoice(choice: { asr?: string; asr_mode?: string; translate?: string; tts?: string }): Promise<void> {
   return invoke('set_remote_model_choice', {
     asr: choice.asr ?? null,
+    asr_mode: choice.asr_mode ?? null,
     translate: choice.translate ?? null,
     tts: choice.tts ?? null,
+  })
+}
+
+// ── 远程 TTS（网关 /v1/audio/speech） ──────────────────────────────────────────
+
+/** 合成一段文本为语音，返回 base64 音频 + MIME 类型。
+ *  voice: 音色（可选；缺省走供应商默认音色）
+ *  model: 指定远程 TTS 模型（可选；缺省用「远程服务」里选择的 TTS 模型） */
+export async function ttsSynthesize(
+  text: string,
+  voice?: string,
+  model?: string,
+): Promise<TtsSynthesisResult> {
+  return invoke<TtsSynthesisResult>('tts_synthesize', {
+    text,
+    voice: voice ?? null,
+    model: model ?? null,
+  })
+}
+
+/** 弹出保存对话框，把 TTS 音频保存到用户选择的位置。返回写入路径（取消时 null）。 */
+export async function saveTtsAudio(
+  audioBase64: string,
+  suggestedName: string,
+  mime: string,
+): Promise<string | null> {
+  return invoke<string | null>('save_tts_audio', {
+    audioBase64,
+    suggestedName,
+    mime,
   })
 }
 
@@ -517,6 +549,11 @@ export function onRecordingResumed(callback: () => void): Promise<UnlistenFn> {
 
 export function onSpeechDetected(callback: () => void): Promise<UnlistenFn> {
   return listen('speech-detected', callback)
+}
+
+/** VAD 检测到人声（active=true）/ 结束（active=false），用于「正在识别」提示 */
+export function onVadSpeechActivity(callback: (payload: { active: boolean }) => void): Promise<UnlistenFn> {
+  return listen<{ active: boolean }>('vad-speech-activity', (event) => callback(event.payload))
 }
 
 export function onMicMuteChanged(callback: (payload: { muted: boolean }) => void): Promise<UnlistenFn> {
@@ -809,9 +846,53 @@ export async function fetchRemoteMessages(): Promise<{
   return invoke('fetch_remote_messages')
 }
 
-/** 拉取积分余额（网关 /v1/usage）。 */
-export async function getRemoteUsage(): Promise<{ license: string; name: string; credits: number }> {
+/** 拉取积分余额（网关 /v1/usage，含低余额预警）。 */
+export async function getRemoteUsage(): Promise<{
+  license: string
+  name: string
+  credits: number
+  low_balance?: boolean
+  threshold?: number
+}> {
   return invoke('get_remote_usage')
+}
+
+/** 设备绑定自动注册（网关 /v1/register），返回 { api_key, credits, is_new }。 */
+export async function registerDevice(): Promise<{ api_key: string; credits: number; is_new: boolean }> {
+  return invoke('register_device')
+}
+
+/** 兑换码充值（网关 /v1/redeem），返回 { credits, added }。 */
+export async function redeemCode(code: string): Promise<{ credits: number; added: number }> {
+  return invoke('redeem_code', { code })
+}
+
+/** 用户积分流水（网关 /v1/ledger）。 */
+export interface LedgerItem {
+  id: number
+  type: string
+  amount: number
+  balance_after: number
+  remark: string
+  created_at: string
+}
+export async function getRemoteLedger(): Promise<{ items: LedgerItem[] }> {
+  return invoke('get_remote_ledger')
+}
+
+/** 用户按模型消耗汇总（网关 /v1/usage/by-model）。 */
+export interface ModelUsageItem {
+  provider: string
+  model: string
+  kind: string
+  units: number
+  unit: string
+  credits: number
+  cost_cny: number
+  calls: number
+}
+export async function getRemoteUsageByModel(): Promise<{ items: ModelUsageItem[] }> {
+  return invoke('get_remote_usage_by_model')
 }
 
 /** 模型测速（仅测往返延迟，不扣积分）：kind = asr | llm | tts。 */

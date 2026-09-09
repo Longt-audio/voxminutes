@@ -20,13 +20,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SettingsSection } from './SettingsSection'
 import { useMessages } from '@/i18n/useMessages'
 
-/** 格式化模型单价为可读积分消耗文案，如「0.05 积分/秒」。 */
+/** 格式化模型单价为可读积分消耗文案：ASR「积分/小时」，LLM「积分/千token」，TTS「积分/千字符」。 */
 function formatModelPrice(m: RemoteModelItem): string {
   const price = m.price ?? 0
   if (price <= 0) return '免费'
-  const unit = m.price_unit === 'second' ? '秒' : m.price_unit === 'char' ? '字符' : 'token'
-  const priceStr = price >= 0.01 ? price.toFixed(2) : price.toFixed(4)
-  return `${priceStr} 积分/${unit}`
+  if (m.price_unit === 'second') return `${(price * 3600).toFixed(2)} 积分/小时`
+  if (m.price_unit === 'char') return `${(price * 1000).toFixed(2)} 积分/千字符`
+  return `${(price * 1000).toFixed(2)} 积分/千token`
 }
 
 /** 设置页 API tab：远程服务配置（服务器地址 + 授权码 + 总开关），ASR/翻译/TTS 三者共用 */

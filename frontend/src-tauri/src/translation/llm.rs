@@ -376,8 +376,10 @@ pub fn translate(
     Ok(postprocess(&raw, source_lang, target_lang))
 }
 
-/// 启动预加载暖机：发一次最小 generate，使 llama-helper sidecar 启动并驻留
-/// Hy-MT2 模型，消除首次翻译的冷启动等待。阻塞调用，请放在 spawn_blocking 中。
+/// 暖机工具：发一次最小 generate，使 llama-helper sidecar 启动并驻留
+/// Hy-MT2 模型。当前未使用（模型已全部改为按需加载），保留备用。
+/// 阻塞调用，请放在 spawn_blocking 中。
+#[allow(dead_code)]
 pub fn warmup() -> Result<(), String> {
     let model_path = llama_sidecar::find_gguf_model(MODEL_DIR)
         .ok_or_else(|| "Hy-MT2 翻译模型未安装，请先到设置页下载。".to_string())?;

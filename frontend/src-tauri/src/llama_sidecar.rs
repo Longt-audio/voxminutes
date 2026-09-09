@@ -18,6 +18,10 @@ use tauri::{AppHandle, Emitter};
 /// Long-lived sidecar process; `None` means "not spawned yet / dead".
 static HELPER: LazyLock<Mutex<Option<HelperProcess>>> = LazyLock::new(|| Mutex::new(None));
 
+/// 当前驻留在 sidecar 中的模型（GGUF 文件 stem）。sidecar 内部换载、被 kill、
+/// 闲置超时自退出时据此向前端发 model-loading unloaded 事件。
+static LAST_HELPER_MODEL: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
+
 /// Global app handle for emitting `model-loading` events from model load
 /// paths that do not have an AppHandle of their own (OPUS-MT lazy load,
 /// llama-helper sidecar stdout forwarding). Registered in lib.rs setup.
@@ -50,6 +54,15 @@ pub(crate) fn emit_model_loading(
     if let Err(e) = app.emit("model-loading", &payload) {
         log::warn!("model-loading emit failed: {}", e);
     }
+}
+
+/// Emit a `model-loading` event with phase "unloaded"（前端据此 toast 提示模型已卸载）。
+/// `reason` 为机器可读的卸载原因：
+/// - "manual"：用户点「清空模型后台」/ 切换翻译引擎主动卸载
+/// - "swap"：llama-helper sidecar 换载（新模型顶替旧模型）
+/// - "idle"：sidecar 闲置超时自动退出
+pub(crate) fn emit_model_unloaded(model: &str, reason: &str) {
+    emit_model_loading(model, "unloaded", None, Some(reason.to_string()));
 }
 
 struct HelperProcess {
@@ -214,10 +227,49 @@ fn spawn_helper(exe: &Path) -> Result<HelperProcess, String> {
 }
 
 pub(crate) fn kill_helper() {
-    if let Ok(mut guard) = HELPER.lock() {
+    let killed = if let Ok(mut guard) = HELPER.lock() {
         // Dropping the process kills the child (see Drop impl).
-        let _ = guard.take();
+        guard.take().is_some()
+    } else {
+        false
+    };
+    if killed {
+        if let Ok(mut last) = LAST_HELPER_MODEL.lock() {
+            if let Some(model) = last.take() {
+                emit_model_unloaded(&model, "manual");
+            }
+        }
     }
+}
+
+/// 后台监视 sidecar 进程：sidecar 闲置超时（LLAMA_IDLE_TIMEOUT，默认 60s）会
+/// 自行退出释放模型，此时向前端发 model-loading unloaded 事件（reason="idle"）。
+/// 槽位被清空（kill_helper / 生成错误重置）时静默退出——那两条路径各自已发事件。
+fn spawn_exit_watcher() {
+    std::thread::spawn(|| loop {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let mut guard = match HELPER.try_lock() {
+            Ok(g) => g,
+            // 生成请求持有锁期间跳过本轮；锁被污染则放弃监视。
+            Err(std::sync::TryLockError::WouldBlock) => continue,
+            Err(std::sync::TryLockError::Poisoned(_)) => break,
+        };
+        let Some(helper) = guard.as_mut() else {
+            break; // 被 kill_helper 主动清理，事件已发
+        };
+        if helper.is_alive() {
+            continue;
+        }
+        // sidecar 自行退出（闲置超时 / 崩溃）：回收并通知前端
+        let _ = guard.take();
+        if let Ok(mut last) = LAST_HELPER_MODEL.lock() {
+            if let Some(model) = last.take() {
+                log::info!("llama-helper 已退出，模型 {} 随进程卸载", model);
+                emit_model_unloaded(&model, "idle");
+            }
+        }
+        break;
+    });
 }
 
 /// Best-effort sidecar shutdown on app exit (called from lib.rs RunEvent::Exit).
@@ -343,6 +395,7 @@ pub(crate) fn blocking_generate(
     let alive = guard.as_mut().map(|h| h.is_alive()).unwrap_or(false);
     if !alive {
         *guard = Some(spawn_helper(helper_exe)?);
+        spawn_exit_watcher();
     }
 
     let result = {
@@ -405,8 +458,22 @@ pub(crate) fn blocking_generate(
                     } => {
                         if phase == "start" {
                             pending_load = Some(model.clone());
+                            // sidecar 内部换载：新模型开始加载意味着旧模型刚被卸载
+                            if let Ok(mut last) = LAST_HELPER_MODEL.lock() {
+                                if let Some(prev) = last.as_ref() {
+                                    if *prev != model {
+                                        emit_model_unloaded(prev, "swap");
+                                        *last = None; // 等 done 再写入新模型
+                                    }
+                                }
+                            }
                         } else {
                             pending_load = None;
+                            if phase == "done" {
+                                if let Ok(mut last) = LAST_HELPER_MODEL.lock() {
+                                    *last = Some(model.clone());
+                                }
+                            }
                         }
                         emit_model_loading(&model, &phase, elapsed_ms, message);
                     }
@@ -427,6 +494,10 @@ pub(crate) fn blocking_generate(
     if result.is_err() {
         // The process is likely wedged; drop it so the next call respawns.
         *guard = None;
+        // 进程已丢弃，驻留模型随之卸载（错误本身已提示用户，这里只清状态）
+        if let Ok(mut last) = LAST_HELPER_MODEL.lock() {
+            last.take();
+        }
     }
     result
 }

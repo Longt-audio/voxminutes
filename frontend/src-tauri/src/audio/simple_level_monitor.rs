@@ -147,8 +147,19 @@ pub async fn start_monitoring<R: Runtime>(
 
     let app_handle_clone = app_handle.clone();
     tokio::spawn(async move {
+        let mut last_vad_active: Option<bool> = None;
         while IS_MONITORING.load(Ordering::SeqCst) {
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+            // 上报 VAD「语音进行中」状态变化（供前端显示「正在识别」提示）。
+            let vad_active = super::recording_state::is_vad_speaking();
+            if last_vad_active != Some(vad_active) {
+                last_vad_active = Some(vad_active);
+                let _ = app_handle_clone.emit(
+                    "vad-speech-activity",
+                    serde_json::json!({ "active": vad_active }),
+                );
+            }
 
             let store = super::recording_state::get_audio_level_store();
             let (sample_rate, spectrum_samples) = super::recording_state::get_spectrum_data();
@@ -209,6 +220,12 @@ pub async fn start_monitoring<R: Runtime>(
                 }
             }
         }
+
+        // 监控结束：清除「语音进行中」状态。
+        let _ = app_handle_clone.emit(
+            "vad-speech-activity",
+            serde_json::json!({ "active": false }),
+        );
 
         info!("Audio level monitoring task ended");
     });

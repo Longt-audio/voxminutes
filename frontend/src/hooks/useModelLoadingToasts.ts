@@ -5,15 +5,19 @@ import { onModelLoading } from '@/services/ipc'
 import { useMessages } from '@/i18n/useMessages'
 
 /**
- * 全局监听后端 model-loading 事件，用 toast 提示模型加载进度。
+ * 全局监听后端 model-loading 事件，用 toast 提示模型加载/卸载进度。
  * start 用固定 id 的 loading toast（不自动消失，同模型重复 start 只会更新原 toast）；
- * done / error 复用同一 id 替换它，分别在 3s / 6s 后自动消失。
+ * done / error 复用同一 id 替换它，分别在 3s / 6s 后自动消失；
+ * 每个模型本会话首次 done 用「首次加载」文案（含耗时 + 「清空模型后台」按钮提示）；
+ * unloaded（后台卸载：手动清空 / sidecar 换载 / 闲置超时）用 info toast 提示。
  * 在 AppShell 中挂载一次即可全局生效。
  */
 export function useModelLoadingToasts() {
   const t = useMessages()
   const tRef = useRef(t)
   tRef.current = t
+  // 本会话已完成首次加载的模型集合（卸载后重新加载不再算首次）
+  const firstLoadSeen = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined
@@ -25,10 +29,26 @@ export function useModelLoadingToasts() {
         toast.loading(m.modelLoadingStart.replace('{model}', name), { id, duration: Infinity })
       } else if (e.phase === 'done') {
         const seconds = ((e.elapsed_ms ?? 0) / 1000).toFixed(1)
-        toast.success(m.modelLoadingDone.replace('{model}', name).replace('{seconds}', seconds), {
-          id,
-          duration: 3000,
-        })
+        if (firstLoadSeen.current.has(e.model)) {
+          toast.success(m.modelLoadingDone.replace('{model}', name).replace('{seconds}', seconds), {
+            id,
+            duration: 3000,
+          })
+        } else {
+          firstLoadSeen.current.add(e.model)
+          toast.success(
+            m.modelLoadingFirstDone.replace('{model}', name).replace('{seconds}', seconds),
+            { id, duration: 8000 }
+          )
+        }
+      } else if (e.phase === 'unloaded') {
+        const template =
+          e.message === 'idle'
+            ? m.modelUnloadedIdle
+            : e.message === 'swap'
+              ? m.modelUnloadedSwap
+              : m.modelUnloaded
+        toast.info(template.replace('{model}', name), { id, duration: 4000 })
       } else {
         toast.error(
           m.modelLoadingError.replace('{model}', name).replace('{message}', e.message ?? ''),

@@ -951,6 +951,8 @@ impl AudioPipeline {
 
                             if self.bypass_vad {
                                 // X-ASR mode: send continuous mixed audio directly
+                                // 不走 VAD，因此没有「VAD 语音进行中」状态。
+                                crate::audio::recording_state::set_vad_speaking(false);
                                 let samples_16k = super::audio_processing::resample_audio(
                                     &mixed_with_gain, self.sample_rate, 16000
                                 );
@@ -1012,6 +1014,7 @@ impl AudioPipeline {
                                             "unknown panic".to_string()
                                         };
                                         error!("🛑 VAD PANIC CAUGHT: {} — resetting VAD processor to recover", panic_msg);
+                                        crate::audio::recording_state::set_vad_speaking(false);
                                         // Recreate with the same tuned parameters as AudioPipeline::new
                                         self.vad_processor = match ContinuousVadProcessor::new_with_thresholds(self.sample_rate, 800, 0.35, 0.25) {
                                             Ok(processor) => processor,
@@ -1023,6 +1026,9 @@ impl AudioPipeline {
                                     }
                                 }
                             }
+
+                            // 上报 VAD「语音进行中」状态（检测到人声、尚未断句）。
+                            crate::audio::recording_state::set_vad_speaking(self.vad_processor.is_speaking());
 
                             // STEP 4: Send mixed audio for recording (WAV file)
                             if let Some(ref sender) = self.recording_sender_for_mixed {
@@ -1050,6 +1056,7 @@ impl AudioPipeline {
         }
 
         // Flush any remaining VAD segments
+        crate::audio::recording_state::set_vad_speaking(false);
         self.flush_remaining_audio()?;
 
         info!("VAD-driven audio pipeline ended");

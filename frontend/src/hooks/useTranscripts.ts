@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { useAppStore } from '@/state'
-import { onTranscriptUpdate, onTranslateUpdate, pushSubtitleSegment, pushSubtitleTranslation } from '@/services/ipc'
+import { onTranscriptUpdate, onTranslateUpdate, onVadSpeechActivity, pushSubtitleSegment, pushSubtitleTranslation } from '@/services/ipc'
 import type { TranscriptSegment } from '@/types'
 
 let idCounter = 0
@@ -15,9 +15,11 @@ export function useTranscripts() {
   const addTranscript = useAppStore((s) => s.addTranscript)
   const addTranslation = useAppStore((s) => s.addTranslation)
   const addPartialTranslation = useAppStore((s) => s.addPartialTranslation)
+  const setVadSpeaking = useAppStore((s) => s.setVadSpeaking)
   const isRecording = useAppStore((s) => s.isRecording)
   const unlistenRef = useRef<UnlistenFn | null>(null)
   const translateUnlistenRef = useRef<UnlistenFn | null>(null)
+  const vadUnlistenRef = useRef<UnlistenFn | null>(null)
 
   useEffect(() => {
     if (!isRecording) {
@@ -29,6 +31,11 @@ export function useTranscripts() {
         translateUnlistenRef.current()
         translateUnlistenRef.current = null
       }
+      if (vadUnlistenRef.current) {
+        vadUnlistenRef.current()
+        vadUnlistenRef.current = null
+      }
+      setVadSpeaking(false)
       return
     }
 
@@ -72,12 +79,17 @@ export function useTranscripts() {
           translated_text: update.translated_text,
         }).catch(() => {})
       })
+      const vadUnlisten = await onVadSpeechActivity(({ active }) => {
+        setVadSpeaking(active)
+      })
       if (cancelled) {
         try { unlisten() } catch {}
         try { translateUnlisten() } catch {}
+        try { vadUnlisten() } catch {}
       } else {
         unlistenRef.current = unlisten
         translateUnlistenRef.current = translateUnlisten
+        vadUnlistenRef.current = vadUnlisten
       }
     })()
 
@@ -91,6 +103,11 @@ export function useTranscripts() {
         try { translateUnlistenRef.current() } catch {}
         translateUnlistenRef.current = null
       }
+      if (vadUnlistenRef.current) {
+        try { vadUnlistenRef.current() } catch {}
+        vadUnlistenRef.current = null
+      }
+      setVadSpeaking(false)
     }
-  }, [isRecording, addTranscript, addTranslation, addPartialTranslation])
+  }, [isRecording, addTranscript, addTranslation, addPartialTranslation, setVadSpeaking])
 }

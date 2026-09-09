@@ -257,6 +257,12 @@ export interface TranslateTextStreamEvent {
   delta: string
 }
 
+/** tts_synthesize 命令返回：合成出的音频（base64）+ MIME 类型 */
+export interface TtsSynthesisResult {
+  audio_base64: string
+  content_type: string
+}
+
 // ── 音频电平 / 频谱监听 ──────────────────────────────────────────────────────
 
 export interface AudioLevelData {
@@ -300,13 +306,13 @@ export interface SummaryLocalModelInfo {
 
 // ── 模型加载 ──────────────────────────────────────────────────────────────────
 
-/** model-loading 事件 payload：模型（ASR / OPUS-MT / Hy-MT2 / 总结 GGUF）实际加载的开始/完成/失败 */
+/** model-loading 事件 payload：模型（ASR / OPUS-MT / Hy-MT2 / 总结 GGUF）实际加载的开始/完成/失败/卸载 */
 export interface ModelLoadingEvent {
-  /** 模型标识（如 x-asr-480ms、sense-voice、opus-mt-zh-en、GGUF 文件 stem） */
+  /** 模型标识（如 x-asr-480ms、sense-voice、opus-mt、GGUF 文件 stem） */
   model: string
-  phase: 'start' | 'done' | 'error'
+  phase: 'start' | 'done' | 'error' | 'unloaded'
   /** phase 为 done 时的加载耗时（毫秒） */
   elapsed_ms?: number
-  /** phase 为 error 时的错误信息 */
+  /** phase 为 error 时的错误信息；phase 为 unloaded 时的原因（manual/swap/idle） */
   message?: string
 }

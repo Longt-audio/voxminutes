@@ -77,6 +77,8 @@ export interface RecorderMessages {
   recStartFailed: string
   recStopFailed: string
   recActionFailed: string
+  recRecognizing: string
+  recRecognizingHint: string
 }
 
 export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
@@ -156,6 +158,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recStartFailed: 'Failed to start recording',
     recStopFailed: 'Failed to stop recording',
     recActionFailed: 'Action failed',
+    recRecognizing: 'Recognizing speech…',
+    recRecognizingHint: 'Text appears here after you pause briefly',
   },
   zh: {
     recStop: '停止录音',
@@ -233,6 +237,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recStartFailed: '启动录音失败',
     recStopFailed: '停止录音失败',
     recActionFailed: '操作失败',
+    recRecognizing: '正在识别…',
+    recRecognizingHint: '说话稍作停顿，文字会显示在这里',
   },
   ko: {
     recStop: '녹음 중지',
@@ -310,6 +316,8 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recStartFailed: '녹음 시작에 실패했습니다',
     recStopFailed: '녹음 중지에 실패했습니다',
     recActionFailed: '작업에 실패했습니다',
+    recRecognizing: '음성 인식 중…',
+    recRecognizingHint: '잠시 말을 멈추면 여기에 텍스트가 표시됩니다',
   },
   ja: {
     recStop: '録音停止',
@@ -387,5 +395,7 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recStartFailed: '録音の開始に失敗しました',
     recStopFailed: '録音の停止に失敗しました',
     recActionFailed: '操作に失敗しました',
+    recRecognizing: '音声認識中…',
+    recRecognizingHint: '少し間を置くと、ここに文字が表示されます',
   },
 }

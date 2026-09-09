@@ -51,6 +51,8 @@ impl TranscriptionEngine {
 
 static REMOTE_ASR_ENDPOINT: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 static REMOTE_ASR_MODEL: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+/// 远程 ASR 模型的 mode（来自网关模型目录：streaming / batch）。空串表示未设置，需回退到模型名后缀判断。
+static REMOTE_ASR_MODE: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 static REMOTE_TRANSLATE_MODEL: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 static REMOTE_TTS_MODEL: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 static REMOTE_LICENSE: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
@@ -82,6 +84,7 @@ pub fn set_remote_asr_config(endpoint: &str, model_name: &str) {
     let config = RemoteAsrPersistedConfig {
         endpoint: endpoint.to_string(),
         model: model_name.to_string(),
+        asr_mode: get_remote_asr_mode(),
         translate_model: get_remote_translate_model(),
         tts_model: get_remote_tts_model(),
     };
@@ -105,6 +108,7 @@ pub fn set_remote_config(endpoint: &str, license: &str, model_name: &str) {
     let config = RemoteAsrPersistedConfig {
         endpoint: endpoint.to_string(),
         model: model_name.to_string(),
+        asr_mode: get_remote_asr_mode(),
         translate_model: get_remote_translate_model(),
         tts_model: get_remote_tts_model(),
     };
@@ -121,10 +125,24 @@ pub fn get_remote_asr_model() -> String {
     REMOTE_ASR_MODEL.lock().map(|m| m.clone()).unwrap_or_default()
 }
 
+pub fn get_remote_asr_mode() -> String {
+    REMOTE_ASR_MODE.lock().map(|m| m.clone()).unwrap_or_default()
+}
+
 /// 判断远程 ASR 模型是否为「流式」：模型 id 带 -realtime / -streaming 后缀。
-/// 与网关模型目录的 mode=streaming 约定一致。
+/// 仅作为「未设置 mode 时」的兜底判断，与网关模型目录的 mode=streaming 约定一致。
 pub fn is_remote_asr_streaming_model(model_name: &str) -> bool {
     model_name.ends_with("-realtime") || model_name.ends_with("-streaming")
+}
+
+/// 远程 ASR 是否走流式：优先用前端传来的 mode（网关模型目录下发），
+/// 未设置时回退到模型名后缀（兼容旧配置 / 旧调用路径）。
+pub fn is_remote_asr_streaming() -> bool {
+    let mode = get_remote_asr_mode();
+    if !mode.is_empty() {
+        return mode == "streaming";
+    }
+    is_remote_asr_streaming_model(&get_remote_asr_model())
 }
 
 pub fn get_remote_translate_model() -> String {
@@ -139,14 +157,29 @@ pub fn get_remote_license() -> String {
     REMOTE_LICENSE.lock().map(|l| l.clone()).unwrap_or_default()
 }
 
+/// 只设置授权码（供自动注册后写入），并持久化到 keychain。
+pub fn set_remote_license(license: &str) {
+    if let Ok(mut l) = REMOTE_LICENSE.lock() {
+        *l = license.to_string();
+    }
+    save_license_to_keyring(license);
+}
+
 /// 设置三种能力各自的远程模型（模型选择器），并持久化到磁盘。
+/// `asr_mode` 由前端从网关 /v1/models 的 mode 字段透传，用于决定远程 ASR 走流式还是非流式。
 pub fn set_remote_models(
     asr: Option<String>,
+    asr_mode: Option<String>,
     translate: Option<String>,
     tts: Option<String>,
 ) -> Result<(), String> {
     if let Some(m) = asr {
         if let Ok(mut g) = REMOTE_ASR_MODEL.lock() {
+            *g = m;
+        }
+    }
+    if let Some(m) = asr_mode {
+        if let Ok(mut g) = REMOTE_ASR_MODE.lock() {
             *g = m;
         }
     }
@@ -163,6 +196,7 @@ pub fn set_remote_models(
     let config = RemoteAsrPersistedConfig {
         endpoint: get_remote_asr_endpoint(),
         model: get_remote_asr_model(),
+        asr_mode: get_remote_asr_mode(),
         translate_model: get_remote_translate_model(),
         tts_model: get_remote_tts_model(),
     };
@@ -196,6 +230,8 @@ pub fn remote_health_url(endpoint: &str) -> String {
 struct RemoteAsrPersistedConfig {
     endpoint: String,
     model: String,
+    #[serde(default)]
+    asr_mode: String,
     #[serde(default)]
     translate_model: String,
     #[serde(default)]
@@ -269,6 +305,9 @@ pub fn load_remote_asr_config_from_disk() {
                         }
                         if let Ok(mut m) = REMOTE_ASR_MODEL.lock() {
                             *m = config.model.clone();
+                        }
+                        if let Ok(mut m) = REMOTE_ASR_MODE.lock() {
+                            *m = config.asr_mode.clone();
                         }
                         if let Ok(mut m) = REMOTE_TRANSLATE_MODEL.lock() {
                             *m = config.translate_model.clone();
@@ -351,7 +390,7 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
             return Err("Remote ASR endpoint not configured. Please set the remote ASR URL in Settings.".to_string());
         }
         let model_name = get_remote_asr_model();
-        let is_streaming = is_remote_asr_streaming_model(&model_name);
+        let is_streaming = is_remote_asr_streaming();
         if is_streaming {
             info!("🔍 Validating remote STREAMING ASR at: {} model={}", endpoint, model_name);
         } else {
@@ -447,7 +486,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
     if is_remote {
         let endpoint = get_remote_asr_endpoint();
         let model_name = get_remote_asr_model();
-        let is_streaming = is_remote_asr_streaming_model(&model_name);
+        let is_streaming = is_remote_asr_streaming();
 
         if is_streaming {
             info!("🦊 Initializing remote STREAMING ASR engine at: {} model={}", endpoint, model_name);

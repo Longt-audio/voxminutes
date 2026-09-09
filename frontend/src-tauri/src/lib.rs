@@ -57,6 +57,7 @@ pub mod translation;
 pub mod tray;
 pub mod subtitle_overlay;
 pub mod remote_messages;
+mod tts;
 
 pub mod bundle_paths;
 pub mod utils;
@@ -555,10 +556,11 @@ async fn get_remote_config() -> Result<serde_json::Value, String> {
 #[tauri::command]
 async fn set_remote_model_choice(
     asr: Option<String>,
+    asr_mode: Option<String>,
     translate: Option<String>,
     tts: Option<String>,
 ) -> Result<(), String> {
-    audio::transcription::set_remote_models(asr, translate, tts)
+    audio::transcription::set_remote_models(asr, asr_mode, translate, tts)
 }
 
 /// 读回三种能力的远程模型（模型选择器回显）。
@@ -675,6 +677,152 @@ async fn get_remote_usage() -> Result<serde_json::Value, String> {
         .send()
         .await
         .map_err(|e| format!("请求失败: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("网关返回 HTTP {}", resp.status()));
+    }
+    resp.json().await.map_err(|e| e.to_string())
+}
+
+/// 读取稳定设备标识：macOS IOPlatformUUID / Windows MachineGuid / Linux machine-id。
+fn read_device_id() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("ioreg")
+            .args(["-rd1", "-c", "IOPlatformExpertDevice"])
+            .output()
+            .map_err(|e| format!("ioreg 失败: {e}"))?;
+        let s = String::from_utf8_lossy(&out.stdout);
+        let marker = "\"IOPlatformUUID\" = \"";
+        if let Some(idx) = s.find(marker) {
+            let rest = &s[idx + marker.len()..];
+            if let Some(end) = rest.find('"') {
+                return Ok(rest[..end].to_string());
+            }
+        }
+        return Err("未找到 IOPlatformUUID".to_string());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let out = std::process::Command::new("reg")
+            .args(["query", r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
+            .output()
+            .map_err(|e| format!("reg 失败: {e}"))?;
+        let s = String::from_utf8_lossy(&out.stdout);
+        for line in s.lines() {
+            if line.contains("MachineGuid") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if let Some(v) = parts.last() {
+                    return Ok(v.to_string());
+                }
+            }
+        }
+        return Err("未找到 MachineGuid".to_string());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let s = std::fs::read_to_string("/etc/machine-id").map_err(|e| format!("machine-id 失败: {e}"))?;
+        return Ok(s.trim().to_string());
+    }
+}
+
+/// 读取设备标识（供前端/自动注册使用）。
+#[tauri::command]
+fn get_device_id() -> Result<String, String> {
+    read_device_id()
+}
+
+/// 设备绑定自动注册：POST /v1/register，成功则把授权码写入 keychain + 内存。
+#[tauri::command]
+async fn register_device() -> Result<serde_json::Value, String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let device_id = read_device_id()?;
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{base}/register"))
+        .json(&serde_json::json!({ "device_id": device_id }))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {e}"))?;
+    let status = resp.status();
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    if !status.is_success() {
+        let msg = json
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("注册失败");
+        return Err(msg.to_string());
+    }
+    if let Some(key) = json.get("api_key").and_then(|k| k.as_str()) {
+        audio::transcription::set_remote_license(key);
+    }
+    Ok(json)
+}
+
+/// 兑换码充值：POST /v1/redeem。
+#[tauri::command]
+async fn redeem_code(code: String) -> Result<serde_json::Value, String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{base}/redeem"))
+        .bearer_auth(license)
+        .json(&serde_json::json!({ "code": code }))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {e}"))?;
+    let status = resp.status();
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    if !status.is_success() {
+        let msg = json
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("兑换失败");
+        return Err(msg.to_string());
+    }
+    Ok(json)
+}
+
+/// 用户自己的积分流水：GET /v1/ledger。
+#[tauri::command]
+async fn get_remote_ledger() -> Result<serde_json::Value, String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{base}/ledger"))
+        .bearer_auth(license)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("网关返回 HTTP {}", resp.status()));
+    }
+    resp.json().await.map_err(|e| e.to_string())
+}
+
+/// 用户按模型消耗汇总：GET /v1/usage/by-model。
+#[tauri::command]
+async fn get_remote_usage_by_model() -> Result<serde_json::Value, String> {
+    let base = audio::transcription::remote_api_base()
+        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{base}/usage/by-model"))
+        .bearer_auth(license)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("网关返回 HTTP {}", resp.status()));
     }
@@ -831,7 +979,7 @@ pub fn run() {
                     (engine, lang, home)
                 });
                 if let Some(engine) =
-                    saved_engine.filter(|e| matches!(e.as_str(), "opus" | "hymt2"))
+                    saved_engine.filter(|e| matches!(e.as_str(), "opus" | "hymt2" | "remote"))
                 {
                     if let Ok(mut guard) = translation::TRANSLATION_ENGINE.lock() {
                         *guard = engine;
@@ -860,36 +1008,9 @@ pub fn run() {
                 }
             }
 
-            // 后台预加载翻译引擎，消除首次翻译的冷启动等待。
-            // 评估结论：Hy-MT2（1.1GB Q4_K_M）经 mmap 加载为秒级，后台预加载不阻塞 UI；
-            // 代价是 llama-helper sidecar 常驻约 1.5GB 内存，且与会议总结共享 sidecar、
-            // 跨用途切换时会触发模型换载（可接受）。模型未安装时静默跳过
-            // （设置页下载后首次使用时再加载）。
-            let preload_engine = translation::current_engine();
-            tauri::async_runtime::spawn(async move {
-                let start = std::time::Instant::now();
-                let _ = tokio::task::spawn_blocking(move || {
-                    if preload_engine == "hymt2" {
-                        // Hy-MT2：发一次暖机 generate，使 sidecar 启动并驻留模型
-                        if model_download::hy_mt2_installed() {
-                            if let Err(e) = translation::llm::warmup() {
-                                log::warn!("Hy-MT2 翻译引擎预热失败: {}", e);
-                            }
-                        }
-                    } else {
-                        // OPUS-MT 双方向预热
-                        for direction in ["zh-en", "en-zh"] {
-                            if translation::is_model_installed(direction) {
-                                if let Err(e) = translation::get_engine(direction) {
-                                    log::warn!("翻译引擎预加载失败 ({}): {}", direction, e);
-                                }
-                            }
-                        }
-                    }
-                })
-                .await;
-                log::info!("翻译引擎预加载完成，耗时 {:?}", start.elapsed());
-            });
+            // 本地模型全部按需加载：不在启动时预加载翻译引擎（OPUS-MT / Hy-MT2），
+            // 避免 sidecar 常驻约 1.5GB 内存。首次使用（翻译/总结/录音）时才加载，
+            // 加载/卸载进度通过 model-loading 事件以 toast 提示用户。
 
             // Restore remote ASR endpoint config from disk (survives app restarts)
             audio::transcription::load_remote_asr_config_from_disk();
@@ -1030,7 +1151,14 @@ pub fn run() {
             list_remote_models,
             clear_all_model_backends,
             get_remote_usage,
+            get_device_id,
+            register_device,
+            redeem_code,
+            get_remote_ledger,
+            get_remote_usage_by_model,
             submit_feedback,
+            tts::tts_synthesize,
+            tts::save_tts_audio,
             remote_messages::fetch_remote_messages,
             remote_messages::fetch_notice_documents,
             run_speed_test,
