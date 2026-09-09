@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeftRight, Copy, Check, Loader2, X } from 'lucide-react'
+import { ArrowLeftRight, Copy, Check, Loader2, X, Volume2, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { Button } from '@/components/ui/button'
-import { translateText, getTranslationEngine, setTranslationEngine as ipcSetTranslationEngine, getTranslationTargetLang, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationHomeLang, onTranslateTextStream, getDownloadableModels, getRemoteEnabled } from '@/services/ipc'
+import { translateText, getTranslationEngine, setTranslationEngine as ipcSetTranslationEngine, getTranslationTargetLang, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationHomeLang, onTranslateTextStream, getDownloadableModels, getRemoteEnabled, ttsSynthesize, saveTtsAudio } from '@/services/ipc'
 import { useTranslatePageStore } from '@/stores/translatePageStore'
 import { useLanguageStore } from '@/stores/languageStore'
+import { useTtsVoiceStore } from '@/stores/ttsVoiceStore'
 import { useMessages } from '@/i18n/useMessages'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
 import { availableTranslationEngines } from '@/lib/translationEngines'
@@ -24,6 +25,17 @@ function detectIsZh(text: string): boolean {
     return (u >= 0x4e00 && u <= 0x9fff) || (u >= 0x3400 && u <= 0x4dbf)
   }).length
   return cjk * 10 > chars.length * 3
+}
+
+/** 把 base64 音频解码为 Blob URL（供 <audio> 播放） */
+function base64ToBlobUrl(base64: string, mime: string): { url: string; blob: Blob } {
+  const byteChars = atob(base64)
+  const byteNums = new Array(byteChars.length)
+  for (let i = 0; i < byteChars.length; i++) {
+    byteNums[i] = byteChars.charCodeAt(i)
+  }
+  const blob = new Blob([new Uint8Array(byteNums)], { type: mime })
+  return { url: URL.createObjectURL(blob), blob }
 }
 
 export default function TranslatePage() {
@@ -43,6 +55,20 @@ export default function TranslatePage() {
   const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
   const [remoteEnabled, setRemoteEnabled] = useState(false)
 
+  // ── TTS 播放（远程语音合成，走网关 /v1/audio/speech） ──────────────────────────
+  const [ttsLoading, setTtsLoading] = useState<'source' | 'target' | null>(null)
+  const [savingAudio, setSavingAudio] = useState(false)
+  const [ttsAudio, setTtsAudio] = useState<{
+    url: string
+    base64: string
+    mime: string
+    label: string
+    fileName: string
+  } | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  // 当前 Blob URL：新建前先 revoke，避免内存泄漏
+  const ttsUrlRef = useRef<string | null>(null)
+
   useEffect(() => {
     getDownloadableModels()
       .then(setTranslationModels)
@@ -57,6 +83,8 @@ export default function TranslatePage() {
     : availableTranslationEngines(translationModels)
   // 远程翻译模型（engine 为 remote 时在翻译页直接选择，与后端远程模型同步）
   const remoteTranslate = useRemoteModelChoice('translate')
+  // 远程 TTS 模型（语音合成使用，与后端远程模型同步）
+  const remoteTts = useRemoteModelChoice('tts')
   // 请求代际：取消时 +1，迟到结果比对不一致则丢弃
   const requestIdRef = useRef(0)
   // 当前流式请求的 request_id：匹配才接受 delta，取消/结束后置空
@@ -199,6 +227,65 @@ export default function TranslatePage() {
     }
   }, [output, t])
 
+  // ── TTS：播放原文 / 译文 ─────────────────────────────────────────────────────
+  const handleTtsPlay = useCallback(
+    async (kind: 'source' | 'target') => {
+      const text = kind === 'source' ? input : output
+      if (!text.trim() || ttsLoading) return
+      setTtsLoading(kind)
+      try {
+        // 用当前远程 TTS 模型的默认音色（可在「语音合成」页设置）；未设置走供应商默认
+        const voice = useTtsVoiceStore.getState().getVoice(remoteTts.value)
+        const result = await ttsSynthesize(text.trim(), voice, undefined)
+        if (ttsUrlRef.current) URL.revokeObjectURL(ttsUrlRef.current)
+        const { url } = base64ToBlobUrl(result.audio_base64, result.content_type)
+        ttsUrlRef.current = url
+        const label = kind === 'source' ? sourceLabel : targetLabel
+        const stamp = Date.now()
+        setTtsAudio({
+          url,
+          base64: result.audio_base64,
+          mime: result.content_type,
+          label,
+          fileName: `vox_tts_${kind}_${stamp}`,
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        toast.error(t.trTtsFailed, { description: msg })
+      } finally {
+        setTtsLoading(null)
+      }
+    },
+    [input, output, ttsLoading, remoteTts.value, sourceLabel, targetLabel, t]
+  )
+
+  const handleTtsDownload = useCallback(async () => {
+    if (!ttsAudio || savingAudio) return
+    setSavingAudio(true)
+    try {
+      const path = await saveTtsAudio(ttsAudio.base64, ttsAudio.fileName, ttsAudio.mime)
+      if (path) toast.success(t.trTtsSaved.replace('{path}', path))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error(t.trTtsFailed, { description: msg })
+    } finally {
+      setSavingAudio(false)
+    }
+  }, [ttsAudio, savingAudio, t])
+
+  // 合成完成后自动播放；卸载时释放 Blob URL
+  useEffect(() => {
+    if (ttsAudio) {
+      audioRef.current?.play().catch(() => {})
+    }
+  }, [ttsAudio])
+  useEffect(
+    () => () => {
+      if (ttsUrlRef.current) URL.revokeObjectURL(ttsUrlRef.current)
+    },
+    []
+  )
+
   return (
     <div className="h-full flex flex-col bg-background px-5 pt-8 pb-5 gap-4 overflow-y-auto custom-scrollbar">
       {/* 页头：标题 + 描述（同行） */}
@@ -262,6 +349,32 @@ export default function TranslatePage() {
           </select>
         )}
 
+        {/* 远程 TTS 模型（语音合成使用，与用户中心选择同步） */}
+        {remoteEnabled && remoteTts.models.length > 0 && (
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none max-w-[200px]"
+            value={remoteTts.value}
+            onChange={(e) => remoteTts.set(e.target.value)}
+            title={`${t.trRemoteModel} (TTS)`}
+          >
+            {remoteTts.models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.owned_by} / {m.id}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* 默认语音入口：指引用户到语音合成页设置默认音色 */}
+        {remoteEnabled && (
+          <Link
+            href="/tts"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline shrink-0"
+          >
+            {t.trSetDefaultVoice}
+          </Link>
+        )}
+
         <div className="flex-1" />
 
         {translating ? (
@@ -303,9 +416,24 @@ export default function TranslatePage() {
         <div className="flex flex-col min-h-0 rounded-md border bg-card">
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <span className="text-xs font-medium text-muted-foreground">{sourceLabel}</span>
-            <span className="text-xs text-muted-foreground/70">
-              {t.trCharCount.replace('{count}', String(input.length))}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground/70">
+                {t.trCharCount.replace('{count}', String(input.length))}
+              </span>
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 disabled:opacity-40"
+                onClick={() => handleTtsPlay('source')}
+                disabled={!input.trim() || ttsLoading !== null}
+                title={t.trPlaySource}
+              >
+                {ttsLoading === 'source' ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Volume2 className="h-3 w-3" />
+                )}
+                {ttsLoading === 'source' ? t.trTtsLoading : t.trPlaySource}
+              </button>
+            </div>
           </div>
           <textarea
             className="flex-1 min-h-[160px] resize-none bg-transparent p-3 text-sm leading-relaxed focus:outline-none custom-scrollbar"
@@ -324,14 +452,29 @@ export default function TranslatePage() {
         <div className="flex flex-col min-h-0 rounded-md border bg-card">
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <span className="text-xs font-medium text-muted-foreground">{targetLabel}</span>
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 disabled:opacity-40"
-              onClick={handleCopy}
-              disabled={!output}
-            >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              {copied ? t.comCopied : t.comCopy}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 disabled:opacity-40"
+                onClick={() => handleTtsPlay('target')}
+                disabled={!output || ttsLoading !== null}
+                title={t.trPlayTarget}
+              >
+                {ttsLoading === 'target' ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Volume2 className="h-3 w-3" />
+                )}
+                {ttsLoading === 'target' ? t.trTtsLoading : t.trPlayTarget}
+              </button>
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 disabled:opacity-40"
+                onClick={handleCopy}
+                disabled={!output}
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? t.comCopied : t.comCopy}
+              </button>
+            </div>
           </div>
           <div className="flex-1 min-h-[160px] p-3 text-sm leading-relaxed overflow-y-auto custom-scrollbar whitespace-pre-wrap">
             {output ? (
@@ -348,6 +491,28 @@ export default function TranslatePage() {
           </div>
         </div>
       </div>
+
+      {/* TTS 播放器：合成完成后显示，可播放 / 下载保存音频 */}
+      {ttsAudio && (
+        <div className="shrink-0 rounded-md border bg-card p-3 flex items-center gap-3">
+          <span className="text-xs font-medium text-muted-foreground shrink-0">{ttsAudio.label}</span>
+          <audio ref={audioRef} controls src={ttsAudio.url} className="flex-1 min-w-0 h-9" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 shrink-0"
+            onClick={handleTtsDownload}
+            disabled={savingAudio}
+          >
+            {savingAudio ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            {savingAudio ? t.trTtsSaving : t.comDownload}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

@@ -7,6 +7,7 @@ import { TRANSLATE_MESSAGES, type TranslateMessages } from './areas/translate'
 import { SUMMARY_MESSAGES, type SummaryMessages } from './areas/summary'
 import { ONBOARDING_MESSAGES, type OnboardingMessages } from './areas/onboarding'
 import { ACCOUNT_MESSAGES, type AccountMessages } from './areas/account'
+import { TTS_MESSAGES, type TtsMessages } from './areas/tts'
 
 export type { Language } from './languages'
 export { LANGUAGE_OPTIONS } from './languages'
@@ -18,7 +19,8 @@ export type Messages = CoreMessages &
   TranslateMessages &
   SummaryMessages &
   OnboardingMessages &
-  AccountMessages
+  AccountMessages &
+  TtsMessages
 
 export const MESSAGES: Record<Language, Messages> = {
   en: {
@@ -30,6 +32,7 @@ export const MESSAGES: Record<Language, Messages> = {
     ...SUMMARY_MESSAGES.en,
     ...ONBOARDING_MESSAGES.en,
     ...ACCOUNT_MESSAGES.en,
+    ...TTS_MESSAGES.en,
   },
   zh: {
     ...CORE_MESSAGES.zh,
@@ -40,6 +43,7 @@ export const MESSAGES: Record<Language, Messages> = {
     ...SUMMARY_MESSAGES.zh,
     ...ONBOARDING_MESSAGES.zh,
     ...ACCOUNT_MESSAGES.zh,
+    ...TTS_MESSAGES.zh,
   },
   ko: {
     ...CORE_MESSAGES.ko,
@@ -50,6 +54,7 @@ export const MESSAGES: Record<Language, Messages> = {
     ...SUMMARY_MESSAGES.ko,
     ...ONBOARDING_MESSAGES.ko,
     ...ACCOUNT_MESSAGES.ko,
+    ...TTS_MESSAGES.ko,
   },
   ja: {
     ...CORE_MESSAGES.ja,
@@ -60,5 +65,6 @@ export const MESSAGES: Record<Language, Messages> = {
     ...SUMMARY_MESSAGES.ja,
     ...ONBOARDING_MESSAGES.ja,
     ...ACCOUNT_MESSAGES.ja,
+    ...TTS_MESSAGES.ja,
   },
 }

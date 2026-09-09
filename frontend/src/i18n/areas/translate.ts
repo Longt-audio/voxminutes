@@ -37,6 +37,13 @@ export interface TranslateMessages {
   trEngineOpus: string
   trRemoteModel: string
   trEngineHymt2: string
+  trPlaySource: string
+  trPlayTarget: string
+  trTtsLoading: string
+  trTtsFailed: string
+  trTtsSaved: string
+  trTtsSaving: string
+  trSetDefaultVoice: string
 }
 
 export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
@@ -77,6 +84,13 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trRemoteModel: 'Remote model',
     trEngineOpus: 'OPUS-MT (fast)',
     trEngineHymt2: 'Hy-MT2 (high quality)',
+    trPlaySource: 'Play source',
+    trPlayTarget: 'Play translation',
+    trTtsLoading: 'Synthesizing…',
+    trTtsFailed: 'Speech synthesis failed',
+    trTtsSaved: 'Audio saved to {path}',
+    trTtsSaving: 'Saving audio…',
+    trSetDefaultVoice: 'Set default voice',
   },
   zh: {
     trTitle: '翻译',
@@ -115,6 +129,13 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trRemoteModel: '远程模型',
     trEngineOpus: 'OPUS-MT（快速）',
     trEngineHymt2: 'Hy-MT2（高质量）',
+    trPlaySource: '播放原文',
+    trPlayTarget: '播放译文',
+    trTtsLoading: '语音合成中…',
+    trTtsFailed: '语音合成失败',
+    trTtsSaved: '音频已保存到 {path}',
+    trTtsSaving: '正在保存音频…',
+    trSetDefaultVoice: '设置默认语音',
   },
   ko: {
     trTitle: '번역',
@@ -153,6 +174,13 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trRemoteModel: '원격 모델',
     trEngineOpus: 'OPUS-MT (빠름)',
     trEngineHymt2: 'Hy-MT2 (고품질)',
+    trPlaySource: '원문 재생',
+    trPlayTarget: '번역 재생',
+    trTtsLoading: '음성 합성 중…',
+    trTtsFailed: '음성 합성에 실패했습니다',
+    trTtsSaved: '오디오가 {path}에 저장되었습니다',
+    trTtsSaving: '오디오 저장 중…',
+    trSetDefaultVoice: '기본 음성 설정',
   },
   ja: {
     trTitle: '翻訳',
@@ -191,5 +219,12 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trRemoteModel: 'リモートモデル',
     trEngineOpus: 'OPUS-MT（高速）',
     trEngineHymt2: 'Hy-MT2（高品質）',
+    trPlaySource: '原文を再生',
+    trPlayTarget: '訳文を再生',
+    trTtsLoading: '音声合成中…',
+    trTtsFailed: '音声合成に失敗しました',
+    trTtsSaved: '音声を {path} に保存しました',
+    trTtsSaving: '音声を保存中…',
+    trSetDefaultVoice: 'デフォルト音声を設定',
   },
 }

@@ -5,6 +5,7 @@ export interface CoreMessages {
   navTranscribe: string
   navHistory: string
   navTranslate: string
+  navTts: string
   navSettings: string
   navAccount: string
   sloganFooter: string
@@ -41,6 +42,10 @@ export interface CoreMessages {
   modelLoadingStart: string
   modelLoadingDone: string
   modelLoadingError: string
+  modelLoadingFirstDone: string
+  modelUnloaded: string
+  modelUnloadedSwap: string
+  modelUnloadedIdle: string
 }
 
 export const CORE_MESSAGES: Record<Language, CoreMessages> = {
@@ -48,6 +53,7 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     navTranscribe: 'Transcribe',
     navHistory: 'History',
     navTranslate: 'Translate',
+    navTts: 'Speech',
     navSettings: 'Settings',
     navAccount: 'Account',
     sloganFooter: 'Your local meeting assistant · Records system audio & mic together · Real-time transcription, translation & summaries — all on your device.',
@@ -84,11 +90,16 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     modelLoadingStart: 'Loading model {model}…',
     modelLoadingDone: 'Model {model} loaded ({seconds}s)',
     modelLoadingError: 'Model {model} failed to load: {message}',
+    modelLoadingFirstDone: 'First load of {model} took {seconds}s. When you no longer need the models, click the CPU button in the top bar to free memory.',
+    modelUnloaded: 'Model {model} unloaded, memory freed',
+    modelUnloadedSwap: 'Switched models: {model} unloaded to free memory',
+    modelUnloadedIdle: '{model} was idle and has been unloaded automatically to free memory',
   },
   zh: {
     navTranscribe: '实时转录',
     navHistory: '历史记录',
     navTranslate: '翻译',
+    navTts: '语音合成',
     navSettings: '设置',
     navAccount: '用户中心',
     sloganFooter: '您的本地会议助手 · 系统声音与麦克风同步录制 · 实时转写、翻译与总结，数据不出设备',
@@ -125,11 +136,16 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     modelLoadingStart: '正在加载模型 {model}…',
     modelLoadingDone: '模型 {model} 加载完成（{seconds} 秒）',
     modelLoadingError: '模型 {model} 加载失败：{message}',
+    modelLoadingFirstDone: '首次加载 {model} 完成，耗时 {seconds} 秒。不需要模型时，可点击顶栏「清空模型后台」按钮释放内存。',
+    modelUnloaded: '模型 {model} 已卸载，内存已释放',
+    modelUnloadedSwap: '已切换模型，{model} 已卸载释放内存',
+    modelUnloadedIdle: '{model} 闲置超时，已自动卸载释放内存',
   },
   ko: {
     navTranscribe: '받아쓰기',
     navHistory: '기록',
     navTranslate: '번역',
+    navTts: '음성 합성',
     navSettings: '설정',
     navAccount: '계정',
     sloganFooter: '로컬 회의 어시스턴트 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다.',
@@ -166,11 +182,16 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     modelLoadingStart: '모델 {model} 로딩 중…',
     modelLoadingDone: '모델 {model} 로딩 완료({seconds}초)',
     modelLoadingError: '모델 {model} 로딩 실패: {message}',
+    modelLoadingFirstDone: '{model} 첫 로딩 완료({seconds}초). 모델이 필요 없으면 상단 바의 「모델 백엔드 비우기」 버튼으로 메모리를 해제하세요.',
+    modelUnloaded: '모델 {model}이(가) 언로드되어 메모리가 해제되었습니다',
+    modelUnloadedSwap: '모델 전환: {model}이(가) 언로드되어 메모리가 해제되었습니다',
+    modelUnloadedIdle: '{model}이(가) 유휴 시간 초과로 자동 언로드되어 메모리가 해제되었습니다',
   },
   ja: {
     navTranscribe: '文字起こし',
     navHistory: '履歴',
     navTranslate: '翻訳',
+    navTts: '音声合成',
     navSettings: '設定',
     navAccount: 'アカウント',
     sloganFooter: 'ローカル会議アシスタント · システム音声とマイクを同時録音 · リアルタイム文字起こし・翻訳・要約。データはデバイスの外に出ません。',
@@ -207,5 +228,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     modelLoadingStart: 'モデル {model} を読み込み中…',
     modelLoadingDone: 'モデル {model} の読み込みが完了しました（{seconds} 秒）',
     modelLoadingError: 'モデル {model} の読み込みに失敗しました：{message}',
+    modelLoadingFirstDone: '{model} の初回読み込みが完了しました（{seconds} 秒）。不要になったら上部バーの「モデルバックエンドをクリア」ボタンでメモリを解放できます。',
+    modelUnloaded: 'モデル {model} をアンロードし、メモリを解放しました',
+    modelUnloadedSwap: 'モデルを切り替えました：{model} をアンロードしてメモリを解放しました',
+    modelUnloadedIdle: '{model} はアイドルタイムアウトにより自動でアンロードされ、メモリが解放されました',
   },
 }
