@@ -23,13 +23,3 @@ pub const TRANSLATION_TOP_K: i32 = 20;
 pub const TRANSLATION_TOP_P: f32 = 0.6;
 pub const TRANSLATION_REPEAT_PENALTY: f32 = 1.05;
 pub const TRANSLATION_MAX_TOKENS: i32 = 4096;
-
-// === TTS Model URLs ===
-
-/// Supertonic 3 model archive (en+ko+29 languages, multi-speaker)
-pub const TTS_SUPERTONIC_MODEL_URL: &str =
-    "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2";
-
-/// Supertonic 3 mirror URL (China mirror)
-pub const TTS_SUPERTONIC_MODEL_MIRROR_URL: &str =
-    "https://hf-mirror.com/csukuangfj2/sherpa-onnx-tts-models/resolve/main/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2";

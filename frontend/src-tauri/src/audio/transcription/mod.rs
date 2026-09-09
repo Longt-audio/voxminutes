@@ -23,6 +23,7 @@ pub use engine::{
     get_remote_translate_model,
     get_remote_tts_model,
     get_remote_license,
+    set_remote_license,
     set_remote_models,
     set_remote_enabled,
     remote_enabled,

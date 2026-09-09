@@ -20,6 +20,7 @@ export function TranscriptPanel() {
   const translations = useAppStore((s) => s.translations)
   const partialTranslations = useAppStore((s) => s.partialTranslations)
   const translateEnabled = useAppStore((s) => s.translateEnabled)
+  const vadSpeaking = useAppStore((s) => s.vadSpeaking)
   const t = useMessages()
   useTranscripts()
 
@@ -28,7 +29,18 @@ export function TranscriptPanel() {
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'instant' })
-  }, [transcripts, translations, partialTranslations])
+  }, [transcripts, translations, partialTranslations, vadSpeaking])
+
+  // VAD 已检测到人声、但当前这句话尚未断句输出文字时的「识别中」提示
+  const recognizing = (
+    <div className="px-2 py-1.5 flex items-center gap-2 text-muted-foreground">
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+      </span>
+      <span className="text-sm italic">{t.recRecognizing}</span>
+    </div>
+  )
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -39,53 +51,69 @@ export function TranscriptPanel() {
       >
         {transcripts.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-2 text-center">
-            <Mic className="h-5 w-5 text-muted-foreground" />
-            <div className="text-sm font-medium text-muted-foreground">{t.emptyTitle}</div>
-            <div className="text-xs text-muted-foreground/60">{t.emptyHint}</div>
+            {vadSpeaking ? (
+              <>
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500" />
+                </span>
+                <div className="text-sm font-medium text-muted-foreground">{t.recRecognizing}</div>
+                <div className="text-xs text-muted-foreground/60">{t.recRecognizingHint}</div>
+              </>
+            ) : (
+              <>
+                <Mic className="h-5 w-5 text-muted-foreground" />
+                <div className="text-sm font-medium text-muted-foreground">{t.emptyTitle}</div>
+                <div className="text-xs text-muted-foreground/60">{t.emptyHint}</div>
+              </>
+            )}
           </div>
         ) : (
-          transcripts.map((seg: TranscriptSegment) => {
-            const inlineTranslation = translations.get(seg.sequence_id)
-            const partialTranslation = partialTranslations.get(seg.sequence_id)
-            return seg.is_partial ? (
-              <div key={seg.id} className="px-2 py-1.5 rounded-md">
-                <p className="text-sm leading-relaxed italic text-muted-foreground">{seg.text}</p>
-                {translateEnabled && inlineTranslation ? (
-                  <p className="text-xs leading-relaxed italic text-blue-500/80 mt-0.5 pl-2 border-l-2 border-blue-200">
-                    {inlineTranslation}
-                  </p>
-                ) : (
-                  translateEnabled &&
-                  partialTranslation && (
-                    <p className="text-xs leading-relaxed italic text-blue-400/60 mt-0.5 pl-2 border-l-2 border-blue-200/60">
-                      {partialTranslation}
-                    </p>
-                  )
-                )}
-              </div>
-            ) : (
-              <div key={seg.id} className="flex items-start gap-3 px-2 py-1.5 rounded-md hover:bg-muted/60">
-                <span className="min-w-[50px] shrink-0 mt-0.5 text-right text-xs tabular-nums text-muted-foreground/60">
-                  {formatTime(seg.audio_start_time)}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm leading-relaxed text-foreground/80">{seg.text}</p>
+          <>
+            {transcripts.map((seg: TranscriptSegment) => {
+              const inlineTranslation = translations.get(seg.sequence_id)
+              const partialTranslation = partialTranslations.get(seg.sequence_id)
+              return seg.is_partial ? (
+                <div key={seg.id} className="px-2 py-1.5 rounded-md">
+                  <p className="text-sm leading-relaxed italic text-muted-foreground">{seg.text}</p>
                   {translateEnabled && inlineTranslation ? (
-                    <p className="text-xs leading-relaxed text-blue-600 mt-0.5 pl-2 border-l-2 border-blue-300">
+                    <p className="text-xs leading-relaxed italic text-blue-500/80 mt-0.5 pl-2 border-l-2 border-blue-200">
                       {inlineTranslation}
                     </p>
                   ) : (
                     translateEnabled &&
                     partialTranslation && (
-                      <p className="text-xs leading-relaxed italic text-blue-400/70 mt-0.5 pl-2 border-l-2 border-blue-200">
+                      <p className="text-xs leading-relaxed italic text-blue-400/60 mt-0.5 pl-2 border-l-2 border-blue-200/60">
                         {partialTranslation}
                       </p>
                     )
                   )}
                 </div>
-              </div>
-            )
-          })
+              ) : (
+                <div key={seg.id} className="flex items-start gap-3 px-2 py-1.5 rounded-md hover:bg-muted/60">
+                  <span className="min-w-[50px] shrink-0 mt-0.5 text-right text-xs tabular-nums text-muted-foreground/60">
+                    {formatTime(seg.audio_start_time)}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm leading-relaxed text-foreground/80">{seg.text}</p>
+                    {translateEnabled && inlineTranslation ? (
+                      <p className="text-xs leading-relaxed text-blue-600 mt-0.5 pl-2 border-l-2 border-blue-300">
+                        {inlineTranslation}
+                      </p>
+                    ) : (
+                      translateEnabled &&
+                      partialTranslation && (
+                        <p className="text-xs leading-relaxed italic text-blue-400/70 mt-0.5 pl-2 border-l-2 border-blue-200">
+                          {partialTranslation}
+                        </p>
+                      )
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+            {vadSpeaking && recognizing}
+          </>
         )}
       </div>
     </div>

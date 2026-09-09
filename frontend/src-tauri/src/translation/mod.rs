@@ -41,16 +41,18 @@ pub(crate) static HOME_LANG: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::n
 pub(crate) static TRANSLATION_ENGINE: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new("opus".to_string()));
 
-/// 当前翻译引擎 id（"opus" | "hymt2"）。
-/// 远程服务总开关开启且已配置时，强制返回 "remote"。
+/// 当前翻译引擎 id（"opus" | "hymt2" | "remote"）。
+/// 返回用户显式选择的引擎（远程模型选择已下沉到各使用处，总开关不再强制覆盖）；
+/// 选择了 "remote" 但远程总开关已关闭时，回落本地默认引擎 "opus"。
 pub fn current_engine() -> String {
-    if crate::audio::transcription::remote_enabled() {
-        return "remote".to_string();
-    }
-    TRANSLATION_ENGINE
+    let engine = TRANSLATION_ENGINE
         .lock()
         .map(|e| e.clone())
-        .unwrap_or_else(|_| "opus".to_string())
+        .unwrap_or_else(|_| "opus".to_string());
+    if engine == "remote" && !crate::audio::transcription::remote_enabled() {
+        return "opus".to_string();
+    }
+    engine
 }
 
 /// 当前目标语言设置（13 种语言代码之一）。
@@ -119,14 +121,20 @@ pub fn get_engine(direction: &str) -> Result<Arc<OpusMtEngine>, String> {
 }
 
 /// Unload both OPUS-MT direction engines, freeing their memory (called when
-/// switching to a different translation engine).
+/// switching to a different translation engine). 实际卸载过时向前端发一次
+/// model-loading unloaded 事件（两个方向共用一条 "opus-mt" 提示）。
 pub fn unload_opus_engines() {
+    let mut any = false;
     for (slot, direction) in [(&ZH_EN_ENGINE, "zh-en"), (&EN_ZH_ENGINE, "en-zh")] {
         if let Ok(mut guard) = slot.lock() {
             if guard.take().is_some() {
+                any = true;
                 log::info!("OPUS-MT 引擎已卸载 ({})，内存已释放", direction);
             }
         }
+    }
+    if any {
+        crate::llama_sidecar::emit_model_unloaded("opus-mt", "manual");
     }
 }
 

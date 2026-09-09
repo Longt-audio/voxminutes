@@ -139,6 +139,10 @@ pub async fn set_translation_engine(
     if !matches!(engine.as_str(), "opus" | "hymt2" | "remote") {
         return Err(format!("不支持的翻译引擎: {}", engine));
     }
+    // 选择远程引擎要求远程服务总开关已开启（否则翻译会静默失败）
+    if engine == "remote" && !crate::audio::transcription::remote_enabled() {
+        return Err("远程服务总开关未开启，请先在用户中心启用远程服务。".to_string());
+    }
     log::info!("Translation engine: {}", engine);
     {
         let mut guard = TRANSLATION_ENGINE.lock().map_err(|e| e.to_string())?;
@@ -149,30 +153,12 @@ pub async fn set_translation_engine(
         .await
         .map_err(|e| format!("保存翻译引擎设置失败: {}", e))?;
 
-    // 切换成功：后台预热目标引擎（模型未安装则跳过），失败仅告警不影响命令结果。
-    // 切到 hymt2 时卸载 OPUS-MT 引擎释放内存；切回 opus 时不杀 llama sidecar
-    // （与会议总结共享，交给其 idle 超时回收）。
-    tauri::async_runtime::spawn(async move {
-        let _ = tokio::task::spawn_blocking(move || {
-            if engine == "hymt2" {
-                super::unload_opus_engines();
-                if crate::model_download::hy_mt2_installed() {
-                    if let Err(e) = llm::warmup() {
-                        log::warn!("Hy-MT2 翻译引擎预热失败: {}", e);
-                    }
-                }
-            } else {
-                for direction in ["zh-en", "en-zh"] {
-                    if is_model_installed(direction) {
-                        if let Err(e) = get_engine(direction) {
-                            log::warn!("OPUS-MT 翻译引擎预热失败 ({}): {}", direction, e);
-                        }
-                    }
-                }
-            }
-        })
-        .await;
-    });
+    // 模型按需加载：切换引擎不再预热目标引擎，首次翻译时再加载。
+    // 切到 hymt2 时卸载 OPUS-MT 引擎释放内存（会发 model-loading unloaded 事件）；
+    // 切回 opus 时不杀 llama sidecar（与会议总结共享，交给其 idle 超时回收）。
+    if engine == "hymt2" {
+        super::unload_opus_engines();
+    }
     Ok(())
 }
 

@@ -7,28 +7,43 @@ use tauri::{command, AppHandle, Manager, Runtime};
 pub static SHERPA_ONNX_ENGINE: Mutex<Option<Arc<SherpaOnnxEngine>>> = Mutex::new(None);
 pub static XASR_ONLINE_ENGINE: Mutex<Option<Arc<XAsrOnlineEngine>>> = Mutex::new(None);
 static MODELS_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
-/// Name of the model the current engine slot was loaded for (same-model
-/// short-circuit in `sherpa_onnx_load_model`).
-static LOADED_MODEL_NAME: Mutex<Option<String>> = Mutex::new(None);
+/// Name of the model each engine slot was loaded for (same-model short-circuit
+/// in `sherpa_onnx_load_model`; also used to name `model-loading` unloaded events).
+static OFFLINE_LOADED_MODEL: Mutex<Option<String>> = Mutex::new(None);
+static XASR_LOADED_MODEL: Mutex<Option<String>> = Mutex::new(None);
 /// Language preference in effect when the SenseVoice engine was loaded
 /// (language is baked into the recognizer at load time, so a preference
 /// change forces a reload).
 static LOADED_LANGUAGE: Mutex<Option<String>> = Mutex::new(None);
 
 /// 卸载所有 sherpa-onnx 引擎（SenseVoice + X-ASR），释放内存。
-/// 同时清空加载状态，使下次加载重新初始化。
+/// 同时清空加载状态，使下次加载重新初始化；对已卸载的模型发
+/// model-loading unloaded 事件（reason="manual"）通知前端。
 pub fn unload_all_engines() {
+    let mut unloaded: Vec<String> = Vec::new();
     if let Ok(mut e) = SHERPA_ONNX_ENGINE.lock() {
-        *e = None;
+        if e.take().is_some() {
+            if let Ok(mut n) = OFFLINE_LOADED_MODEL.lock() {
+                if let Some(name) = n.take() {
+                    unloaded.push(name);
+                }
+            }
+        }
     }
     if let Ok(mut e) = XASR_ONLINE_ENGINE.lock() {
-        *e = None;
-    }
-    if let Ok(mut n) = LOADED_MODEL_NAME.lock() {
-        *n = None;
+        if e.take().is_some() {
+            if let Ok(mut n) = XASR_LOADED_MODEL.lock() {
+                if let Some(name) = n.take() {
+                    unloaded.push(name);
+                }
+            }
+        }
     }
     if let Ok(mut l) = LOADED_LANGUAGE.lock() {
         *l = None;
+    }
+    for name in unloaded {
+        crate::llama_sidecar::emit_model_unloaded(&name, "manual");
     }
 }
 
@@ -337,7 +352,7 @@ pub async fn sherpa_onnx_load_model(model_name: String) -> Result<(), String> {
     // X-ASR model: load via Rust-native OnlineRecognizer
     if model_name.starts_with("x-asr-") {
         // Same-model short-circuit: skip the ~3s engine rebuild.
-        if LOADED_MODEL_NAME.lock().unwrap().as_deref() == Some(model_name.as_str())
+        if XASR_LOADED_MODEL.lock().unwrap().as_deref() == Some(model_name.as_str())
             && XASR_ONLINE_ENGINE.lock().unwrap().is_some()
         {
             log::info!("X-ASR model '{}' already loaded, skipping reload", model_name);
@@ -359,7 +374,7 @@ pub async fn sherpa_onnx_load_model(model_name: String) -> Result<(), String> {
             }
         };
         *XASR_ONLINE_ENGINE.lock().unwrap() = Some(Arc::new(eng));
-        *LOADED_MODEL_NAME.lock().unwrap() = Some(model_name.clone());
+        *XASR_LOADED_MODEL.lock().unwrap() = Some(model_name.clone());
         crate::llama_sidecar::emit_model_loading(
             &model_name,
             "done",
@@ -376,7 +391,7 @@ pub async fn sherpa_onnx_load_model(model_name: String) -> Result<(), String> {
     let current_lang = crate::get_language_preference_internal()
         .filter(|l| !l.is_empty())
         .unwrap_or_else(|| "auto".to_string());
-    if LOADED_MODEL_NAME.lock().unwrap().as_deref() == Some(model_name.as_str())
+    if OFFLINE_LOADED_MODEL.lock().unwrap().as_deref() == Some(model_name.as_str())
         && LOADED_LANGUAGE.lock().unwrap().as_deref() == Some(current_lang.as_str())
         && SHERPA_ONNX_ENGINE.lock().unwrap().is_some()
     {
@@ -415,7 +430,7 @@ pub async fn sherpa_onnx_load_model(model_name: String) -> Result<(), String> {
         }
     };
     *SHERPA_ONNX_ENGINE.lock().unwrap() = Some(Arc::new(eng));
-    *LOADED_MODEL_NAME.lock().unwrap() = Some(model_name.clone());
+    *OFFLINE_LOADED_MODEL.lock().unwrap() = Some(model_name.clone());
     *LOADED_LANGUAGE.lock().unwrap() = Some(current_lang);
     crate::llama_sidecar::emit_model_loading(
         &model_name,

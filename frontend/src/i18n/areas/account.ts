@@ -47,6 +47,15 @@ export interface AccountMessages {
   accSpeedHint: string
   accBillingTitle: string
   accBillingHint: string
+  accRedeemTitle: string
+  accRedeemPlaceholder: string
+  accRedeemBtn: string
+  accRedeemSuccess: string
+  accRegisterBtn: string
+  accRegisterSuccess: string
+  accLowBalance: string
+  accLedgerTitle: string
+  accLedgerEmpty: string
 }
 
 export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
@@ -96,6 +105,15 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accSpeedHint: 'Measures round-trip latency only (no quality evaluation, no credits charged).',
     accBillingTitle: 'Credits usage',
     accBillingHint: 'Credits are charged on the gateway per model price × usage (ASR per second, LLM per token, TTS per char). Estimate cost from each model price below before you record or summarize.',
+    accRedeemTitle: 'Redeem code',
+    accRedeemPlaceholder: 'Enter redemption code',
+    accRedeemBtn: 'Redeem',
+    accRedeemSuccess: 'Redeemed +{added} credits',
+    accRegisterBtn: 'Get 200 credits',
+    accRegisterSuccess: 'Registered, balance {credits} credits',
+    accLowBalance: 'Low balance ({credits} left), please top up',
+    accLedgerTitle: 'Credit history',
+    accLedgerEmpty: 'No records yet',
   },
   zh: {
     accTitle: '用户中心',
@@ -143,6 +161,15 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accSpeedHint: '仅测往返延迟（不做质量评估，不扣积分）。',
     accBillingTitle: '积分使用',
     accBillingHint: '积分在网关按「模型单价 × 用量」计算：ASR 按秒、LLM 按 token、TTS 按字符。录音或总结前可参考下方各模型单价估算成本。',
+    accRedeemTitle: '充值 / 兑换',
+    accRedeemPlaceholder: '输入兑换码',
+    accRedeemBtn: '兑换',
+    accRedeemSuccess: '兑换成功，到账 +{added} 积分',
+    accRegisterBtn: '领取 200 积分',
+    accRegisterSuccess: '已领取，当前 {credits} 积分',
+    accLowBalance: '积分不足（剩余 {credits}），请及时充值',
+    accLedgerTitle: '积分明细',
+    accLedgerEmpty: '暂无记录',
   },
   ko: {
     accTitle: '계정',
@@ -190,6 +217,15 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accSpeedHint: '왕복 지연만 측정합니다(품질 평가 없음, 크레딧 차감 없음).',
     accBillingTitle: '크레딧 사용',
     accBillingHint: '크레딧은 게이트웨이에서「모델 단가 × 사용량」으로 계산됩니다(ASR 초당, LLM 토큰당, TTS 문자당). 녹음이나 요약 전 아래 단가로 비용을 추정하세요.',
+    accRedeemTitle: '코드 교환',
+    accRedeemPlaceholder: '교환 코드 입력',
+    accRedeemBtn: '교환',
+    accRedeemSuccess: '+{added} 크레딧 충전됨',
+    accRegisterBtn: '200 크레딧 받기',
+    accRegisterSuccess: '등록 완료, 잔액 {credits} 크레딧',
+    accLowBalance: '잔액 부족(남은 {credits}), 충전하세요',
+    accLedgerTitle: '크레딧 내역',
+    accLedgerEmpty: '기록 없음',
   },
   ja: {
     accTitle: 'アカウント',
@@ -237,5 +273,14 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accSpeedHint: '往復遅延のみ測定(品質評価なし、クレジット消費なし)。',
     accBillingTitle: 'クレジット使用',
     accBillingHint: 'クレジットはゲートウェイで「モデル単価 × 使用量」で計算されます(ASR 秒単位、LLM トークン単位、TTS 文字単位)。録音や要約の前に下の単価でコストを見積もってください。',
+    accRedeemTitle: 'チャージ / コード交換',
+    accRedeemPlaceholder: '交換コードを入力',
+    accRedeemBtn: '交換',
+    accRedeemSuccess: '+{added} クレジットをチャージしました',
+    accRegisterBtn: '200 クレジットを受け取る',
+    accRegisterSuccess: '登録完了、残高 {credits} クレジット',
+    accLowBalance: '残高不足(残り {credits})、チャージしてください',
+    accLedgerTitle: 'クレジット履歴',
+    accLedgerEmpty: '履歴なし',
   },
 }
