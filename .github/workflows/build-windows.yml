@@ -1,0 +1,78 @@
+# Windows 打包（nsis 安装包）
+# 触发：手动 workflow_dispatch，或推送 v* 标签
+#
+# ⚠️ 首次跑大概率要迭代 1-2 次，注意两个可能踩坑点：
+#   1) sherpa-onnx 的 Windows DLL：依赖 sherpa-onnx crate 的 `shared` feature 在
+#      cargo build 时自动下载；若没有自动下载成功，需要补一步手动下载
+#      （见下方「下载 sherpa-onnx DLL」注释掉的步骤，把 URL 换成正确版本）。
+#   2) ffmpeg.exe 的下载地址可能变，失败时换成 gyan.dev 或 BtbN 的其他包。
+
+name: Build Windows (nsis)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install
+
+      - name: Build llama-helper (Windows)
+        working-directory: llama-helper
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Copy llama-helper to binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path frontend/src-tauri/binaries | Out-Null
+          Copy-Item llama-helper/target/x86_64-pc-windows-msvc/release/llama-helper.exe `
+            frontend/src-tauri/binaries/llama-helper-x86_64-pc-windows-msvc.exe
+
+      - name: Download ffmpeg.exe
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg -Force
+          $bin = Get-ChildItem -Path ffmpeg -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $bin.FullName frontend/src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+
+      # 若 cargo build 没自动把 sherpa-onnx DLL 放到 resources-dll，取消注释这一步，
+      # 并把 URL 换成 sherpa-onnx v1.13 的 win-x64 预编译包（含以下 dll）：
+      #   sherpa-onnx-c-api.dll / sherpa-onnx-cxx-api.dll / onnxruntime.dll /
+      #   onnxruntime_providers_shared.dll / DirectML.dll
+      # - name: Download sherpa-onnx Windows DLL
+      #   shell: pwsh
+      #   run: |
+      #     Invoke-WebRequest -Uri "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.0/sherpa-onnx-v1.13.0-win-x64.tar.bz2" -OutFile sherpa.tar.bz2
+      #     tar -xjf sherpa.tar.bz2
+      #     Copy-Item sherpa-onnx-*/bin/*.dll frontend/src-tauri/resources-dll/
+
+      - name: Build Tauri app (nsis)
+        working-directory: frontend
+        run: pnpm tauri build
+
+      - name: Upload nsis installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxminutes-windows
+          path: frontend/src-tauri/target/release/bundle/nsis/*.exe
