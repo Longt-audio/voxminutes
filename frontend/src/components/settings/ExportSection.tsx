@@ -35,7 +35,8 @@ export function ExportSection() {
     try {
       const folder = await selectRecordingFolder()
       if (!folder) return
-      await setRecordingPreferences({ recordingsFolder: folder, autoSave: true })
+      const preferences = await getRecordingPreferences()
+      await setRecordingPreferences({ ...preferences, recordingsFolder: folder })
       setRecordingsFolder(folder)
       toast.success(t.setFolderUpdated)
     } catch (e) {

@@ -54,6 +54,11 @@ impl RecordingManager {
         }
     }
 
+    /// Apply the configured recordings folder before the session starts.
+    pub fn set_save_folder(&mut self, folder: std::path::PathBuf) {
+        self.recording_saver.set_base_folder(folder);
+    }
+
     /// Set whether this session should follow system default input/output devices.
     pub fn set_follow_flags(&mut self, follow_mic: bool, follow_system: bool) {
         self.follow_mic = follow_mic;
