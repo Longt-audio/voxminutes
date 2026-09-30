@@ -287,7 +287,26 @@ impl FlowPipeline {
             };
             let stable_tail = &self.last_cumulative[committed_len..stable_end];
             let strong = find_commit_boundary(stable_tail, MIN_SEGMENT_UNITS);
-            let boundary = strong.or_else(|| {
+            // ── 上游显式 final = 语义边界，必须认（2026-09-30 修 deepgram「卡顿」）──────
+            // 背景：deepgram / 豆包 / 千问的 final 是按**静音切分**产生的语义边界
+            // （deepgram 是 endpointing:300ms），**大多不带句末标点**。
+            // 而 find_commit_boundary 只认 `。！？.!?`，于是 strong 恒为 None →
+            // 一路退到长度兜底（SOFT=60 单位 / 12 秒）→ 用户看到的节奏变成
+            // 「每 12 秒蹦一块」，而上游其实每 3 秒就给了边界。
+            // 实测对照（2026-09-30）：网关每 2.5~3.5s 下发一次 final，
+            // 客户端却 3~15s 才提交一段（18:31–18:32 间隔 14.2/3.0/8.9/13.7/4.2…）。
+            //
+            // 判据用「上游这次给的是 final」+ 最小长度（MIN_SEGMENT_UNITS），
+            // 避免上游把 final 切得很碎时产生大量碎片段。
+            // 对豆包无副作用：它 58 秒才给 1 次 definite，本来就走不到这条分支。
+            let upstream_boundary = if upstream_final
+                && text_length_units(stable_tail) >= MIN_SEGMENT_UNITS
+            {
+                Some(stable_tail.len())
+            } else {
+                None
+            };
+            let boundary = strong.or(upstream_boundary).or_else(|| {
                 find_length_boundary(
                     stable_tail,
                     SOFT_COMMIT_UNITS,
@@ -303,8 +322,10 @@ impl FlowPipeline {
             let absolute = committed_len + boundary;
             self.committed = self.last_cumulative[..absolute].to_string();
             self.close_unit(app, unit_text);
-            // 长段软断：在句末标点闭合时开新段（不断在长句中间）
-            if strong.is_some() && self.para_committed_units >= PARA_SOFT_BREAK_UNITS {
+            // 长段软断：在句末标点**或上游显式 final**闭合时开新段（不断在长句中间）
+            if (strong.is_some() || upstream_boundary.is_some())
+                && self.para_committed_units >= PARA_SOFT_BREAK_UNITS
+            {
                 self.start_new_paragraph();
             }
         }
