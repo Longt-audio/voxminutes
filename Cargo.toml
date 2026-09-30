@@ -23,3 +23,10 @@ tokio = { version = "1.32.0", features = ["full"] }
 # 冲突（LNK2038 / rust-lld /failifmismatch）。改用 vendor 版本（去掉 static_crt）。
 [patch.crates-io]
 esaxx-rs = { path = "vendor/esaxx-rs" }
+
+# release 构建瘦身（2026-09-30）：去掉调试符号后二进制更小，
+# 链接与 NSIS 打包都更快（CI 里步骤 13 本来要 12 分钟）。
+# 只影响体积/链接时间，不影响功能与运行速度。
+[profile.release]
+strip = true
+debug = false
