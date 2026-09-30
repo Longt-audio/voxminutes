@@ -94,6 +94,12 @@ frontend/src-tauri/resources-dll/
 # 内部交接文档（含项目来历与本机路径，不公开）
 HANDOVER.md
 
+# 本机专属启动命令（含服务器地址 / SSH 隧道 / 本机路径；曾是团队内部备忘，不适合公开）
+# 通用开发命令的公开版在 docs/DEV_COMMANDS.md。
+# ⚠️ 注意：本文件曾被 git 跟踪过（提交 bdb1ade，**未推送**）。仅加 gitignore 不会停止跟踪，
+#    必须配合 `git rm --cached 启动命令.md` 才生效（已执行）。
+启动命令.md
+
 # MVP 运行时已不使用的遗留 Python 后端（源自内部项目，暂不上传）
 backend/
 

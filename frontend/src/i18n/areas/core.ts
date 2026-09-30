@@ -15,6 +15,9 @@ export interface CoreMessages {
   winMaximize: string
   winRestore: string
   winClose: string
+  floatingBall: string
+  floatingBallShow: string
+  floatingBallHide: string
   languageLabel: string
   comCancel: string
   comConfirm: string
@@ -46,6 +49,73 @@ export interface CoreMessages {
   modelUnloaded: string
   modelUnloadedSwap: string
   modelUnloadedIdle: string
+  /** 页面级错误边界（app/error.tsx / app/global-error.tsx）文案 */
+  errPageTitle: string
+  errPageHint: string
+  errReload: string
+  /** 领取积分成功卡片：余额标签（数字单独大号渲染） */
+  claimBalanceLabel: string
+  /** 领取积分成功卡片：每台设备限领一次 + 赠送积分 90 天有效 */
+  claimOnceNote: string
+  /** 顶部横幅通用：弱化文字按钮「不再提示」 */
+  comNeverRemind: string
+  /** 版本更新横幅：彻底关闭提醒的确认对话框 */
+  updNeverTitle: string
+  updNeverDesc: string
+  /** 积分不足横幅：去充值链接 */
+  lowCreditTopUp: string
+  /** 积分不足横幅：彻底关闭提醒的确认对话框（余额回升自动恢复） */
+  lowCreditNeverTitle: string
+  lowCreditNeverDesc: string
+  /** 分页通用：上一页 / 下一页 */
+  comPrev: string
+  comNext: string
+  /** 空值占位：未配置 */
+  comNotSet: string
+  /** 版本更新横幅：新版本提示与当前版本注记 */
+  updNewVersion: string
+  updCurrentVersion: string
+  /** 重要信息推送横幅：内容前缀标签 */
+  noticeLabel: string
+  /** 用户中心页补充 key（account.ts 归另一 agent 所有，暂放 core 避免并行冲突） */
+  accLicenseTitle: string
+  accLicenseCopied: string
+  accLicenseBackupHint: string
+  accUsageTitle: string
+  accUsageTabTasks: string
+  accUsageTabDate: string
+  accUsageTabModel: string
+  accUsageEmpty: string
+  accCreditsUnit: string
+  accConsumeLabel: string
+  accIncomeLabel: string
+  accCallsFmt: string
+  accUnitSeconds: string
+  accUnitChars: string
+  accTotalFmt: string
+  accModelsTooltip: string
+  /** 用户中心：账本流水类型标签（赠送/兑换/消费/调整/退款/过期/其他） */
+  accLedgerGift: string
+  accLedgerRedeem: string
+  accLedgerConsume: string
+  accLedgerAdjust: string
+  accLedgerRefund: string
+  accLedgerExpire: string
+  accLedgerOther: string
+  /** 远程模型价格单位（lib/remoteModelChoice.ts formatModelPrice；{price} 为数值占位） */
+  priceFree: string
+  pricePerMinute: string
+  pricePerKTokens: string
+  pricePerKChars: string
+  /** 用户中心任务消耗：网关中文任务名 → 界面语言（account 页，旧名已归一化为功能名） */
+  taskNameLive: string
+  taskNameOffline: string
+  taskNameSummary: string
+  taskNameTts: string
+  taskNameTranslate: string
+  taskNameOther: string
+  /** 任务消耗环节名（breakdown.kind = asr 时；translate/summary/tts 环节复用 taskName*） */
+  stepKindAsr: string
 }
 
 export const CORE_MESSAGES: Record<Language, CoreMessages> = {
@@ -63,6 +133,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     winMaximize: 'Maximize',
     winRestore: 'Restore',
     winClose: 'Close',
+    floatingBall: 'Ball',
+    floatingBallShow: 'Show floating ball',
+    floatingBallHide: 'Hide floating ball',
     languageLabel: 'Language',
     comCancel: 'Cancel',
     comConfirm: 'Confirm',
@@ -94,6 +167,57 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     modelUnloaded: 'Model {model} unloaded, memory freed',
     modelUnloadedSwap: 'Switched models: {model} unloaded to free memory',
     modelUnloadedIdle: '{model} was idle and has been unloaded automatically to free memory',
+    errPageTitle: 'This page ran into a problem',
+    errPageHint: 'Your recordings and history are safe. Go back to another page or reload the app.',
+    errReload: 'Reload app',
+    claimBalanceLabel: 'Current credit balance',
+    claimOnceNote: 'Each computer can claim only once. Bonus credits are valid for 90 days.',
+    comNeverRemind: "Don't show again",
+    updNeverTitle: 'Stop update reminders?',
+    updNeverDesc: 'Once confirmed, the app will no longer notify you about any new version.',
+    lowCreditTopUp: 'Top up',
+    lowCreditNeverTitle: 'Stop low-balance reminders?',
+    lowCreditNeverDesc: 'Once confirmed, the low-balance banner will stay hidden. It re-enables automatically once your balance rises above the warning threshold.',
+    comPrev: 'Prev',
+    comNext: 'Next',
+    comNotSet: 'Not set',
+    updNewVersion: 'New version v{version} available',
+    updCurrentVersion: ' (current v{version})',
+    noticeLabel: 'Important',
+    accLicenseTitle: 'My license',
+    accLicenseCopied: 'License copied',
+    accLicenseBackupHint: 'Your license is your account — top-ups and recovery both depend on it. Keep a backup.',
+    accUsageTitle: 'Credit usage',
+    accUsageTabTasks: 'By task',
+    accUsageTabDate: 'By date',
+    accUsageTabModel: 'By model',
+    accUsageEmpty: 'No usage records yet',
+    accCreditsUnit: 'credits',
+    accConsumeLabel: 'Used',
+    accIncomeLabel: 'Received',
+    accCallsFmt: '{n} calls',
+    accUnitSeconds: 's',
+    accUnitChars: 'chars',
+    accTotalFmt: '{n} {unit} total',
+    accModelsTooltip: 'Models: {list}',
+    accLedgerGift: 'Gift',
+    accLedgerRedeem: 'Redeem',
+    accLedgerConsume: 'Spend',
+    accLedgerAdjust: 'Adjust',
+    accLedgerRefund: 'Refund',
+    accLedgerExpire: 'Expire',
+    accLedgerOther: 'Other',
+    priceFree: 'Free',
+    pricePerMinute: '{price} credits/min',
+    pricePerKTokens: '{price} credits/1K tokens',
+    pricePerKChars: '{price} credits/1K chars',
+    taskNameLive: 'Live Transcription',
+    taskNameOffline: 'Offline Recognition',
+    taskNameSummary: 'Meeting Summary',
+    taskNameTts: 'Speech Synthesis',
+    taskNameTranslate: 'Translation',
+    taskNameOther: 'Other',
+    stepKindAsr: 'Speech Recognition',
   },
   zh: {
     navTranscribe: '实时转录',
@@ -109,6 +233,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     winMaximize: '最大化',
     winRestore: '还原',
     winClose: '关闭',
+    floatingBall: '悬浮球',
+    floatingBallShow: '显示悬浮球',
+    floatingBallHide: '隐藏悬浮球',
     languageLabel: '语言',
     comCancel: '取消',
     comConfirm: '确认',
@@ -140,6 +267,57 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     modelUnloaded: '模型 {model} 已卸载，内存已释放',
     modelUnloadedSwap: '已切换模型，{model} 已卸载释放内存',
     modelUnloadedIdle: '{model} 闲置超时，已自动卸载释放内存',
+    errPageTitle: '这个页面出错了',
+    errPageHint: '录音与历史记录不受影响。可以返回其它页面，或重新加载应用。',
+    errReload: '重新加载',
+    claimBalanceLabel: '当前积分余额',
+    claimOnceNote: '每个电脑设备仅可领取一次，赠送积分 90 天内有效。',
+    comNeverRemind: '不再提示',
+    updNeverTitle: '不再提醒新版本？',
+    updNeverDesc: '确认后，本软件将不再提醒任何新版本更新。',
+    lowCreditTopUp: '去充值',
+    lowCreditNeverTitle: '不再提醒积分不足？',
+    lowCreditNeverDesc: '确认后将不再显示积分不足提醒；余额回升到预警值以上时会自动恢复提醒。',
+    comPrev: '上一页',
+    comNext: '下一页',
+    comNotSet: '未配置',
+    updNewVersion: '新版本 v{version} 可用',
+    updCurrentVersion: '（当前 v{version}）',
+    noticeLabel: '重要通知',
+    accLicenseTitle: '我的授权码',
+    accLicenseCopied: '已复制授权码',
+    accLicenseBackupHint: '授权码是你的账号，充值/找回都靠它，建议自行备份。',
+    accUsageTitle: '积分消耗',
+    accUsageTabTasks: '任务明细',
+    accUsageTabDate: '按日期',
+    accUsageTabModel: '按模型',
+    accUsageEmpty: '暂无消耗记录',
+    accCreditsUnit: '积分',
+    accConsumeLabel: '消耗',
+    accIncomeLabel: '入账',
+    accCallsFmt: '{n} 次',
+    accUnitSeconds: '秒',
+    accUnitChars: '字符',
+    accTotalFmt: '共 {n} {unit}',
+    accModelsTooltip: '模型：{list}',
+    accLedgerGift: '赠送',
+    accLedgerRedeem: '兑换',
+    accLedgerConsume: '消费',
+    accLedgerAdjust: '调整',
+    accLedgerRefund: '退款',
+    accLedgerExpire: '过期',
+    accLedgerOther: '其他',
+    priceFree: '免费',
+    pricePerMinute: '{price} 积分/分钟',
+    pricePerKTokens: '{price} 积分/千token',
+    pricePerKChars: '{price} 积分/千字符',
+    taskNameLive: '实时转录',
+    taskNameOffline: '离线识别',
+    taskNameSummary: '会议总结',
+    taskNameTts: '语音合成',
+    taskNameTranslate: '翻译',
+    taskNameOther: '其他调用',
+    stepKindAsr: '语音识别',
   },
   ko: {
     navTranscribe: '받아쓰기',
@@ -155,6 +333,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     winMaximize: '최대화',
     winRestore: '복원',
     winClose: '닫기',
+    floatingBall: '플로팅 볼',
+    floatingBallShow: '플로팅 볼 표시',
+    floatingBallHide: '플로팅 볼 숨기기',
     languageLabel: '언어',
     comCancel: '취소',
     comConfirm: '확인',
@@ -186,6 +367,57 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     modelUnloaded: '모델 {model}이(가) 언로드되어 메모리가 해제되었습니다',
     modelUnloadedSwap: '모델 전환: {model}이(가) 언로드되어 메모리가 해제되었습니다',
     modelUnloadedIdle: '{model}이(가) 유휴 시간 초과로 자동 언로드되어 메모리가 해제되었습니다',
+    errPageTitle: '이 페이지에 문제가 발생했습니다',
+    errPageHint: '녹음과 기록은 그대로 유지됩니다. 다른 페이지로 돌아가거나 앱을 다시 불러오세요.',
+    errReload: '앱 다시 불러오기',
+    claimBalanceLabel: '현재 크레딧 잔액',
+    claimOnceNote: '컴퓨터 1대당 한 번만 받을 수 있으며, 증정 크레딧은 90일간 유효합니다.',
+    comNeverRemind: '다시 표시하지 않음',
+    updNeverTitle: '업데이트 알림을 끄시겠습니까?',
+    updNeverDesc: '확인하면 앞으로 새 버전 업데이트 알림이 표시되지 않습니다.',
+    lowCreditTopUp: '충전하기',
+    lowCreditNeverTitle: '잔액 부족 알림을 끄시겠습니까?',
+    lowCreditNeverDesc: '확인하면 잔액 부족 알림이 표시되지 않습니다. 잔액이 경고 기준 이상으로 회복되면 알림이 자동으로 다시 활성화됩니다.',
+    comPrev: '이전',
+    comNext: '다음',
+    comNotSet: '설정되지 않음',
+    updNewVersion: '새 버전 v{version} 사용 가능',
+    updCurrentVersion: ' (현재 v{version})',
+    noticeLabel: '중요 알림',
+    accLicenseTitle: '내 라이선스',
+    accLicenseCopied: '라이선스가 복사되었습니다',
+    accLicenseBackupHint: '라이선스는 계정 그 자체입니다. 충전과 복구에 모두 필요하니 백업해 두세요.',
+    accUsageTitle: '크레딧 사용',
+    accUsageTabTasks: '작업별',
+    accUsageTabDate: '날짜별',
+    accUsageTabModel: '모델별',
+    accUsageEmpty: '사용 기록이 없습니다',
+    accCreditsUnit: '크레딧',
+    accConsumeLabel: '사용',
+    accIncomeLabel: '적립',
+    accCallsFmt: '{n}회',
+    accUnitSeconds: '초',
+    accUnitChars: '자',
+    accTotalFmt: '합계 {n} {unit}',
+    accModelsTooltip: '모델: {list}',
+    accLedgerGift: '증정',
+    accLedgerRedeem: '교환',
+    accLedgerConsume: '소비',
+    accLedgerAdjust: '조정',
+    accLedgerRefund: '환불',
+    accLedgerExpire: '만료',
+    accLedgerOther: '기타',
+    priceFree: '무료',
+    pricePerMinute: '{price} 크레딧/분',
+    pricePerKTokens: '{price} 크레딧/1K 토큰',
+    pricePerKChars: '{price} 크레딧/1K 문자',
+    taskNameLive: '실시간 전사',
+    taskNameOffline: '오프라인 인식',
+    taskNameSummary: '회의 요약',
+    taskNameTts: '음성 합성',
+    taskNameTranslate: '번역',
+    taskNameOther: '기타 호출',
+    stepKindAsr: '음성 인식',
   },
   ja: {
     navTranscribe: '文字起こし',
@@ -201,6 +433,9 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     winMaximize: '最大化',
     winRestore: '元に戻す',
     winClose: '閉じる',
+    floatingBall: 'フローティングボール',
+    floatingBallShow: 'フローティングボールを表示',
+    floatingBallHide: 'フローティングボールを隠す',
     languageLabel: '言語',
     comCancel: 'キャンセル',
     comConfirm: '確認',
@@ -232,5 +467,56 @@ export const CORE_MESSAGES: Record<Language, CoreMessages> = {
     modelUnloaded: 'モデル {model} をアンロードし、メモリを解放しました',
     modelUnloadedSwap: 'モデルを切り替えました：{model} をアンロードしてメモリを解放しました',
     modelUnloadedIdle: '{model} はアイドルタイムアウトにより自動でアンロードされ、メモリが解放されました',
+    errPageTitle: 'このページで問題が発生しました',
+    errPageHint: '録音と履歴はそのまま残ります。別のページに戻るか、アプリを再読み込みしてください。',
+    errReload: '再読み込み',
+    claimBalanceLabel: '現在のクレジット残高',
+    claimOnceNote: '1 台のパソコンにつき 1 回のみ受け取れます。付与クレジットの有効期限は 90 日です。',
+    comNeverRemind: '今後表示しない',
+    updNeverTitle: '更新通知を停止しますか？',
+    updNeverDesc: '確認すると、今後新しいバージョンの通知は表示されません。',
+    lowCreditTopUp: 'チャージする',
+    lowCreditNeverTitle: '残高不足の通知を停止しますか？',
+    lowCreditNeverDesc: '確認すると残高不足の通知は表示されなくなります。残高が警告しきい値を上回ると、通知は自動的に再有効化されます。',
+    comPrev: '前へ',
+    comNext: '次へ',
+    comNotSet: '未設定',
+    updNewVersion: '新バージョン v{version} が利用可能です',
+    updCurrentVersion: '（現在 v{version}）',
+    noticeLabel: '重要なお知らせ',
+    accLicenseTitle: 'マイライセンス',
+    accLicenseCopied: 'ライセンスをコピーしました',
+    accLicenseBackupHint: 'ライセンスはあなたのアカウントです。チャージや復旧に必要なので、バックアップをおすすめします。',
+    accUsageTitle: 'クレジット消費',
+    accUsageTabTasks: 'タスク別',
+    accUsageTabDate: '日付別',
+    accUsageTabModel: 'モデル別',
+    accUsageEmpty: '消費記録はまだありません',
+    accCreditsUnit: 'クレジット',
+    accConsumeLabel: '消費',
+    accIncomeLabel: '入金',
+    accCallsFmt: '{n}回',
+    accUnitSeconds: '秒',
+    accUnitChars: '文字',
+    accTotalFmt: '計 {n} {unit}',
+    accModelsTooltip: 'モデル: {list}',
+    accLedgerGift: '付与',
+    accLedgerRedeem: '交換',
+    accLedgerConsume: '消費',
+    accLedgerAdjust: '調整',
+    accLedgerRefund: '返金',
+    accLedgerExpire: '期限切れ',
+    accLedgerOther: 'その他',
+    priceFree: '無料',
+    pricePerMinute: '{price} クレジット/分',
+    pricePerKTokens: '{price} クレジット/1Kトークン',
+    pricePerKChars: '{price} クレジット/1K文字',
+    taskNameLive: 'リアルタイム文字起こし',
+    taskNameOffline: 'オフライン認識',
+    taskNameSummary: '会議要約',
+    taskNameTts: '音声合成',
+    taskNameTranslate: '翻訳',
+    taskNameOther: 'その他の呼び出し',
+    stepKindAsr: '音声認識',
   },
 }

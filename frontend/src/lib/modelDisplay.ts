@@ -64,29 +64,33 @@ export function modelDesc(id: string, t: Messages): string | null {
 }
 
 /**
- * 模型 id → 本地化显示名；未知模型回退到后端 display_name。
+ * 模型 id → 本地化显示名（末尾统一拼「（本地）」后缀，与远程模型区分）；
+ * 未知模型回退到后端 display_name。
  * 后端注册表（model_download.rs）的 display_name 是硬编码中文，
  * 前端按 UI 语言展示，统一从这里取。
  */
 export function modelDisplayName(id: string, t: Messages, fallback?: string): string {
-  switch (id) {
-    case 'sense-voice':
-      return t.setModelNameSenseVoice
-    case 'x-asr-480ms':
-      return t.setModelNameXAsr
-    case 'opus-mt-zh-en':
-      return t.setModelNameOpusZhEn
-    case 'opus-mt-en-zh':
-      return t.setModelNameOpusEnZh
-    case 'hy-mt2-1.8b-q4_k_m':
-      return t.setModelNameHymt2
-    case 'qwen2.5-3b-instruct-q4_k_m':
-      return t.setModelNameQwen25
-    case 'qwen3-4b-instruct-2507-q4_k_m':
-      return t.setModelNameQwen3
-    case 'gemma-3-4b-it-q4_k_m':
-      return t.setModelNameGemma
-    default:
-      return fallback ?? id
-  }
+  const base = (() => {
+    switch (id) {
+      case 'sense-voice':
+        return t.setModelNameSenseVoice
+      case 'x-asr-480ms':
+        return t.setModelNameXAsr
+      case 'opus-mt-zh-en':
+        return t.setModelNameOpusZhEn
+      case 'opus-mt-en-zh':
+        return t.setModelNameOpusEnZh
+      case 'hy-mt2-1.8b-q4_k_m':
+        return t.setModelNameHymt2
+      case 'qwen2.5-3b-instruct-q4_k_m':
+        return t.setModelNameQwen25
+      case 'qwen3-4b-instruct-2507-q4_k_m':
+        return t.setModelNameQwen3
+      case 'gemma-3-4b-it-q4_k_m':
+        return t.setModelNameGemma
+      default:
+        return fallback ?? id
+    }
+  })()
+  return `${base}${t.mdLocalSuffix}`
 }

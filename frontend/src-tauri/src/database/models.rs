@@ -38,6 +38,9 @@ pub struct TranscriptSegment {
     pub end_ms: Option<i64>,
     pub speaker: Option<String>,
     pub source: Option<String>,
+    /// 段落最终译文（实时内嵌翻译；空串 = 无译文）
+    #[sqlx(default)]
+    pub translation: String,
     pub created_at: DateTimeUtc,
 }
 

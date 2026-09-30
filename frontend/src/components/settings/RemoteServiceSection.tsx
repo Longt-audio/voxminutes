@@ -1,54 +1,45 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { Loader2, Pencil } from 'lucide-react'
 import {
   getRemoteConfig,
-  setRemoteConfig,
-  checkRemoteAsrHealth,
   getRemoteEnabled,
   setRemoteEnabled,
+  setRemoteEndpoint,
   listRemoteModels,
-  runSpeedTest,
   type RemoteModelItem,
-  type SpeedTestResult,
 } from '@/services/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SettingsSection } from './SettingsSection'
+import { RemoteServerStatus } from '@/components/remote/RemoteServerStatus'
 import { useMessages } from '@/i18n/useMessages'
-
-/** 格式化模型单价为可读积分消耗文案，如「0.05 积分/秒」。 */
-function formatModelPrice(m: RemoteModelItem): string {
-  const price = m.price ?? 0
-  if (price <= 0) return '免费'
-  const unit = m.price_unit === 'second' ? '秒' : m.price_unit === 'char' ? '字符' : 'token'
-  const priceStr = price >= 0.01 ? price.toFixed(2) : price.toFixed(4)
-  return `${priceStr} 积分/${unit}`
-}
+import { formatModelPrice, remoteModelDisplayName } from '@/lib/remoteModelChoice'
+import { dispatchRemoteConfigChanged, onRemoteConfigChanged } from '@/lib/remoteConfigSync'
 
 /** 用户中心「远程服务」卡片：
- *  - 服务器地址 + 授权码 + 总开关（自动保存，切换页面不丢）
- *  - 测试连接（未填授权码时不允许测试）
+ *  - 服务器状态行（默认只读）+ 编辑按钮：点开可改自定义地址（留空保存 = 恢复内置默认）
+ *  - 总开关（授权码不在此显示/编辑：展示在左侧「我的授权码」卡，手动填码在欢迎弹窗 P2）
  *  - 只读展示可用模型（名称 / 模式 / 积分单价；模型选择请到各功能使用处）
- *  - 模型测速（仅测往返延迟，不扣积分）
+ *    分组按网关下发的 usage 过滤：翻译专用模型（如豆包机器翻译）不进「总结」组，
+ *    总结专用模型（如 DeepSeek Flash）不进「翻译」组（2026-09-24 修复）。
+ *  测速功能已移除（误导大于价值，连通性看测试连接的延迟即可）
  */
 export function RemoteServiceSection({ onChanged }: { onChanged?: () => void }) {
   const t = useMessages()
   const [serverUrl, setServerUrl] = useState('')
-  const [license, setLicense] = useState('')
+  const [isDefault, setIsDefault] = useState(true)
+  const [customUrl, setCustomUrl] = useState('')
   const [enabled, setEnabled] = useState(false)
   const [health, setHealth] = useState<boolean | null>(null)
-  const [checking, setChecking] = useState(false)
   const [modelList, setModelList] = useState<RemoteModelItem[]>([])
-  const [speed, setSpeed] = useState<Record<string, SpeedTestResult | 'running'>>({})
-  const [speedRunning, setSpeedRunning] = useState(false)
-
-  // 记录已加载的初始值，避免启动时误触发自动保存
-  const loadedRef = useRef(false)
-  const initialRef = useRef<{ url: string; key: string }>({ url: '', key: '' })
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 服务器地址编辑态：默认只读，点铅笔进入编辑
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -57,11 +48,16 @@ export function RemoteServiceSection({ onChanged }: { onChanged?: () => void }) 
     ]).then(([cfg, en]) => {
       if (cfg) {
         setServerUrl(cfg.serverUrl || '')
-        setLicense(cfg.license || '')
-        initialRef.current = { url: cfg.serverUrl || '', key: cfg.license || '' }
+        setIsDefault(cfg.isDefault !== false)
+        setCustomUrl(cfg.customServerUrl || '')
       }
       setEnabled(!!en)
-      loadedRef.current = true
+    })
+    // 他处（欢迎弹窗/设置页高级卡片）保存了远程配置 → 同步刷新本卡片
+    return onRemoteConfigChanged((d) => {
+      if (typeof d.serverUrl === 'string') setServerUrl(d.serverUrl)
+      if (typeof d.isDefault === 'boolean') setIsDefault(d.isDefault)
+      if (typeof d.enabled === 'boolean') setEnabled(d.enabled)
     })
   }, [])
 
@@ -73,33 +69,11 @@ export function RemoteServiceSection({ onChanged }: { onChanged?: () => void }) 
     }
   }, [enabled])
 
-  // 自动保存：地址/授权码变化后防抖 800ms，且两者都填写过才保存
-  useEffect(() => {
-    if (!loadedRef.current) return
-    const url = serverUrl.trim()
-    const key = license.trim()
-    if (url === initialRef.current.url && key === initialRef.current.key) return
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(async () => {
-      if (!url || !key) return // 未填齐不保存（避免把空值写进去）
-      try {
-        await setRemoteConfig(url, key)
-        initialRef.current = { url, key }
-        onChanged?.()
-      } catch (e) {
-        toast.error(t.accRemoteSaveFailed.replace('{error}', String(e)))
-      }
-    }, 800)
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverUrl, license])
-
   const handleToggle = async (next: boolean) => {
     setEnabled(next)
     try {
       await setRemoteEnabled(next)
+      dispatchRemoteConfigChanged({ enabled: next })
       onChanged?.()
     } catch (e) {
       setEnabled(!next)
@@ -107,57 +81,35 @@ export function RemoteServiceSection({ onChanged }: { onChanged?: () => void }) 
     }
   }
 
-  const handleCheck = async () => {
-    const url = serverUrl.trim()
-    if (!url) {
-      toast.error(t.accRemoteNeedUrl)
-      return
-    }
-    if (!license.trim()) {
-      toast.error(t.accRemoteNeedKey)
-      return
-    }
-    setChecking(true)
-    setHealth(null)
+  // 保存服务器地址：draft 为用户自定义值，留空 = 恢复内置默认
+  const handleSaveEndpoint = async (value: string) => {
+    setSaving(true)
     try {
-      setHealth(await checkRemoteAsrHealth(url))
-      onChanged?.()
-    } catch {
-      setHealth(false)
-    } finally {
-      setChecking(false)
-    }
-  }
-
-  // 每个模型单独测速：key 为 kind:id
-  const handleModelSpeedTest = async (kind: 'asr' | 'llm' | 'tts', id: string) => {
-    const key = `${kind}:${id}`
-    setSpeed((s) => ({ ...s, [key]: 'running' }))
-    try {
-      const r = await runSpeedTest(kind, id)
-      setSpeed((s) => ({ ...s, [key]: r }))
+      await setRemoteEndpoint(value.trim())
+      const cfg = await getRemoteConfig().catch(() => null)
+      if (cfg) {
+        setServerUrl(cfg.serverUrl || '')
+        setIsDefault(cfg.isDefault !== false)
+        setCustomUrl(cfg.customServerUrl || '')
+        dispatchRemoteConfigChanged({ serverUrl: cfg.serverUrl, isDefault: cfg.isDefault })
+      }
+      setEditing(false)
+      setHealth(null)
+      toast.success(t.setEndpointSaved)
     } catch (e) {
-      setSpeed((s) => ({ ...s, [key]: { kind, model: id, ok: false, ms: 0, detail: String(e) } }))
+      toast.error(t.accRemoteSaveFailed.replace('{error}', String(e)))
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleSpeedTestAll = async () => {
-    setSpeedRunning(true)
-    const tasks: Array<['asr' | 'llm' | 'tts', string]> = []
-    for (const m of modelList) {
-      const kind = m.kind === 'translate' ? 'llm' : (m.kind as 'asr' | 'tts')
-      tasks.push([kind, m.id])
-    }
-    for (const [kind, id] of tasks) {
-      await handleModelSpeedTest(kind, id)
-    }
-    setSpeedRunning(false)
-  }
-
-  const modelGroups: Array<{ key: string; label: string; kinds: string[] }> = [
+  // 模型分组展示：kinds = 网关 kind 字段；excludeUsage = 按网关 usage 字段排除
+  // 「只做翻译」（豆包 MT）不进总结组、「只做总结」（DeepSeek Flash）不进翻译组；
+  // 旧版网关不下发 usage 时按 both 处理（两组都显示，向后兼容）。
+  const modelGroups: Array<{ key: string; label: string; kinds: string[]; excludeUsage?: string[] }> = [
     { key: 'asr', label: t.accModelKindAsr, kinds: ['asr'] },
-    { key: 'translate', label: t.accModelKindTranslate, kinds: ['translate'] },
-    { key: 'summary', label: t.accModelKindSummary, kinds: ['translate'] },
+    { key: 'translate', label: t.accModelKindTranslate, kinds: ['translate'], excludeUsage: ['summary'] },
+    { key: 'summary', label: t.accModelKindSummary, kinds: ['translate'], excludeUsage: ['translate'] },
     { key: 'tts', label: t.accModelKindTts, kinds: ['tts'] },
   ]
 
@@ -177,56 +129,83 @@ export function RemoteServiceSection({ onChanged }: { onChanged?: () => void }) 
 
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">{t.accRemoteUrl}</span>
-          <Input
-            className="w-full"
-            value={serverUrl}
-            onChange={(e) => {
-              setServerUrl(e.target.value)
-              setHealth(null)
-            }}
-            placeholder="http://127.0.0.1:8788"
-          />
+          {editing ? (
+            <div className="flex flex-col gap-2">
+              <Input
+                className="h-8 text-xs"
+                value={draft}
+                placeholder="https://api.voxmin.top"
+                autoFocus
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSaveEndpoint(draft)
+                  if (e.key === 'Escape') setEditing(false)
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <Button size="sm" className="h-7 text-xs" disabled={saving} onClick={() => void handleSaveEndpoint(draft)}>
+                  {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {t.comSave}
+                </Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={saving} onClick={() => setEditing(false)}>
+                  {t.comCancel}
+                </Button>
+                {!isDefault && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={saving}
+                    onClick={() => void handleSaveEndpoint('')}
+                  >
+                    {t.setRemoteRestoreDefault}
+                  </Button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground/70">{t.accEndpointEmptyHint}</p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              {/* 只读服务器状态行 + 三态测试按钮；旁边铅笔进入编辑 */}
+              <div className="min-w-0 flex-1">
+                <RemoteServerStatus serverUrl={serverUrl} isDefault={isDefault} onHealthChange={setHealth} />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 shrink-0 px-0"
+                title={t.accEditEndpoint}
+                onClick={() => {
+                  setDraft(customUrl)
+                  setEditing(true)
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">{t.accRemoteKey}</span>
-          <div className="flex items-center gap-2">
-            <Input
-              className="flex-1 min-w-0"
-              value={license}
-              onChange={(e) => setLicense(e.target.value)}
-              placeholder="sk-…"
-              type="password"
-            />
-            <Button variant="outline" className="shrink-0" onClick={handleCheck} disabled={checking}>
-              {checking ? t.accRemoteTesting : t.accRemoteTest}
-            </Button>
-            {health !== null && (
-              <Badge variant={health ? 'success' : 'destructive'}>
-                {health ? t.accRemoteOnline : t.accRemoteOffline}
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* 可用模型（只读展示，不选择） */}
+        {/* 可用模型（只读展示：名称 / 模式 / 积分单价） */}
         {enabled && modelList.length > 0 && (
           <div className="flex flex-col gap-2 pt-1">
             <span className="text-xs text-muted-foreground">{t.accModelsTitle}</span>
             {modelGroups.map((g) => {
-              const models = modelList.filter((m) => g.kinds.includes(m.kind))
+              const models = modelList.filter(
+                (m) => g.kinds.includes(m.kind) && !(g.excludeUsage ?? []).includes(m.usage ?? 'both')
+              )
               if (models.length === 0) return null
               return (
                 <div key={g.key} className="text-xs">
                   <span className="font-medium">{g.label}</span>
                   <div className="mt-1 flex flex-col gap-0.5">
                     {models.map((m) => (
-                      <div key={`${g.key}-${m.id}`} className="flex items-center gap-2 text-muted-foreground">
-                        <span className="truncate">{m.owned_by} / {m.id}</span>
+                      <div key={`${m.kind}:${m.id}`} className="flex items-center gap-2 text-muted-foreground">
+                        <span className="truncate min-w-0">{remoteModelDisplayName(m)}</span>
                         {m.mode === 'streaming' && (
                           <span className="shrink-0 text-primary/80">· {t.accModeStreaming}</span>
                         )}
-                        <span className="shrink-0 text-muted-foreground/60">{formatModelPrice(m)}</span>
+                        <span className="shrink-0 text-muted-foreground/60">{formatModelPrice(m, t)}</span>
                       </div>
                     ))}
                   </div>
@@ -234,56 +213,6 @@ export function RemoteServiceSection({ onChanged }: { onChanged?: () => void }) 
               )
             })}
             <p className="text-[11px] text-muted-foreground/70">{t.accModelsHint}</p>
-          </div>
-        )}
-
-        {/* 模型测速（#9：仅测延迟，不扣积分；每个模型单独测速） */}
-        {enabled && modelList.length > 0 && (
-          <div className="flex flex-col gap-2 pt-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{t.accSpeedTitle}</span>
-              <Button variant="outline" size="sm" onClick={handleSpeedTestAll} disabled={speedRunning}>
-                {speedRunning ? t.accSpeedRunning : t.accSpeedRunAll}
-              </Button>
-            </div>
-            {modelGroups.map((g) => {
-              const models = modelList.filter((m) => g.kinds.includes(m.kind))
-              if (models.length === 0) return null
-              return (
-                <div key={`speed-${g.key}`} className="text-xs">
-                  <span className="font-medium">{g.label}</span>
-                  <div className="mt-1 flex flex-col gap-0.5">
-                    {models.map((m) => {
-                      const kind = m.kind === 'translate' ? 'llm' : (m.kind as 'asr' | 'tts')
-                      const key = `${kind}:${m.id}`
-                      const r = speed[key]
-                      return (
-                        <div key={key} className="flex items-center gap-2 text-muted-foreground">
-                          <span className="truncate flex-1 min-w-0">{m.owned_by} / {m.id}</span>
-                          {r === 'running' ? (
-                            <span className="shrink-0 text-muted-foreground/70">{t.accSpeedRunning}</span>
-                          ) : r && r.ok ? (
-                            <span className="shrink-0 text-primary font-medium tabular-nums">{r.ms} ms</span>
-                          ) : r && !r.ok ? (
-                            <span className="shrink-0 text-destructive">{r.detail || '—'}</span>
-                          ) : null}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 px-2 text-[11px] shrink-0"
-                            disabled={speedRunning || r === 'running'}
-                            onClick={() => void handleModelSpeedTest(kind, m.id)}
-                          >
-                            {t.accSpeedTest}
-                          </Button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-            <p className="text-[11px] text-muted-foreground/70">{t.accSpeedHint}</p>
           </div>
         )}
       </div>

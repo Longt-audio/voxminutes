@@ -2,6 +2,7 @@
 
 import { RecorderControls, RecorderInfo } from '@/components/recorder/RecorderPanel'
 import { TranscriptPanel } from '@/components/recorder/TranscriptPanel'
+import { FloatingBallToggle } from '@/components/FloatingBallToggle'
 
 export default function HomePage() {
   return (
@@ -11,10 +12,13 @@ export default function HomePage() {
         <RecorderControls />
       </div>
 
-      {/* 右栏：信息行 + 转录文本 */}
+      {/* 右栏：信息行（含悬浮球开关）+ 转录文本 */}
       <div className="flex flex-col min-h-0 pr-5 pb-5">
-        <div className="shrink-0 pt-8 pb-3">
-          <RecorderInfo />
+        <div className="shrink-0 pt-8 pb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <RecorderInfo />
+          </div>
+          <FloatingBallToggle />
         </div>
         <TranscriptPanel />
       </div>

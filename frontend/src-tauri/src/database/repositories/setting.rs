@@ -40,7 +40,9 @@ impl SettingsRepository {
     }
 
     pub async fn get_export_dir(pool: &SqlitePool) -> Result<String, sqlx::Error> {
-        Ok(Self::get(pool, "export.default_dir").await?.unwrap_or_default())
+        Ok(Self::get(pool, "export.default_dir")
+            .await?
+            .unwrap_or_default())
     }
 
     pub async fn save_model_config(

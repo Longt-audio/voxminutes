@@ -488,7 +488,8 @@ pub async fn download_model<R: Runtime>(
     let app_handle = app.clone();
 
     tauri::async_runtime::spawn(async move {
-        let result = run_download(&app_handle, model, &models_dir, &cancel_flag, source_index).await;
+        let result =
+            run_download(&app_handle, model, &models_dir, &cancel_flag, source_index).await;
 
         finish_task(model.id);
 
@@ -662,8 +663,16 @@ async fn run_download<R: Runtime>(
                 resolve_path,
                 files,
             } => {
-                run_files_download(app, model, models_dir, base_url, resolve_path, files, cancel)
-                    .await
+                run_files_download(
+                    app,
+                    model,
+                    models_dir,
+                    base_url,
+                    resolve_path,
+                    files,
+                    cancel,
+                )
+                .await
             }
         };
         match result {
@@ -681,7 +690,10 @@ async fn run_download<R: Runtime>(
 
     if !failures.is_empty() {
         if source_index.is_some() {
-            return Err(format!("所选下载源失败：{}。可换其他源重试", failures.join("；")));
+            return Err(format!(
+                "所选下载源失败：{}。可换其他源重试",
+                failures.join("；")
+            ));
         }
         return Err(format!("所有下载源均失败：{}", failures.join("；")));
     }
@@ -739,9 +751,10 @@ async fn run_archive_download<R: Runtime>(
     emit_progress(app, model.id, "extracting", 0, 1, None, Some(url));
     let models_dir_owned = models_dir.to_path_buf();
     let archive = archive_path.clone();
-    let extract_result = tokio::task::spawn_blocking(move || extract_tar_bz2(&archive, &models_dir_owned))
-        .await
-        .map_err(|e| format!("Extraction task failed: {}", e))?;
+    let extract_result =
+        tokio::task::spawn_blocking(move || extract_tar_bz2(&archive, &models_dir_owned))
+            .await
+            .map_err(|e| format!("Extraction task failed: {}", e))?;
     let _ = std::fs::remove_file(&archive_path);
     extract_result.map_err(|e| format!("{}: {}", url, e))?;
     Ok(())
@@ -914,8 +927,8 @@ async fn download_file<R: Runtime>(
 
 /// Extract a `.tar.bz2` archive into `dest_dir` (blocking; call via spawn_blocking).
 fn extract_tar_bz2(archive: &Path, dest_dir: &Path) -> Result<(), String> {
-    let file = std::fs::File::open(archive)
-        .map_err(|e| format!("Failed to open archive: {}", e))?;
+    let file =
+        std::fs::File::open(archive).map_err(|e| format!("Failed to open archive: {}", e))?;
     let decoder = bzip2::read::BzDecoder::new(file);
     let mut tar = tar::Archive::new(decoder);
     tar.unpack(dest_dir)
@@ -925,8 +938,8 @@ fn extract_tar_bz2(archive: &Path, dest_dir: &Path) -> Result<(), String> {
 
 /// Extract a `.tar.gz` archive into `dest_dir` (blocking).
 fn extract_tar_gz(archive: &Path, dest_dir: &Path) -> Result<(), String> {
-    let file = std::fs::File::open(archive)
-        .map_err(|e| format!("Failed to open archive: {}", e))?;
+    let file =
+        std::fs::File::open(archive).map_err(|e| format!("Failed to open archive: {}", e))?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut tar = tar::Archive::new(decoder);
     tar.unpack(dest_dir)
@@ -936,10 +949,10 @@ fn extract_tar_gz(archive: &Path, dest_dir: &Path) -> Result<(), String> {
 
 /// Extract a `.zip` archive into `dest_dir` (blocking).
 fn extract_zip(archive: &Path, dest_dir: &Path) -> Result<(), String> {
-    let file = std::fs::File::open(archive)
-        .map_err(|e| format!("Failed to open archive: {}", e))?;
-    let mut zip = zip::ZipArchive::new(file)
-        .map_err(|e| format!("Failed to read zip archive: {}", e))?;
+    let file =
+        std::fs::File::open(archive).map_err(|e| format!("Failed to open archive: {}", e))?;
+    let mut zip =
+        zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip archive: {}", e))?;
     zip.extract(dest_dir)
         .map_err(|e| format!("Failed to extract archive: {}", e))?;
     Ok(())
@@ -1202,8 +1215,7 @@ fn descend_single_dir(dir: &Path) -> Result<PathBuf, String> {
 /// A valid GGUF file starts with the 4-byte magic `GGUF`.
 fn check_gguf_magic(path: &Path) -> Result<(), String> {
     use std::io::Read;
-    let mut file =
-        std::fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
+    let mut file = std::fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
     let mut magic = [0u8; 4];
     file.read_exact(&mut magic)
         .map_err(|_| "文件太小，不是有效的 GGUF 模型".to_string())?;
@@ -1401,7 +1413,11 @@ mod tests {
         for (i, s) in m.sources.iter().enumerate() {
             let urls = source_urls(s);
             assert_eq!(urls.len(), OPUS_MT_FILES.len());
-            let expect_resolve = if i < 2 { "resolve/main" } else { "resolve/master" };
+            let expect_resolve = if i < 2 {
+                "resolve/main"
+            } else {
+                "resolve/master"
+            };
             assert!(urls[0].contains(expect_resolve));
             assert!(urls[0].ends_with("onnx/encoder_model_int8.onnx"));
         }

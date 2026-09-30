@@ -14,20 +14,17 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tokio::task::JoinHandle;
 
 use super::{
+    default_input_device,  // Get default microphone
+    default_output_device, // Get default system audio
     parse_audio_device,
-    default_input_device,   // Get default microphone
-    default_output_device,  // Get default system audio
-    RecordingManager,
-    RecordingDeviceType,
     DeviceEvent,
-    DeviceMonitorType
+    DeviceMonitorType,
+    RecordingDeviceType,
+    RecordingManager,
 };
 
 // Import transcription modules
-use super::transcription::{
-    self,
-    reset_speech_detected_flag,
-};
+use super::transcription::{self, reset_speech_detected_flag};
 
 // Re-export TranscriptUpdate for backward compatibility
 pub use super::transcription::TranscriptUpdate;
@@ -87,7 +84,11 @@ fn spawn_default_device_follower<R: Runtime>(
     }
 
     let handle = tokio::spawn(default_device_follower_loop(
-        state, stop, follow_mic, follow_system, app,
+        state,
+        stop,
+        follow_mic,
+        follow_system,
+        app,
     ));
 
     {
@@ -131,7 +132,10 @@ async fn default_device_follower_loop<R: Runtime>(
     let mut mic_changed_at: Option<Instant> = None;
     let mut sys_changed_at: Option<Instant> = None;
 
-    info!("🎧 Default-device follower started (follow_mic={}, follow_system={})", follow_mic, follow_system);
+    info!(
+        "🎧 Default-device follower started (follow_mic={}, follow_system={})",
+        follow_mic, follow_system
+    );
 
     loop {
         tokio::select! {
@@ -176,7 +180,11 @@ async fn default_device_follower_loop<R: Runtime>(
         let mut sys_stable_changed = false;
         if !paused {
             if stored_mic != current_mic {
-                if mic_last == current_mic && mic_changed_at.map(|t| t.elapsed() >= Duration::from_secs(2)).unwrap_or(false) {
+                if mic_last == current_mic
+                    && mic_changed_at
+                        .map(|t| t.elapsed() >= Duration::from_secs(2))
+                        .unwrap_or(false)
+                {
                     mic_stable_changed = true;
                 } else if mic_last != current_mic {
                     mic_changed_at = Some(Instant::now());
@@ -186,7 +194,11 @@ async fn default_device_follower_loop<R: Runtime>(
             }
 
             if stored_sys != current_sys {
-                if sys_last == current_sys && sys_changed_at.map(|t| t.elapsed() >= Duration::from_secs(2)).unwrap_or(false) {
+                if sys_last == current_sys
+                    && sys_changed_at
+                        .map(|t| t.elapsed() >= Duration::from_secs(2))
+                        .unwrap_or(false)
+                {
                     sys_stable_changed = true;
                 } else if sys_last != current_sys {
                     sys_changed_at = Some(Instant::now());
@@ -199,7 +211,11 @@ async fn default_device_follower_loop<R: Runtime>(
         sys_last = current_sys.clone();
 
         let defaults_changed = stored_mic != current_mic || stored_sys != current_sys;
-        let needs_rebuild = mic_force || sys_force || mic_stable_changed || sys_stable_changed || (pending && defaults_changed);
+        let needs_rebuild = mic_force
+            || sys_force
+            || mic_stable_changed
+            || sys_stable_changed
+            || (pending && defaults_changed);
         if !needs_rebuild {
             continue;
         }
@@ -212,10 +228,13 @@ async fn default_device_follower_loop<R: Runtime>(
             let rebuild_result = rebuild_streams_locked().await;
             state.set_rebuilding_streams(false);
             if rebuild_result.is_ok() {
-                let _ = app.emit("waiting-for-audio-device", serde_json::json!({
-                    "microphone": serde_json::Value::Null,
-                    "system_audio": current_sys,
-                }));
+                let _ = app.emit(
+                    "waiting-for-audio-device",
+                    serde_json::json!({
+                        "microphone": serde_json::Value::Null,
+                        "system_audio": current_sys,
+                    }),
+                );
             }
             continue;
         }
@@ -260,10 +279,13 @@ async fn notify_device_changed_and_restart_monitor<R: Runtime>(
     let mic_name = state.get_microphone_device().map(|d| d.name.clone());
     let sys_name = state.get_system_device().map(|d| d.name.clone());
 
-    let _ = app.emit("default-device-changed", serde_json::json!({
-        "microphone": mic_name,
-        "system_audio": sys_name,
-    }));
+    let _ = app.emit(
+        "default-device-changed",
+        serde_json::json!({
+            "microphone": mic_name,
+            "system_audio": sys_name,
+        }),
+    );
 
     let mut monitoring_names: Vec<String> = Vec::new();
     if let Some(ref name) = mic_name {
@@ -274,7 +296,8 @@ async fn notify_device_changed_and_restart_monitor<R: Runtime>(
     }
     if !monitoring_names.is_empty() {
         let _ = crate::audio::simple_level_monitor::stop_monitoring().await;
-        let _ = crate::audio::simple_level_monitor::start_monitoring(app.clone(), monitoring_names).await;
+        let _ = crate::audio::simple_level_monitor::start_monitoring(app.clone(), monitoring_names)
+            .await;
     }
 }
 
@@ -346,17 +369,35 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     // Create new recording manager
     let mut manager = RecordingManager::new();
 
-    // Load recording preferences to get auto_save AND device preferences
-    let (auto_save, preferred_mic_name, preferred_system_name) =
+    // Load recording preferences to get auto_save AND device preferences AND save folder
+    let (auto_save, preferred_mic_name, preferred_system_name, save_folder) =
         match super::recording_preferences::load_recording_preferences(&app).await {
             Ok(prefs) => {
-                info!("📋 Loaded recording preferences: auto_save={}, preferred_mic={:?}, preferred_system={:?}",
-                      prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device);
-                (prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device)
+                info!("📋 Loaded recording preferences: auto_save={}, preferred_mic={:?}, preferred_system={:?}, save_folder={:?}",
+                      prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device, prefs.save_folder);
+                let folder = if prefs.save_folder.as_os_str().is_empty() {
+                    super::recording_preferences::get_default_recordings_folder()
+                } else {
+                    prefs.save_folder
+                };
+                (
+                    prefs.auto_save,
+                    prefs.preferred_mic_device,
+                    prefs.preferred_system_device,
+                    folder,
+                )
             }
             Err(e) => {
-                warn!("Failed to load recording preferences, using defaults: {}", e);
-                (true, None, None)
+                warn!(
+                    "Failed to load recording preferences, using defaults: {}",
+                    e
+                );
+                (
+                    true,
+                    None,
+                    None,
+                    super::recording_preferences::get_default_recordings_folder(),
+                )
             }
         };
 
@@ -372,7 +413,10 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     Some(Arc::new(device))
                 }
                 Err(e) => {
-                    warn!("⚠️ Preferred microphone '{}' not available: {}", pref_name, e);
+                    warn!(
+                        "⚠️ Preferred microphone '{}' not available: {}",
+                        pref_name, e
+                    );
                     warn!("   Falling back to system default microphone...");
                     match default_input_device() {
                         Ok(device) => {
@@ -409,14 +453,20 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     // ============================================================================
     let system_device = match preferred_system_name {
         Some(ref pref_name) => {
-            info!("🔊 Attempting to use preferred system audio: '{}'", pref_name);
+            info!(
+                "🔊 Attempting to use preferred system audio: '{}'",
+                pref_name
+            );
             match parse_audio_device(&pref_name) {
                 Ok(device) => {
                     info!("✅ Using preferred system audio: '{}'", device.name);
                     Some(Arc::new(device))
                 }
                 Err(e) => {
-                    warn!("⚠️ Preferred system audio '{}' not available: {}", pref_name, e);
+                    warn!(
+                        "⚠️ Preferred system audio '{}' not available: {}",
+                        pref_name, e
+                    );
                     warn!("   Falling back to system default...");
                     match default_output_device() {
                         Ok(device) => {
@@ -465,12 +515,9 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
 
     // Always ensure a meeting name is set so incremental saver initializes
     let effective_meeting_name = meeting_name.clone().unwrap_or_else(|| {
-        // Example: Meeting 2025-10-03_08-25-23
+        // 与录音文件夹一致的 Rec_ 前缀（语言无关），例：Rec_2025-10-03_08-25-23
         let now = chrono::Local::now();
-        format!(
-            "Meeting {}",
-            now.format("%Y-%m-%d_%H-%M-%S")
-        )
+        format!("Rec_{}", now.format("%Y-%m-%d_%H-%M-%S"))
     });
     manager.set_meeting_name(Some(effective_meeting_name));
 
@@ -486,18 +533,34 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     let sys_name_for_monitoring = system_device.as_ref().map(|d| d.name.clone());
 
     // Determine if X-ASR is selected (requires VAD bypass for continuous streaming)
-    let bypass_vad = match crate::api::api::api_get_transcript_config(
-        app.clone(), app.clone().state(), None
-    ).await {
-        Ok(Some(config)) => config.model.starts_with("x-asr-"),
-        _ => false,
-    };
+    let bypass_vad =
+        match crate::api::api::api_get_transcript_config(app.clone(), app.clone().state(), None)
+            .await
+        {
+            // X-ASR 与「远程流式 ASR」都需要持续音频流 → 绕过 VAD 分段
+            Ok(Some(config)) => {
+                config.model.starts_with("x-asr-")
+                    || ((config.model == "qwen3-asr-remote"
+                        || config.model.starts_with("qwen3-asr-remote")
+                        || config.provider == "remote-qwen3-asr")
+                        && crate::audio::transcription::engine::is_remote_asr_streaming())
+            }
+            _ => false,
+        };
     if bypass_vad {
-        info!("🎙️ X-ASR mode: VAD will be bypassed for continuous streaming");
+        info!("🎙️ 流式模式（X-ASR 或远程流式）：VAD 将被绕过，持续喂音频");
     }
 
     let transcription_receiver = manager
-        .start_recording(microphone_device, system_device, auto_save, follow_mic, follow_system, bypass_vad)
+        .start_recording(
+            microphone_device,
+            system_device,
+            auto_save,
+            follow_mic,
+            follow_system,
+            bypass_vad,
+            save_folder,
+        )
         .await
         .map_err(|e| format!("Failed to start recording: {}", e))?;
 
@@ -513,12 +576,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
 
     // Start watching system default devices if we are following them.
     if follow_mic || follow_system {
-        spawn_default_device_follower(
-            app.clone(),
-            state_for_follower,
-            follow_mic,
-            follow_system,
-        );
+        spawn_default_device_follower(app.clone(), state_for_follower, follow_mic, follow_system);
     }
 
     // Set recording flag and reset speech detection flag
@@ -551,6 +609,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     display_time: update.timestamp.clone(), // Use wall-clock timestamp for display
                     confidence: update.confidence,
                     sequence_id: update.sequence_id,
+                    translation: String::new(), // 译文在最终写盘时回填
                 };
 
                 // Save to recording manager
@@ -567,11 +626,15 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     }
 
     // Emit success event
-    app.emit("recording-started", serde_json::json!({
-        "message": "Recording started successfully with parallel processing",
-        "devices": ["Default Microphone", "Default System Audio"],
-        "workers": 3
-    })).map_err(|e| e.to_string())?;
+    app.emit(
+        "recording-started",
+        serde_json::json!({
+            "message": "Recording started successfully with parallel processing",
+            "devices": ["Default Microphone", "Default System Audio"],
+            "workers": 3
+        }),
+    )
+    .map_err(|e| e.to_string())?;
 
     // Update tray menu to reflect recording state
     crate::tray::update_tray_menu(&app);
@@ -586,16 +649,77 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
             monitoring_names.push(name.clone());
         }
         if !monitoring_names.is_empty() {
-            let _ = crate::audio::simple_level_monitor::start_monitoring(
-                app.clone(),
-                monitoring_names,
-            )
-            .await;
+            let _ =
+                crate::audio::simple_level_monitor::start_monitoring(app.clone(), monitoring_names)
+                    .await;
         }
     }
 
     info!("✅ Recording started successfully with async-first approach");
 
+    Ok(())
+}
+
+/// 录音中热切换流式 ASR 引擎（仅限流式↔流式：X-ASR ↔ 远程流式）。
+/// 前端先持久化新选择（transcript config + 远程模型选择），再调本命令。
+/// 原则：录音管线完全不动（采集/保存不受影响），只重启转写子系统：
+/// 换新 sender（旧 sender 释放 → 旧任务收 None 优雅收尾），新引擎新通道新任务。
+pub async fn switch_streaming_asr_model<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    if !IS_RECORDING.load(Ordering::SeqCst) {
+        // 未在录音：选择已被前端持久化，下次录音生效，无需动作
+        return Ok(());
+    }
+
+    // 1. 读当前（新）配置，确认目标是流式家族
+    let config = crate::api::api::api_get_transcript_config(app.clone(), app.clone().state(), None)
+        .await
+        .map_err(|e| format!("读取转写配置失败: {}", e))?
+        .ok_or_else(|| "未找到转写配置".to_string())?;
+    let is_xasr = config.model.starts_with("x-asr-");
+    let is_remote =
+        config.model.starts_with("qwen3-asr-remote") || config.provider == "remote-qwen3-asr";
+    let is_streaming = is_xasr || (is_remote && transcription::engine::is_remote_asr_streaming());
+    if !is_streaming {
+        return Err(
+            "录音中仅支持切换流式模型（X-ASR / 远程流式）；该模型将在下次录音生效".to_string(),
+        );
+    }
+
+    // 2. 先验证并建好新引擎——失败则现有链路完全不动（旧引擎继续转写）
+    transcription::validate_transcription_model_ready(&app)
+        .await
+        .map_err(|e| format!("新模型不可用: {}", e))?;
+    let engine = transcription::engine::get_or_init_transcription_engine(&app)
+        .await
+        .map_err(|e| format!("新引擎初始化失败: {}", e))?;
+    let engine_name = engine.provider_name().to_string();
+    if engine_name != "x-asr" && engine_name != "Remote ASR Streaming" {
+        return Err(format!("引擎 {} 不支持录音中切换", engine_name));
+    }
+
+    // 3. 换 feed 的 sender：旧 sender 在此释放，旧转写任务收 None 后自行收尾
+    let feed = {
+        let guard = RECORDING_MANAGER.lock().unwrap();
+        guard.as_ref().and_then(|m| m.get_transcription_feed())
+    };
+    let Some(feed) = feed else {
+        return Err("当前录音没有可切换的转写通道".to_string());
+    };
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    super::pipeline::TranscriptionFeed::swap_sender(&feed, tx);
+
+    // 4. 重启转写任务：不重置翻译会话；序列号与旧引擎输出对齐
+    let handle = transcription::start_transcription_task_with_engine(app.clone(), rx, engine);
+    {
+        let mut global_task = TRANSCRIPTION_TASK.lock().unwrap();
+        *global_task = Some(handle);
+    }
+
+    info!("🔀 录音中切换流式 ASR 引擎完成: {}", engine_name);
+    let _ = app.emit(
+        "asr-engine-switched",
+        serde_json::json!({ "engine": engine_name }),
+    );
     Ok(())
 }
 
@@ -646,23 +770,25 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
 
     // Parse devices（显式选择：无 (input)/(output) 后缀时按用途推断类型，如 macOS 的 "Mac mini扬声器"）
     let mic_device = if let Some(ref name) = mic_device_name {
-        Some(Arc::new(crate::audio::devices::configuration::AudioDevice::from_name_with_hint(
-            name,
-            &crate::audio::devices::configuration::DeviceType::Input,
-        ).map_err(|e| {
-            format!("Invalid microphone device '{}': {}", name, e)
-        })?))
+        Some(Arc::new(
+            crate::audio::devices::configuration::AudioDevice::from_name_with_hint(
+                name,
+                &crate::audio::devices::configuration::DeviceType::Input,
+            )
+            .map_err(|e| format!("Invalid microphone device '{}': {}", name, e))?,
+        ))
     } else {
         None
     };
 
     let system_device = if let Some(ref name) = system_device_name {
-        Some(Arc::new(crate::audio::devices::configuration::AudioDevice::from_name_with_hint(
-            name,
-            &crate::audio::devices::configuration::DeviceType::Output,
-        ).map_err(|e| {
-            format!("Invalid system device '{}': {}", name, e)
-        })?))
+        Some(Arc::new(
+            crate::audio::devices::configuration::AudioDevice::from_name_with_hint(
+                name,
+                &crate::audio::devices::configuration::DeviceType::Output,
+            )
+            .map_err(|e| format!("Invalid system device '{}': {}", name, e))?,
+        ))
     } else {
         None
     };
@@ -679,25 +805,38 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     let follow_system = system_device_name.is_none();
     manager.set_follow_flags(follow_mic, follow_system);
 
-    // Load recording preferences to check auto_save setting
-    let auto_save = match super::recording_preferences::load_recording_preferences(&app).await {
-        Ok(prefs) => {
-            info!("📋 Loaded recording preferences: auto_save={}", prefs.auto_save);
-            prefs.auto_save
-        }
-        Err(e) => {
-            warn!("Failed to load recording preferences, defaulting to auto_save=true: {}", e);
-            true // Default to saving if preferences can't be loaded
-        }
-    };
+    // Load recording preferences to check auto_save setting and save folder
+    let (auto_save, save_folder) =
+        match super::recording_preferences::load_recording_preferences(&app).await {
+            Ok(prefs) => {
+                info!(
+                    "📋 Loaded recording preferences: auto_save={}, save_folder={:?}",
+                    prefs.auto_save, prefs.save_folder
+                );
+                let folder = if prefs.save_folder.as_os_str().is_empty() {
+                    super::recording_preferences::get_default_recordings_folder()
+                } else {
+                    prefs.save_folder
+                };
+                (prefs.auto_save, folder)
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to load recording preferences, defaulting to auto_save=true: {}",
+                    e
+                );
+                (
+                    true, // Default to saving if preferences can't be loaded
+                    super::recording_preferences::get_default_recordings_folder(),
+                )
+            }
+        };
 
     // Always ensure a meeting name is set so incremental saver initializes
     let effective_meeting_name = meeting_name.clone().unwrap_or_else(|| {
+        // 与录音文件夹一致的 Rec_ 前缀（语言无关）
         let now = chrono::Local::now();
-        format!(
-            "Meeting {}",
-            now.format("%Y-%m-%d_%H-%M-%S")
-        )
+        format!("Rec_{}", now.format("%Y-%m-%d_%H-%M-%S"))
     });
     manager.set_meeting_name(Some(effective_meeting_name));
 
@@ -709,18 +848,34 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
 
     // Start recording with specified devices and auto_save setting
     // Determine if X-ASR is selected (requires VAD bypass for continuous streaming)
-    let bypass_vad = match crate::api::api::api_get_transcript_config(
-        app.clone(), app.clone().state(), None
-    ).await {
-        Ok(Some(config)) => config.model.starts_with("x-asr-"),
-        _ => false,
-    };
+    let bypass_vad =
+        match crate::api::api::api_get_transcript_config(app.clone(), app.clone().state(), None)
+            .await
+        {
+            // X-ASR 与「远程流式 ASR」都需要持续音频流 → 绕过 VAD 分段
+            Ok(Some(config)) => {
+                config.model.starts_with("x-asr-")
+                    || ((config.model == "qwen3-asr-remote"
+                        || config.model.starts_with("qwen3-asr-remote")
+                        || config.provider == "remote-qwen3-asr")
+                        && crate::audio::transcription::engine::is_remote_asr_streaming())
+            }
+            _ => false,
+        };
     if bypass_vad {
-        info!("🎙️ X-ASR mode: VAD will be bypassed for continuous streaming");
+        info!("🎙️ 流式模式（X-ASR 或远程流式）：VAD 将被绕过，持续喂音频");
     }
 
     let transcription_receiver = manager
-        .start_recording(mic_device, system_device, auto_save, follow_mic, follow_system, bypass_vad)
+        .start_recording(
+            mic_device,
+            system_device,
+            auto_save,
+            follow_mic,
+            follow_system,
+            bypass_vad,
+            save_folder,
+        )
         .await
         .map_err(|e| format!("Failed to start recording: {}", e))?;
 
@@ -736,12 +891,7 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
 
     // Start watching system default devices if we are following them.
     if follow_mic || follow_system {
-        spawn_default_device_follower(
-            app.clone(),
-            state_for_follower,
-            follow_mic,
-            follow_system,
-        );
+        spawn_default_device_follower(app.clone(), state_for_follower, follow_mic, follow_system);
     }
 
     // Set recording flag and reset speech detection flag
@@ -774,6 +924,7 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
                     display_time: update.timestamp.clone(), // Use wall-clock timestamp for display
                     confidence: update.confidence,
                     sequence_id: update.sequence_id,
+                    translation: String::new(), // 译文在最终写盘时回填
                 };
 
                 // Save to recording manager
@@ -792,14 +943,18 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     // Emit success event — 先 clone 设备名，后续监测还需要用到
     let mic_name_for_emit = mic_device_name.clone();
     let sys_name_for_emit = system_device_name.clone();
-    app.emit("recording-started", serde_json::json!({
-        "message": "Recording started with custom devices and parallel processing",
-        "devices": [
-            mic_name_for_emit.unwrap_or_else(|| "Default Microphone".to_string()),
-            sys_name_for_emit.unwrap_or_else(|| "Default System Audio".to_string())
-        ],
-        "workers": 3
-    })).map_err(|e| e.to_string())?;
+    app.emit(
+        "recording-started",
+        serde_json::json!({
+            "message": "Recording started with custom devices and parallel processing",
+            "devices": [
+                mic_name_for_emit.unwrap_or_else(|| "Default Microphone".to_string()),
+                sys_name_for_emit.unwrap_or_else(|| "Default System Audio".to_string())
+            ],
+            "workers": 3
+        }),
+    )
+    .map_err(|e| e.to_string())?;
 
     // Update tray menu to reflect recording state
     crate::tray::update_tray_menu(&app);
@@ -882,15 +1037,14 @@ pub async fn stop_recording<R: Runtime>(
         }
     }
 
-    // Step 1.5: Clean up transcript listener to release microphone
-    // Unlisten transcript-update event to prevent lingering references
-    {
-        use tauri::Listener;
-        if let Some(listener_id) = TRANSCRIPT_LISTENER_ID.lock().unwrap().take() {
-            app.unlisten(listener_id);
-            info!("✅ Transcript-update listener removed");
-        }
-    }
+    // Step 1.5: 转写事件监听**不能在这里摘掉**（2026-09-22 修复）。
+    //
+    // 旧实现先 `app.unlisten(TRANSCRIPT_LISTENER_ID)` 再等转写任务收尾，于是收尾阶段
+    // 由流式管线 `finish()` 闭合的最后几个单元**没人落盘**：实测 14:09:10.347 摘监听、
+    // 14:09:11.359 会话收尾（提交了 seq=32..35 四个单元并各自完成译文），
+    // 而 transcripts.json / DB 里只有到 seq=31 —— 最后 ~15 秒的原文永久丢失，
+    // 用户看到的现象正是「有译文但没有对应原文 / 末尾少一段」。
+    // 现在把摘监听挪到「等转写任务跑完」之后（见下面 Step 2.5）。
 
     // Step 2: Signal transcription workers to finish processing ALL queued chunks
     let _ = app.emit(
@@ -937,8 +1091,10 @@ pub async fn stop_recording<R: Runtime>(
         // Wait up to 10 minutes for transcription completion to prevent indefinite hangs
         match tokio::time::timeout(
             tokio::time::Duration::from_secs(600), // 10 minutes max
-            task_handle
-        ).await {
+            task_handle,
+        )
+        .await
+        {
             Ok(Ok(())) => {
                 info!("✅ ALL transcription chunks processed successfully - no data lost");
             }
@@ -958,6 +1114,103 @@ pub async fn stop_recording<R: Runtime>(
         info!("ℹ️ No transcription task found to wait for");
     }
 
+    // Step 2.5: 转写任务已结束 → 现在才摘 transcript-update 监听（见 Step 1.5 的说明：
+    // 收尾阶段 flow.finish() 还会提交最后几个单元，必须让监听活到那一刻）。
+    {
+        use tauri::Listener;
+        if let Some(listener_id) = TRANSCRIPT_LISTENER_ID.lock().unwrap().take() {
+            app.unlisten(listener_id);
+            info!("✅ Transcript-update listener removed（收尾单元已全部落盘）");
+        }
+    }
+
+    // Step 2.6: 排空翻译队列（2026-09-24）。尾部几个单元的定稿译文是在转写收尾
+    // （Step 2 的 flow.finish()）时才入队的，翻译 worker 异步消费——不等它跑完，
+    // 下面的写库 / 写 transcripts.json / emit recording-stopped 都拿不到尾部译文，
+    // 历史记录里末尾几段会永久缺译文（前端收到 recording-stopped 时 store 里也没有）。
+    if crate::translation::TRANSLATION_ENABLED.load(Ordering::SeqCst) {
+        if crate::translation::drain_pending_translations(std::time::Duration::from_secs(20))
+            .await
+        {
+            info!("✅ 翻译队列已排空，最终译文随段落持久化");
+        } else {
+            warn!("⏱️ 翻译队列排空等待超时（20s），尾部段落的译文可能缺失");
+        }
+
+        // Step 2.7: 补译缺失的定稿译文（2026-09-27，B2；2026-09-28 改为多轮收敛）。
+        // drain 只保证「队列里的」任务跑完；**失败的**定稿翻译（如网关 429、清洗后为空）
+        // 不在队列里也没人管——2026-09-26 晚一次 20 分钟录音因此永久丢失 27 段译文。
+        // 这里把「本应翻译但 FINAL_TRANSLATIONS 里没有」的段落重新入队，循环补译：
+        // 每轮 drain 后重新清点，收敛（无缺失或无进展）或达到轮数上限（3 轮）才停。
+        // 只在远程引擎下做：429/撞并发是网关特有的失败形态；本地/自定义引擎的失败
+        // 语义不同（本地失败重发多半再失败），不动它们的行为。
+        // 上限后仍缺的段落打 WARN 列出 seq —— 停止流程不能无限等。
+        if crate::translation::current_engine() == "remote" {
+            const MAX_RETRANSLATE_ROUNDS: usize = 3;
+            let segment_pairs: Vec<(u64, String)> = manager_for_cleanup
+                .as_ref()
+                .map(|m| {
+                    m.get_transcript_segments()
+                        .into_iter()
+                        .map(|s| (s.sequence_id, s.text))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut prev_missing_count = usize::MAX;
+            for round in 1..=MAX_RETRANSLATE_ROUNDS {
+                let missing = crate::translation::missing_final_translations(&segment_pairs);
+                if missing.is_empty() {
+                    if round > 1 {
+                        info!("✅ 补译完成，全部段落已有定稿译文");
+                    }
+                    break;
+                }
+                // 无进展收敛：上一轮补译后缺失数没减少（全是重试后仍失败/仍空的段落），
+                // 再补同样的轮次也不会有变化，提前停。
+                if missing.len() >= prev_missing_count {
+                    let seqs: Vec<u64> = missing.iter().map(|(s, _)| *s).collect();
+                    warn!(
+                        "⚠️ 补译第 {} 轮后无进展，仍缺定稿译文的段落 seq={:?}（这些段落的历史记录将没有译文）",
+                        round - 1,
+                        seqs
+                    );
+                    break;
+                }
+                info!(
+                    "🔄 停止录音：{} 个段落缺失定稿译文，重新入队补译（第 {}/{} 轮）",
+                    missing.len(),
+                    round,
+                    MAX_RETRANSLATE_ROUNDS
+                );
+                for (seq, text) in &missing {
+                    crate::translation::queue_translation(&app, text, *seq);
+                }
+                if !crate::translation::drain_pending_translations(
+                    std::time::Duration::from_secs(20),
+                )
+                .await
+                {
+                    warn!("⏱️ 补译第 {} 轮排空等待超时（20s）", round);
+                }
+                prev_missing_count = missing.len();
+                if round == MAX_RETRANSLATE_ROUNDS {
+                    let still_missing =
+                        crate::translation::missing_final_translations(&segment_pairs);
+                    if !still_missing.is_empty() {
+                        let seqs: Vec<u64> = still_missing.iter().map(|(s, _)| *s).collect();
+                        warn!(
+                            "⚠️ 补译已达轮数上限（{} 轮），仍缺定稿译文的段落 seq={:?}（这些段落的历史记录将没有译文）",
+                            MAX_RETRANSLATE_ROUNDS,
+                            seqs
+                        );
+                    } else {
+                        info!("✅ 补译完成，全部段落已有定稿译文");
+                    }
+                }
+            }
+        }
+    }
+
     // Step 3: Now safely unload Whisper model after ALL chunks are processed
     let _ = app.emit(
         "recording-shutdown-progress",
@@ -973,11 +1226,7 @@ pub async fn stop_recording<R: Runtime>(
     // Determine which provider was used and unload the appropriate model (with timeout)
     let config = match tokio::time::timeout(
         tokio::time::Duration::from_secs(30), // 30 seconds max for DB operation
-        crate::api::api::api_get_transcript_config(
-            app.clone(),
-            app.clone().state(),
-            None,
-        )
+        crate::api::api::api_get_transcript_config(app.clone(), app.clone().state(), None),
     )
     .await
     {
@@ -1010,38 +1259,45 @@ pub async fn stop_recording<R: Runtime>(
     );
 
     // Perform final cleanup with the manager if available
-    let (meeting_folder, meeting_name) = if let Some(mut manager) = manager_for_cleanup {
-        info!("🧹 Performing final cleanup and saving recording data");
+    let (meeting_folder, meeting_name, raw_segments, recording_seconds) =
+        if let Some(mut manager) = manager_for_cleanup {
+            info!("🧹 Performing final cleanup and saving recording data");
 
-        // Extract meeting info BEFORE async operations
-        let meeting_folder = manager.get_meeting_folder();
-        let meeting_name = manager.get_meeting_name();
+            // Extract meeting info BEFORE async operations
+            let meeting_folder = manager.get_meeting_folder();
+            let meeting_name = manager.get_meeting_name();
+            // 段落与时长也要在保存**之前**取：保存流程可能会重置内部状态
+            let segments_snapshot = manager.get_transcript_segments();
+            let duration_snapshot = manager.get_active_recording_duration().unwrap_or(0.0);
 
-        match tokio::time::timeout(
-            tokio::time::Duration::from_secs(300), // 5 minutes max for file I/O
-            manager.save_recording_only(&app)
-        ).await {
-            Ok(Ok(_)) => {
-                info!("✅ Recording data saved successfully during cleanup");
+            match tokio::time::timeout(
+                tokio::time::Duration::from_secs(300), // 5 minutes max for file I/O
+                manager.save_recording_only(&app),
+            )
+            .await
+            {
+                Ok(Ok(_)) => {
+                    info!("✅ Recording data saved successfully during cleanup");
+                }
+                Ok(Err(e)) => {
+                    warn!(
+                        "⚠️ Error during recording cleanup (transcripts preserved): {}",
+                        e
+                    );
+                    // Don't fail shutdown - transcripts are already preserved
+                }
+                Err(_) => {
+                    warn!("⏱️ File I/O timeout (5 minutes) reached during save, continuing shutdown");
+                    // Don't fail shutdown - transcripts are already preserved
+                }
             }
-            Ok(Err(e)) => {
-                warn!(
-                    "⚠️ Error during recording cleanup (transcripts preserved): {}",
-                    e
-                );
-                // Don't fail shutdown - transcripts are already preserved
-            }
-            Err(_) => {
-                warn!("⏱️ File I/O timeout (5 minutes) reached during save, continuing shutdown");
-                // Don't fail shutdown - transcripts are already preserved
-            }
-        }
 
-        (meeting_folder, meeting_name)
-    } else {
-        info!("ℹ️ No recording manager available for cleanup");
-        (None, None)
-    };
+            // 原始段落（未经前端「按段落合并」）+ 时长：稍后写一份到历史库兜底
+            (meeting_folder, meeting_name, segments_snapshot, duration_snapshot)
+        } else {
+            info!("ℹ️ No recording manager available for cleanup");
+            (None, None, Vec::new(), 0.0)
+        };
 
     // Set recording flag to false
     info!("🔍 Setting IS_RECORDING to false");
@@ -1054,10 +1310,7 @@ pub async fn stop_recording<R: Runtime>(
     // NOTE: We do NOT save to database here. The frontend will save after all transcripts are displayed.
     // This ensures the user sees all transcripts streaming in before the database save happens.
     let (folder_path_str, meeting_name_str) = match (&meeting_folder, &meeting_name) {
-        (Some(path), Some(name)) => (
-            Some(path.to_string_lossy().to_string()),
-            Some(name.clone()),
-        ),
+        (Some(path), Some(name)) => (Some(path.to_string_lossy().to_string()), Some(name.clone())),
         _ => (None, None),
     };
 
@@ -1065,8 +1318,29 @@ pub async fn stop_recording<R: Runtime>(
     info!("   folder_path: {:?}", folder_path_str);
     info!("   meeting_name: {:?}", meeting_name_str);
 
-    // Database save removed - frontend will handle this after receiving all transcripts
-    info!("ℹ️ Skipping database save in Rust - frontend will save after all transcripts received");
+    // 历史记录兜底写库（2026-09-24）：
+    // 原来这里**完全不写库**，只靠前端收到 recording-stopped 之后保存 →
+    // 「不在录音页/主窗口不在跑时从托盘停止录音」会没有任何历史记录
+    // （audio.mp4 与 transcripts.json 都在磁盘上，库里却没有行，用户在历史里找不到）。
+    // 现在 Rust 先写一份**原始段落**（幂等，见 replace_segments），前端随后用
+    // 「按段落合并」的版本整体替换同一行 —— 两个写入方都不再是唯一依赖。
+    if let (Some(folder), Some(name)) = (folder_path_str.as_deref(), meeting_name_str.as_deref()) {
+        let last_segment_secs = raw_segments
+            .iter()
+            .map(|s| s.audio_end_time)
+            .fold(0.0_f64, f64::max);
+        let secs = if recording_seconds > 0.0 {
+            recording_seconds
+        } else {
+            last_segment_secs
+        };
+        let duration_ms = if secs > 0.0 {
+            Some((secs * 1000.0).round() as i64)
+        } else {
+            None
+        };
+        persist_recording_to_history_db(&app, folder, name, duration_ms, &raw_segments).await;
+    }
 
     // Step 5: Complete shutdown
     let _ = app.emit(
@@ -1094,6 +1368,93 @@ pub async fn stop_recording<R: Runtime>(
 
     info!("🎉 Recording stopped successfully with ZERO transcript chunks lost");
     Ok(())
+}
+
+/// 停止录音时把这条录音写进历史库（页面无关的兜底，2026-09-24）。
+///
+/// 为什么需要：历史库的行原来只由**前端**在收到 `recording-stopped` 之后创建
+/// （`api_save_transcript`）。只要那一刻前端不在跑（用户在别的页面 / webview 被节流 /
+/// 从托盘停止），这条录音就**完全不会出现在历史里** —— 文件都在，只是库里没有行。
+///
+/// 语义：
+/// * 按 `folder_path` 复用已有行（前端随后写合并版本时也走同一行，不会出现两条）；
+/// * 段落用 `replace_segments` **整体替换**（幂等，重复调用不会撞主键）；
+/// * 任何失败只记日志：绝不因为写库失败影响停止录音。
+async fn persist_recording_to_history_db<R: Runtime>(
+    app: &AppHandle<R>,
+    folder_path: &str,
+    title: &str,
+    duration_ms: Option<i64>,
+    segments: &[crate::audio::recording_saver::TranscriptSegment],
+) {
+    use crate::database::models::{DateTimeUtc, TranscriptSegment as DbSegment};
+    use crate::database::repositories::recording::RecordingsRepository;
+    use crate::database::repositories::transcript_segment::TranscriptSegmentsRepository;
+
+    let state = app.state::<crate::state::AppState>();
+    let pool = state.db_manager.pool();
+
+    let recording_id = match RecordingsRepository::get_by_folder_path(pool, folder_path).await {
+        Ok(Some(rec)) => rec.id,
+        Ok(None) => {
+            match RecordingsRepository::create_recording(
+                pool,
+                title,
+                duration_ms,
+                None,
+                Some("realtime"),
+                None,
+                Some(folder_path),
+            )
+            .await
+            {
+                Ok(id) => id,
+                Err(e) => {
+                    log::error!("停止录音写历史库失败（create_recording）: {}", e);
+                    return;
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("停止录音写历史库失败（按 folder 查历史行）: {}", e);
+            return;
+        }
+    };
+
+    let db_segments: Vec<DbSegment> = segments
+        .iter()
+        .map(|s| DbSegment {
+            // 与前端 api_save_transcript 的 id 口径一致（seg_<sequence_id>），
+            // 这样前端随后整体替换时不会留下两份
+            id: if s.id.is_empty() {
+                format!("seg_{}", s.sequence_id)
+            } else {
+                s.id.clone()
+            },
+            recording_id: recording_id.clone(),
+            text: s.text.clone(),
+            start_ms: (s.audio_start_time * 1000.0).round() as i64,
+            end_ms: if s.audio_end_time > 0.0 {
+                Some((s.audio_end_time * 1000.0).round() as i64)
+            } else {
+                None
+            },
+            speaker: None,
+            source: Some("realtime".to_string()),
+            // 此刻翻译队列已排空（见 stop_recording Step 2.6），取最终译文
+            translation: crate::translation::final_translation(s.sequence_id).unwrap_or_default(),
+            created_at: DateTimeUtc(chrono::Utc::now()),
+        })
+        .collect();
+
+    match TranscriptSegmentsRepository::replace_segments(pool, &recording_id, &db_segments).await {
+        Ok(()) => log::info!(
+            "💾 停止录音：历史记录已写库 recording_id={} segments={}（前端稍后会用合并版本覆盖）",
+            recording_id,
+            db_segments.len()
+        ),
+        Err(e) => log::error!("停止录音写历史库失败（replace_segments）: {}", e),
+    }
 }
 
 /// Check if recording is active
@@ -1228,7 +1589,9 @@ pub async fn get_recording_state() -> serde_json::Value {
 pub async fn get_meeting_folder_path() -> Result<Option<String>, String> {
     let manager_guard = RECORDING_MANAGER.lock().unwrap();
     if let Some(manager) = manager_guard.as_ref() {
-        Ok(manager.get_meeting_folder().map(|p| p.to_string_lossy().to_string()))
+        Ok(manager
+            .get_meeting_folder()
+            .map(|p| p.to_string_lossy().to_string()))
     } else {
         Ok(None)
     }
@@ -1237,7 +1600,8 @@ pub async fn get_meeting_folder_path() -> Result<Option<String>, String> {
 /// Get accumulated transcript segments from current recording session
 /// Used for syncing frontend state after page reload during active recording
 #[tauri::command]
-pub async fn get_transcript_history() -> Result<Vec<crate::audio::recording_saver::TranscriptSegment>, String> {
+pub async fn get_transcript_history(
+) -> Result<Vec<crate::audio::recording_saver::TranscriptSegment>, String> {
     let manager_guard = RECORDING_MANAGER.lock().unwrap();
 
     if let Some(manager) = manager_guard.as_ref() {
@@ -1290,7 +1654,10 @@ pub async fn set_mic_mute<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Resul
             manager.unmute_microphone();
         }
         let new_state = manager.is_mic_muted();
-        let _ = app.emit("mic-mute-changed", serde_json::json!({ "muted": new_state }));
+        let _ = app.emit(
+            "mic-mute-changed",
+            serde_json::json!({ "muted": new_state }),
+        );
         Ok(new_state)
     } else {
         Err("No active recording".to_string())
@@ -1314,7 +1681,10 @@ pub async fn toggle_mic_mute<R: Runtime>(app: AppHandle<R>) -> Result<bool, Stri
     let manager_guard = RECORDING_MANAGER.lock().unwrap();
     if let Some(manager) = manager_guard.as_ref() {
         let new_state = manager.toggle_mic_mute();
-        let _ = app.emit("mic-mute-changed", serde_json::json!({ "muted": new_state }));
+        let _ = app.emit(
+            "mic-mute-changed",
+            serde_json::json!({ "muted": new_state }),
+        );
         Ok(new_state)
     } else {
         Err("No active recording".to_string())
@@ -1343,18 +1713,20 @@ pub enum DeviceEventResponse {
 impl From<DeviceEvent> for DeviceEventResponse {
     fn from(event: DeviceEvent) -> Self {
         match event {
-            DeviceEvent::DeviceDisconnected { device_name, device_type } => {
-                DeviceEventResponse::DeviceDisconnected {
-                    device_name,
-                    device_type: format!("{:?}", device_type),
-                }
-            }
-            DeviceEvent::DeviceReconnected { device_name, device_type } => {
-                DeviceEventResponse::DeviceReconnected {
-                    device_name,
-                    device_type: format!("{:?}", device_type),
-                }
-            }
+            DeviceEvent::DeviceDisconnected {
+                device_name,
+                device_type,
+            } => DeviceEventResponse::DeviceDisconnected {
+                device_name,
+                device_type: format!("{:?}", device_type),
+            },
+            DeviceEvent::DeviceReconnected {
+                device_name,
+                device_type,
+            } => DeviceEventResponse::DeviceReconnected {
+                device_name,
+                device_type: format!("{:?}", device_type),
+            },
             DeviceEvent::DeviceListChanged => DeviceEventResponse::DeviceListChanged,
         }
     }
@@ -1401,12 +1773,12 @@ pub async fn get_reconnection_status() -> Result<ReconnectionStatus, String> {
 
     if let Some(manager) = manager_guard.as_ref() {
         let state = manager.get_state();
-        let disconnected_device = state.get_disconnected_device().map(|(device, device_type)| {
-            DisconnectedDeviceInfo {
+        let disconnected_device = state
+            .get_disconnected_device()
+            .map(|(device, device_type)| DisconnectedDeviceInfo {
                 name: device.name.clone(),
                 device_type: format!("{:?}", device_type),
-            }
-        });
+            });
 
         Ok(ReconnectionStatus {
             is_reconnecting: manager.is_reconnecting(),
@@ -1457,7 +1829,9 @@ pub async fn attempt_device_reconnect(
         tokio::runtime::Handle::current().block_on(async {
             let mut manager_guard = RECORDING_MANAGER.lock().unwrap();
             if let Some(manager) = manager_guard.as_mut() {
-                manager.attempt_device_reconnect(&device_name, monitor_type).await
+                manager
+                    .attempt_device_reconnect(&device_name, monitor_type)
+                    .await
             } else {
                 Err(anyhow::anyhow!("Recording not active"))
             }

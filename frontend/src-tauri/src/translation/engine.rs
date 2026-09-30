@@ -27,8 +27,8 @@ pub const REQUIRED_FILES: &[&str] = &[ENCODER_FILE, DECODER_FILE, TOKENIZER_FILE
 /// Since the charsmap is null anyway, dropping the normalizer is a no-op
 /// semantically — the Metaspace pre-tokenizer still handles the ▁ marker.
 fn load_tokenizer(path: &Path) -> Result<Tokenizer> {
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| anyhow!("读取 tokenizer.json 失败: {}", e))?;
+    let text =
+        std::fs::read_to_string(path).map_err(|e| anyhow!("读取 tokenizer.json 失败: {}", e))?;
     let mut value: serde_json::Value =
         serde_json::from_str(&text).map_err(|e| anyhow!("解析 tokenizer.json 失败: {}", e))?;
     if value
@@ -39,7 +39,8 @@ fn load_tokenizer(path: &Path) -> Result<Tokenizer> {
     {
         value["normalizer"] = serde_json::Value::Null;
     }
-    let patched = serde_json::to_string(&value).map_err(|e| anyhow!("重写 tokenizer.json 失败: {}", e))?;
+    let patched =
+        serde_json::to_string(&value).map_err(|e| anyhow!("重写 tokenizer.json 失败: {}", e))?;
     Tokenizer::from_bytes(patched.as_bytes()).map_err(|e| anyhow!("加载翻译 tokenizer 失败: {}", e))
 }
 
@@ -102,7 +103,9 @@ impl OpusMtEngine {
         let cfg_path = dir.join(GENERATION_CONFIG_FILE);
         if let Ok(text) = std::fs::read_to_string(&cfg_path) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
-                decoder_start = v["decoder_start_token_id"].as_i64().unwrap_or(decoder_start);
+                decoder_start = v["decoder_start_token_id"]
+                    .as_i64()
+                    .unwrap_or(decoder_start);
                 eos = v["eos_token_id"].as_i64().unwrap_or(eos);
             }
         }
@@ -269,7 +272,10 @@ impl OpusMtEngine {
         let use_cache = Tensor::from_array((vec![1i64], vec![!first_step]))
             .map_err(|e| anyhow!("创建 use_cache_branch 失败: {}", e))?;
 
-        let mut inputs: Vec<(std::borrow::Cow<'_, str>, ort::session::SessionInputValue<'_>)> = vec![
+        let mut inputs: Vec<(
+            std::borrow::Cow<'_, str>,
+            ort::session::SessionInputValue<'_>,
+        )> = vec![
             ("input_ids".into(), dec_ids.into()),
             ("encoder_hidden_states".into(), enc_hs.into()),
             ("use_cache_branch".into(), use_cache.into()),
@@ -348,7 +354,10 @@ impl OpusMtEngine {
         let empty12: Vec<(Vec<i64>, Vec<f32>)> =
             (0..12).map(|_| (vec![1, 8, 0, 64], Vec::new())).collect();
         let allocator = ort::memory::Allocator::default();
-        let has_enc_mask = decoder.inputs.iter().any(|i| i.name == "encoder_attention_mask");
+        let has_enc_mask = decoder
+            .inputs
+            .iter()
+            .any(|i| i.name == "encoder_attention_mask");
 
         let mut dec_past = empty12.clone();
         let mut enc_past = empty12;
@@ -357,7 +366,14 @@ impl OpusMtEngine {
 
         for step in 0..self.max_new_tokens {
             let so = self.decoder_step(
-                decoder, ctx, prev, &dec_past, &enc_past, step == 0, has_enc_mask, &allocator,
+                decoder,
+                ctx,
+                prev,
+                &dec_past,
+                &enc_past,
+                step == 0,
+                has_enc_mask,
+                &allocator,
             )?;
             dec_past = so.decoder_past;
             if let Some(ep) = so.encoder_past {
@@ -382,11 +398,19 @@ impl OpusMtEngine {
     /// Beam search 解码（num_beams + 长度归一化打分）。
     /// 相比贪心能显著减少多句输入下的"欠翻译"（丢句）问题——
     /// 这也是模型 generation_config 推荐的解码方式（num_beams + renormalize_logits）。
-    fn beam_decode(&self, decoder: &mut Session, ctx: &DecodeCtx, beam_size: usize) -> Result<Vec<i64>> {
+    fn beam_decode(
+        &self,
+        decoder: &mut Session,
+        ctx: &DecodeCtx,
+        beam_size: usize,
+    ) -> Result<Vec<i64>> {
         let empty12: Vec<(Vec<i64>, Vec<f32>)> =
             (0..12).map(|_| (vec![1, 8, 0, 64], Vec::new())).collect();
         let allocator = ort::memory::Allocator::default();
-        let has_enc_mask = decoder.inputs.iter().any(|i| i.name == "encoder_attention_mask");
+        let has_enc_mask = decoder
+            .inputs
+            .iter()
+            .any(|i| i.name == "encoder_attention_mask");
 
         let mut enc_past = empty12.clone();
         let mut enc_ready = false;
@@ -409,11 +433,8 @@ impl OpusMtEngine {
                 break;
             }
             // (parent_shared_past, tokens, score)
-            let mut expansions: Vec<(
-                std::rc::Rc<Vec<(Vec<i64>, Vec<f32>)>>,
-                Vec<i64>,
-                f32,
-            )> = Vec::new();
+            let mut expansions: Vec<(std::rc::Rc<Vec<(Vec<i64>, Vec<f32>)>>, Vec<i64>, f32)> =
+                Vec::new();
 
             for beam in &beams {
                 let prev = beam
@@ -477,8 +498,16 @@ impl OpusMtEngine {
             return Ok(finished[0].0.clone());
         }
         // 没有完成的 beam：取原始分最高的未完成 beam
-        beams.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-        Ok(beams.into_iter().next().map(|b| b.tokens).unwrap_or_default())
+        beams.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        Ok(beams
+            .into_iter()
+            .next()
+            .map(|b| b.tokens)
+            .unwrap_or_default())
     }
 }
 
@@ -513,11 +542,15 @@ fn top_k(lsm: &[f32], k: usize) -> Vec<(i64, f32)> {
     }
     let mut idx: Vec<usize> = (0..lsm.len()).collect();
     idx.select_nth_unstable_by(k - 1, |&a, &b| {
-        lsm[b].partial_cmp(&lsm[a]).unwrap_or(std::cmp::Ordering::Equal)
+        lsm[b]
+            .partial_cmp(&lsm[a])
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
     let mut top: Vec<usize> = idx[..k].to_vec();
     top.sort_unstable_by(|&a, &b| {
-        lsm[b].partial_cmp(&lsm[a]).unwrap_or(std::cmp::Ordering::Equal)
+        lsm[b]
+            .partial_cmp(&lsm[a])
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
     top.into_iter().map(|i| (i as i64, lsm[i])).collect()
 }
@@ -539,7 +572,11 @@ fn split_at_sentence_middle(text: &str) -> Option<(&str, &str)> {
         let next = char_indices.get(i + 1).map(|(_, c)| *c);
         match next {
             None => boundaries.push(text.len()),
-            Some(n) if n.is_whitespace() || matches!(n, '"' | '\u{201D}' | '\u{300D}' | '\u{FF09}' | '」' | '）') || (n as u32) >= 0x4E00 => {
+            Some(n)
+                if n.is_whitespace()
+                    || matches!(n, '"' | '\u{201D}' | '\u{300D}' | '\u{FF09}' | '」' | '）')
+                    || (n as u32) >= 0x4E00 =>
+            {
                 boundaries.push(byte_idx + c.len_utf8())
             }
             _ => {}
@@ -596,7 +633,9 @@ mod tests {
             return;
         }
         let engine = OpusMtEngine::load(&dir).expect("load zh-en engine");
-        let out = engine.translate("你好，世界。今天天气很好。").expect("translate zh-en");
+        let out = engine
+            .translate("你好，世界。今天天气很好。")
+            .expect("translate zh-en");
         eprintln!("zh-en output: {}", out);
         assert!(!out.trim().is_empty());
     }
@@ -627,7 +666,12 @@ mod tests {
         let text = "Thank you so much. I am still fired up and ready to go. First of all, I want to congratulate everyone on a hard fought victory here. A few weeks ago, no one imagined that we would accomplish what we did here tonight. No one could have imagined it. For most of this campaign, we were far behind, and we always knew our climb would be steep.";
         let start = std::time::Instant::now();
         let out = engine.translate(text).expect("beam translate long text");
-        eprintln!("beam=3 long-text ({} chars, {:?}): {}", out.chars().count(), start.elapsed(), out);
+        eprintln!(
+            "beam=3 long-text ({} chars, {:?}): {}",
+            out.chars().count(),
+            start.elapsed(),
+            out
+        );
         assert!(!out.trim().is_empty());
         assert!(start.elapsed().as_secs() < 90, "beam translation too slow");
     }

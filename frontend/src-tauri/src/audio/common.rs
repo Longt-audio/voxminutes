@@ -15,24 +15,133 @@ pub(crate) async fn unload_engine_after_batch() {
     log::info!("Batch job complete - Sherpa-ONNX engine remains loaded");
 }
 
+/// 离线转写的一条结果（文本 + 毫秒时间戳 + 说话人编号）。
+pub(crate) struct TranscriptEntry {
+    pub text: String,
+    pub start_ms: f64,
+    pub end_ms: f64,
+    pub speaker: String,
+}
+
+/// 单条上游分句超过该字数就按句末标点再切（2026-09-24）。
+///
+/// 为什么需要：离线批量识别的分句粒度**完全由上游决定**，而上游是按**停顿**切分句的。
+/// Deepgram 批量实测：一段 39 秒连续说话（电影访谈，中间没有 >0.8s 的停顿）被切成
+/// **一条 664 字**的 utterance（内部其实有十几句话），落库后就是一条巨型段落
+/// （`transcripts_offline.json` 段#1，同一段音频实时链路只有 ~100 字段落）。
+/// 上游分句不可控，所以在落段前按句末标点兜底切一次，让离线结果与实时结果体量一致
+/// （实时链路的活跃单元上限是 12/20 秒，实测段落 ≤ ~250 字）。
+const OFFLINE_MAX_ENTRY_CHARS: usize = 200;
+
+/// 按句末标点把过长的分句切成多段（时间戳按字数比例分摊）。
+///
+/// 只在「超过阈值」时才动，且不改变文本内容（切分处保留标点），说话人沿用原值。
+fn split_long_entry(e: &TranscriptEntry) -> Vec<TranscriptEntry> {
+    let text = e.text.trim();
+    let chars = text.chars().count();
+    if chars <= OFFLINE_MAX_ENTRY_CHARS {
+        return vec![TranscriptEntry {
+            text: text.to_string(),
+            start_ms: e.start_ms,
+            end_ms: e.end_ms,
+            speaker: e.speaker.clone(),
+        }];
+    }
+
+    // 按句末标点切成「句子」（标点跟在前句尾部）
+    let mut sentences: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for ch in text.chars() {
+        cur.push(ch);
+        if matches!(ch, '.' | '?' | '!' | '。' | '？' | '！' | '…' | ';' | '；') {
+            let t = cur.trim();
+            if !t.is_empty() {
+                sentences.push(t.to_string());
+            }
+            cur.clear();
+        }
+    }
+    if !cur.trim().is_empty() {
+        sentences.push(cur.trim().to_string());
+    }
+    if sentences.len() <= 1 {
+        // 整段没有句末标点：切不动就不切（宁可不切也不要切断词）
+        return vec![TranscriptEntry {
+            text: text.to_string(),
+            start_ms: e.start_ms,
+            end_ms: e.end_ms,
+            speaker: e.speaker.clone(),
+        }];
+    }
+
+    // 贪心合并到接近阈值；单句超阈值就单独成段
+    let mut groups: Vec<Vec<String>> = Vec::new();
+    let mut buf: Vec<String> = Vec::new();
+    let mut buf_chars = 0usize;
+    for s in sentences {
+        let n = s.chars().count();
+        if !buf.is_empty() && buf_chars + n > OFFLINE_MAX_ENTRY_CHARS {
+            groups.push(std::mem::take(&mut buf));
+            buf_chars = 0;
+        }
+        buf.push(s);
+        buf_chars += n;
+    }
+    if !buf.is_empty() {
+        groups.push(buf);
+    }
+
+    // 时间戳按累计字数比例分摊（近似对齐；播放跳转够用）
+    let span = (e.end_ms - e.start_ms).max(0.0);
+    let mut out = Vec::with_capacity(groups.len());
+    let mut consumed = 0usize;
+    for g in groups {
+        let g_text = g.join(" ");
+        let g_chars = g_text.chars().count();
+        let start = e.start_ms + span * (consumed as f64 / chars as f64);
+        consumed += g_chars;
+        let end = e.start_ms + span * (consumed as f64 / chars as f64);
+        out.push(TranscriptEntry {
+            text: g_text,
+            start_ms: start,
+            end_ms: end.max(start),
+            speaker: e.speaker.clone(),
+        });
+        // 合并时插入的空格不计入原字数，累计作微调
+        consumed += g.len().saturating_sub(g_chars);
+        out.last_mut().unwrap().end_ms = e.start_ms + span * ((consumed.min(chars)) as f64 / chars as f64);
+    }
+    out
+}
+
 /// Create transcript segments from transcription results.
-/// Each tuple is (text, start_ms, end_ms) from VAD timestamps.
-pub(crate) fn create_transcript_segments(transcripts: &[(String, f64, f64)]) -> Vec<TranscriptSegment> {
+/// Each entry is (text, start_ms, end_ms, speaker) from VAD timestamps（说话人可为空串）。
+/// 过长的上游分句会先按句末标点兜底切分（见 `split_long_entry`）。
+pub(crate) fn create_transcript_segments(
+    transcripts: &[TranscriptEntry],
+) -> Vec<TranscriptSegment> {
     transcripts
         .iter()
-        .map(|(text, start_ms, end_ms)| {
-            let start_seconds = start_ms / 1000.0;
-            let end_seconds = end_ms / 1000.0;
+        .flat_map(|e| split_long_entry(e))
+        .map(|e| {
+            let start_seconds = e.start_ms / 1000.0;
+            let end_seconds = e.end_ms / 1000.0;
             let duration = end_seconds - start_seconds;
 
             TranscriptSegment {
                 id: format!("transcript-{}", Uuid::new_v4()),
-                text: text.trim().to_string(),
+                text: e.text.trim().to_string(),
                 timestamp: Some(chrono::Utc::now().to_rfc3339()),
                 display_time: None,
                 audio_start_time: Some(start_seconds),
                 audio_end_time: Some(end_seconds),
                 duration: Some(duration),
+                speaker: if e.speaker.is_empty() {
+                    None
+                } else {
+                    Some(e.speaker.clone())
+                },
+                translation: None,
             }
         })
         .collect()
@@ -55,7 +164,8 @@ pub(crate) fn write_transcripts_json(folder: &Path, segments: &[TranscriptSegmen
                 "audio_start_time": s.audio_start_time,
                 "audio_end_time": s.audio_end_time,
                 "duration": s.duration,
-                "sequence_id": i
+                "sequence_id": i,
+                "translation": s.translation
             })
         }).collect::<Vec<_>>()
     });
@@ -96,8 +206,8 @@ pub(crate) fn split_segment_at_silence(
         return vec![segment.clone()];
     }
 
-    let ms_per_sample = (segment.end_timestamp_ms - segment.start_timestamp_ms)
-        / segment.samples.len() as f64;
+    let ms_per_sample =
+        (segment.end_timestamp_ms - segment.start_timestamp_ms) / segment.samples.len() as f64;
     let mut result = Vec::new();
     let mut pos = 0usize;
 
@@ -175,7 +285,7 @@ pub(crate) fn split_segment_at_silence(
 
 #[cfg(test)]
 mod tests {
-    use super::split_segment_at_silence;
+    use super::{split_long_entry, split_segment_at_silence, TranscriptEntry, OFFLINE_MAX_ENTRY_CHARS};
     use crate::audio::vad::SpeechSegment;
 
     /// Over-long segments (real-time SenseVoice path) must be split into parts
@@ -244,5 +354,78 @@ mod tests {
         assert_eq!(parts[0].samples.len(), segment.samples.len());
         assert_eq!(parts[0].start_timestamp_ms, 500.0);
         assert_eq!(parts[0].end_timestamp_ms, 10500.0);
+    }
+
+    // ── 离线分句兜底切分（2026-09-24）─────────────────────────────────────────
+    // 真实数据：Deepgram 批量把 39 秒连续说话（内含十几句）切成**一条 664 字**的 utterance，
+    // 落库后成为 transcripts_offline.json 里的巨型段落（详见 split_long_entry 注释）。
+
+    #[test]
+    fn long_offline_entry_is_split_at_sentence_boundaries() {
+        // 用真实那条 664 字段落的开头部分构造（含 "Eight." 这类上游错听，不影响切分）
+        let src = "Eight. I know. I'm really sorry about it. And where is Paulo? Send in Paulo. \
+Regina, mi. Bonjour. We're so pleased you could make yourself available to be here. I'm sorry. \
+I just have to pause there and say how radiant is Julie Andrews. I was 17 years old when we made this, \
+and so I hadn't met as many people yet in in my life. And so I knew Gary Marshall was really special, \
+and I knew Julie Andrews was really special. But now sitting here watching this from this point of view, \
+they are two of the most magical people I have ever met. This was the film that changed my life.";
+        let entry = TranscriptEntry {
+            text: src.to_string(),
+            start_ms: 10_980.0,
+            end_ms: 49_755.0,
+            speaker: "1".to_string(),
+        };
+        assert!(src.chars().count() > OFFLINE_MAX_ENTRY_CHARS, "用例本身要够长");
+
+        let parts = split_long_entry(&entry);
+        assert!(parts.len() >= 3, "664 字应被切成多段，实际 {}", parts.len());
+        for p in &parts {
+            assert!(
+                p.text.chars().count() <= OFFLINE_MAX_ENTRY_CHARS + 40,
+                "切分后仍有过长段落：{} 字",
+                p.text.chars().count()
+            );
+            assert_eq!(p.speaker, "1", "说话人应沿用原值");
+        }
+        // 时间戳单调不减、且落在原区间内
+        let mut prev_end = entry.start_ms;
+        for p in &parts {
+            assert!(p.start_ms >= entry.start_ms - 1e-6, "起点越界");
+            assert!(p.start_ms >= prev_end - 1e-6, "时间戳应单调不减");
+            assert!(p.end_ms >= p.start_ms, "结束应不早于开始");
+            assert!(p.end_ms <= entry.end_ms + 1e-6, "终点越界");
+            prev_end = p.end_ms;
+        }
+        // 内容不丢：把标点/空白归一化后应完全一致
+        let norm = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).collect::<String>();
+        assert_eq!(norm(&parts.iter().map(|p| p.text.clone()).collect::<Vec<_>>().join(" ")), norm(src));
+    }
+
+    #[test]
+    fn short_offline_entry_is_untouched() {
+        let entry = TranscriptEntry {
+            text: "Hello. I'm Anne Hathaway.".to_string(),
+            start_ms: 0.0,
+            end_ms: 2_000.0,
+            speaker: String::new(),
+        };
+        let parts = split_long_entry(&entry);
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].text, entry.text);
+        assert_eq!(parts[0].start_ms, 0.0);
+        assert_eq!(parts[0].end_ms, 2_000.0);
+    }
+
+    #[test]
+    fn long_entry_without_sentence_punctuation_is_kept() {
+        // 没有任何句末标点 → 宁可不切，也不要在词中间断开
+        let entry = TranscriptEntry {
+            text: "word ".repeat(120).trim().to_string(),
+            start_ms: 0.0,
+            end_ms: 60_000.0,
+            speaker: String::new(),
+        };
+        let parts = split_long_entry(&entry);
+        assert_eq!(parts.len(), 1, "无标点不应强行切分");
     }
 }

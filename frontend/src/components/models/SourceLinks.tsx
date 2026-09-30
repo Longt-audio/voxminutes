@@ -7,7 +7,7 @@ import type { DownloadableModelInfo } from '@/types'
 
 /**
  * 模型下载源直链面板：每个源一行（用此源下载 / 复制链接）。
- * 设置页 ModelDownloadCard 与首启向导 OnboardingDialog 共用。
+ * 设置页 ModelDownloadCard 与欢迎弹窗 WelcomeDialog 共用。
  * 复制链接可粘贴到迅雷 / IDM / aria2 等外部下载器，下完用「导入」安装。
  */
 export function SourceLinksPanel({

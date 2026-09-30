@@ -20,10 +20,21 @@ interface AppState {
   audioLevels: { mic: number; system: number }
   /** VAD 检测到人声但尚未断句（用于「正在识别」提示） */
   vadSpeaking: boolean
+  /**
+   * 识别链路终止原因（2026-09-29）：null = 正常（未录音 / 识别在跑）。
+   * 远程流式 ASR 终止时由 Rust 事件 `transcription-status` 写入：
+   * 'credits'（积分不足）| 'config'（鉴权/配置）| 'unavailable'（重连耗尽）| 'ended'（正常结束，不提示）。
+   * 界面只用来把「● 实时转写中」改成「▲ 识别已停止」，不影响录音本身。
+   */
+  asrStopReason: 'credits' | 'config' | 'unavailable' | 'ended' | null
   /** seq_id → 译文（实时内嵌翻译，最终版） */
   translations: Map<number, string>
   /** seq_id → 流式中的部分译文快照（最终版到达后清除） */
   partialTranslations: Map<number, string>
+  /** paragraph_id → 该段首个单元首次到达的墙钟时刻（Date.now()），段首时间显示/落库基准用 */
+  paragraphStarts: Record<number, number>
+  /** paragraph_id → 该段单元最近一次到达的墙钟时刻（落库 end_ms 用） */
+  paragraphEnds: Record<number, number>
   translateEnabled: boolean
   translateTargetLang: TranslateTargetLang
   translationEngine: TranslationEngine
@@ -41,6 +52,7 @@ interface AppState {
   setAsrModelStatus: (s: 'idle' | 'loading' | 'loaded' | 'error') => void
   setRecordingDuration: (s: number) => void
   setMicMuted: (v: boolean) => void
+  setAsrStopReason: (r: 'credits' | 'config' | 'unavailable' | 'ended' | null) => void
   setLatestRecordingId: (id: string | null) => void
   setAudioSpectrum: (v: number[]) => void
   setAudioActive: (v: boolean) => void
@@ -72,8 +84,11 @@ const initialState = {
   audioActive: false,
   audioLevels: { mic: 0, system: 0 },
   vadSpeaking: false,
+  asrStopReason: null,
   translations: new Map<number, string>(),
   partialTranslations: new Map<number, string>(),
+  paragraphStarts: {} as Record<number, number>,
+  paragraphEnds: {} as Record<number, number>,
   translateEnabled: false,
   translateTargetLang: 'zh' as TranslateTargetLang,
   translationEngine: 'opus' as TranslationEngine,
@@ -83,6 +98,8 @@ export const useAppStore = create<AppState>()((set) => ({
   ...initialState,
 
   setRecording: (v) => set({ isRecording: v }),
+  // 开始/停止录音时复位识别状态：新一场录音不该背着上一场的「识别已停止」
+  setAsrStopReason: (r) => set({ asrStopReason: r }),
   setPaused: (v) => set({ isPaused: v }),
   setProcessing: (v) => set({ isProcessing: v }),
 
@@ -98,11 +115,30 @@ export const useAppStore = create<AppState>()((set) => ({
         next = [...state.transcripts, seg]
       }
       next.sort((a, b) => a.sequence_id - b.sequence_id)
-      return { transcripts: next }
+      // 流式段落：记录该段首次/最近到达的墙钟时刻（段首时间显示与落库时间基准）
+      if (seg.paragraph_id == null) return { transcripts: next }
+      const now = Date.now()
+      const paragraphStarts = { ...state.paragraphStarts }
+      if (paragraphStarts[seg.paragraph_id] == null) paragraphStarts[seg.paragraph_id] = now
+      return {
+        transcripts: next,
+        paragraphStarts,
+        paragraphEnds: { ...state.paragraphEnds, [seg.paragraph_id]: now },
+      }
     }),
 
-  clearTranscripts: () => set({ transcripts: [], translations: new Map(), partialTranslations: new Map() }),
-  setModels: (m) => set({ models: m }),
+  clearTranscripts: () =>
+    set({
+      transcripts: [],
+      translations: new Map(),
+      partialTranslations: new Map(),
+      paragraphStarts: {},
+      paragraphEnds: {},
+    }),
+  // 防御：models 会被 RecorderPanel 直接 `.filter()`（无空值保护），
+  // 一旦 IPC 返回 null（命令失败/字段缺失），首页就会整页崩掉。
+  // 这里统一收敛成数组，别把 null 存进 store。
+  setModels: (m) => set({ models: Array.isArray(m) ? m : [] }),
   setSelectedModel: (m) => set({ selectedModel: m }),
   setDefaultDevices: (d) => set({ defaultDevices: d }),
   setMeetingName: (n) => set({ meetingName: n }),

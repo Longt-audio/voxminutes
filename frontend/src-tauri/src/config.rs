@@ -11,10 +11,12 @@ pub const DEFAULT_TRANSLATION_MODEL: &str = "hy-mt2-1.8b";
 pub const TRANSLATION_MODEL_FILENAME: &str = "HY-MT1.5-1.8B-Q4_K_M.gguf";
 
 /// Translation model download URL (HuggingFace — official Tencent Hy-MT2-1.8B-GGUF repo)
-pub const TRANSLATION_MODEL_URL: &str = "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/Hy-MT2-1.8B-Q4_K_M.gguf";
+pub const TRANSLATION_MODEL_URL: &str =
+    "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/Hy-MT2-1.8B-Q4_K_M.gguf";
 
 /// Translation model mirror download URL
-pub const TRANSLATION_MODEL_MIRROR_URL: &str = "https://hf-mirror.com/tencent/Hy-MT2-1.8B-GGUF/resolve/main/Hy-MT2-1.8B-Q4_K_M.gguf";
+pub const TRANSLATION_MODEL_MIRROR_URL: &str =
+    "https://hf-mirror.com/tencent/Hy-MT2-1.8B-GGUF/resolve/main/Hy-MT2-1.8B-Q4_K_M.gguf";
 
 // === Translation inference parameters (official Hy-MT2 for 1.8B) ===
 // Reference: https://huggingface.co/tencent/Hy-MT2-1.8B

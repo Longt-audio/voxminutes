@@ -6,10 +6,17 @@
 <title>桌面字幕</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    /* 字幕样式设置（设置面板修改，localStorage 持久化） */
+    --sub-font-size: 14px;
+    --sub-trans-size: 12px;
+    --sub-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+    --sub-bg-opacity: 0.78;
+  }
   html, body {
     width: 100%; height: 100%;
     overflow: hidden;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+    font-family: var(--sub-font-family);
     background: transparent;
     color: #fff;
     user-select: none;
@@ -28,13 +35,14 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: rgba(0, 0, 0, 0.78);
+    background: rgba(0, 0, 0, var(--sub-bg-opacity));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.08);
     overflow: hidden;
+    position: relative;
   }
 
   #dragbar {
@@ -49,7 +57,85 @@
     transition: opacity 0.2s ease;
   }
   #dragbar:active { cursor: grabbing; }
-  #container:hover #dragbar { opacity: 1; }
+  #container:hover #dragbar, #container.settings-open #dragbar { opacity: 1; }
+
+  /* 字幕设置面板（齿轮开关，覆盖在内容区上） */
+  #settings-btn {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.65);
+    transition: background 0.15s, color 0.15s;
+    margin-right: 4px;
+  }
+  #settings-btn:hover, #settings-btn.active {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+  #settings-btn svg { width: 12px; height: 12px; }
+
+  #settings-panel {
+    position: absolute;
+    top: 28px; right: 8px;
+    z-index: 10;
+    width: 220px;
+    background: rgba(20, 20, 22, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    /* 设置项增加到 4 行后，窗口调到「3 行」时面板可能超出窗口底部：
+       给自己一个上限并允许内部滚动，任何行数档位都能操作到底部的「恢复默认」。 */
+    max-height: calc(100% - 36px);
+    overflow-y: auto;
+  }
+  #settings-panel.open { display: flex; }
+  #settings-panel .row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  #settings-panel .row label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    display: flex;
+    justify-content: space-between;
+  }
+  #settings-panel .row label .val {
+    color: rgba(255, 255, 255, 0.9);
+    tabular-nums: numeric;
+  }
+  #settings-panel input[type="range"] {
+    width: 100%;
+    height: 16px;
+    accent-color: #ff4b4b;
+  }
+  #settings-panel select {
+    width: 100%;
+    height: 24px;
+    font-size: 11px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    padding: 0 4px;
+    outline: none;
+  }
+  #settings-panel select option { color: #000; }
+  #settings-panel .reset {
+    align-self: flex-end;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  #settings-panel .reset:hover { color: #fff; }
 
   #dragbar .title {
     font-size: 10px;
@@ -97,7 +183,28 @@
     gap: 10px;
     overflow-y: auto;
     overflow-x: hidden;
+    /* 滚到底时继续往上滚不会带动外层（悬浮窗内容之外没有可滚动区域） */
+    overscroll-behavior: contain;
   }
+
+  /* 上滑看历史时出现的「回到最新」（默认隐藏；吸附在内容区右下角） */
+  #jump-latest {
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
+    display: none;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 18px;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(59, 130, 246, 0.85);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    user-select: none;
+  }
+  #jump-latest.show { display: block; }
+  #jump-latest:hover { background: rgba(37, 99, 235, 0.95); }
 
   .segment {
     display: flex;
@@ -107,7 +214,7 @@
   }
 
   .original {
-    font-size: 14px;
+    font-size: var(--sub-font-size);
     line-height: 1.6;
     font-weight: 500;
     color: #fff;
@@ -121,7 +228,7 @@
   }
 
   .translation {
-    font-size: 12px;
+    font-size: var(--sub-trans-size);
     line-height: 1.55;
     color: rgba(255, 255, 255, 0.78);
     white-space: normal;
@@ -129,7 +236,7 @@
   }
 
   .empty {
-    font-size: 14px;
+    font-size: var(--sub-font-size);
     color: rgba(255, 255, 255, 0.45);
     text-align: center;
     line-height: 1.5;
@@ -144,15 +251,57 @@
           <span id="status-dot" class="dot idle"></span>
           <span>桌面字幕</span>
         </div>
-        <div id="close-btn" title="关闭字幕">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
+        <div style="display:flex;align-items:center">
+          <div id="settings-btn" title="字幕设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </div>
+          <div id="close-btn" title="关闭字幕">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </div>
         </div>
       </div>
       <div id="content">
         <div class="empty">等待识别结果…</div>
+      </div>
+      <!-- 回到最新：上滑翻看历史后出现（此时不再自动滚底，否则根本读不了旧内容） -->
+      <div id="jump-latest" title="回到最新字幕">↓ 最新</div>
+      <!-- 字幕设置面板：字号 / 字体 / 显示行数 / 背景不透明度 -->
+      <div id="settings-panel">
+        <div class="row">
+          <label>显示行数 <span class="val" id="lines-val">5 行</span></label>
+          <select id="lines">
+            <option value="3">3 行</option>
+            <option value="5">5 行</option>
+            <option value="8">8 行</option>
+            <option value="12">12 行</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>字幕字号 <span class="val" id="font-size-val">14px</span></label>
+          <input type="range" id="font-size" min="12" max="28" step="1" value="14">
+        </div>
+        <div class="row">
+          <label>字体</label>
+          <select id="font-family">
+            <option value="default">系统默认</option>
+            <option value="heiti">黑体（无衬线）</option>
+            <option value="songti">宋体（衬线）</option>
+            <option value="kaiti">楷体</option>
+            <option value="arial">Arial</option>
+            <option value="mono">等宽</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>背景不透明度 <span class="val" id="bg-opacity-val">78%</span></label>
+          <input type="range" id="bg-opacity" min="30" max="100" step="1" value="78">
+        </div>
+        <span class="reset" id="settings-reset">恢复默认</span>
       </div>
     </div>
   </div>
@@ -166,6 +315,12 @@
 
       var lastSegmentsJson = '';
       var isRecording = false;
+      // 是否贴着底部（跟随最新）。用户往上滚 = false → 停止自动滚底，并显示「最新」按钮。
+      // 2026-09-29：此前无条件 scrollTop=scrollHeight，滚上去读旧内容会被立刻拽回底部。
+      var stickToBottom = true;
+      var jumpLatestBtn = document.getElementById('jump-latest');
+      // 已应用过的窗口高度（去重，避免每次渲染都调一次 IPC）
+      var lastAppliedHeight = 0;
 
       function tauriInvoke(cmd, args) {
         try {
@@ -177,6 +332,10 @@
       }
 
       function render(segments) {
+        // 整块重建会丢失滚动位置（innerHTML='' 后 scrollTop 归零）。
+        // 用「距底部的距离」记住当前阅读位置：往底部追加新段不会影响这个量，
+        // 缓冲裁剪掉最旧的段时也能保持正在读的那一行不动。
+        var fromBottom = content.scrollHeight - content.scrollTop;
         content.innerHTML = '';
         if (!segments || segments.length === 0) {
           var empty = document.createElement('div');
@@ -207,9 +366,35 @@
           content.appendChild(segEl);
         });
 
-        // Auto-scroll to bottom so the latest segment is visible
-        content.scrollTop = content.scrollHeight;
+        // 只在「贴在底部」时跟随最新；用户上滑翻看历史时保持原阅读位置
+        if (stickToBottom) {
+          content.scrollTop = content.scrollHeight;
+        } else {
+          content.scrollTop = Math.max(0, content.scrollHeight - fromBottom);
+        }
+        // 译文出现/消失会改变行高（以及「正好 N 行」的窗口高度）
+        syncWindowHeight();
+        updateJumpLatest();
       }
+
+      /** 「最新」按钮的显隐：滚动位置离底部超过一行的距离就算在看历史 */
+      function updateJumpLatest() {
+        var atBottom = content.scrollHeight - content.scrollTop - content.clientHeight < 24;
+        jumpLatestBtn.classList.toggle('show', !atBottom && content.scrollHeight > content.clientHeight);
+      }
+
+      content.addEventListener('scroll', function() {
+        var atBottom = content.scrollHeight - content.scrollTop - content.clientHeight < 24;
+        stickToBottom = atBottom;
+        updateJumpLatest();
+      });
+
+      jumpLatestBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        stickToBottom = true;
+        content.scrollTop = content.scrollHeight;
+        updateJumpLatest();
+      });
 
       function segmentsEqual(a, b) {
         if (!a || !b || a.length !== b.length) return false;
@@ -278,6 +463,136 @@
       closeBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         tauriInvoke('hide_subtitle_window');
+      });
+
+      // --- 字幕设置（字号/字体/背景不透明度，localStorage 持久化） ---
+      var container = document.getElementById('container');
+      var settingsBtn = document.getElementById('settings-btn');
+      var settingsPanel = document.getElementById('settings-panel');
+      var fontSizeInput = document.getElementById('font-size');
+      var fontFamilySelect = document.getElementById('font-family');
+      var bgOpacityInput = document.getElementById('bg-opacity');
+      var fontSizeVal = document.getElementById('font-size-val');
+      var bgOpacityVal = document.getElementById('bg-opacity-val');
+      var linesSelect = document.getElementById('lines');
+      var linesVal = document.getElementById('lines-val');
+      var settingsReset = document.getElementById('settings-reset');
+
+      var STYLE_KEY = 'subtitle_overlay_style';
+      var DEFAULT_STYLE = { fontSize: 14, fontFamily: 'default', bgOpacity: 78, lines: 5 };
+      // 允许的显示行数档位（与设置面板的 option 一致）
+      var LINE_CHOICES = [3, 5, 8, 12];
+      var FONT_STACKS = {
+        'default': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif',
+        'heiti': '"PingFang SC", "Microsoft YaHei", "SimHei", sans-serif',
+        'songti': '"Songti SC", "SimSun", serif',
+        'kaiti': '"Kaiti SC", "KaiTi", "STKaiti", serif',
+        'arial': 'Arial, "Helvetica Neue", sans-serif',
+        'mono': '"SF Mono", "Courier New", monospace'
+      };
+
+      function loadStyle() {
+        try {
+          var raw = localStorage.getItem(STYLE_KEY);
+          if (!raw) return Object.assign({}, DEFAULT_STYLE);
+          var s = JSON.parse(raw);
+          var lines = Number(s.lines);
+          return {
+            fontSize: Math.min(28, Math.max(12, Number(s.fontSize) || DEFAULT_STYLE.fontSize)),
+            fontFamily: FONT_STACKS[s.fontFamily] ? s.fontFamily : DEFAULT_STYLE.fontFamily,
+            bgOpacity: Math.min(100, Math.max(30, Number(s.bgOpacity) || DEFAULT_STYLE.bgOpacity)),
+            lines: LINE_CHOICES.indexOf(lines) >= 0 ? lines : DEFAULT_STYLE.lines
+          };
+        } catch(e) { return Object.assign({}, DEFAULT_STYLE); }
+      }
+
+      /**
+       * 把窗口高度调成「正好装下 N 行」。
+       *
+       * 页面端量得最准（字号、字体、有没有译文都会影响行高），但页面**没有**
+       * core:window:allow-set-size 权限，所以把算好的高度交给 Rust 命令去 set_size。
+       * 每行高度按当前实际渲染的段落估：原文行高 +（有译文时的）译文行高 + 段间距。
+       */
+      function syncWindowHeight() {
+        var cs = getComputedStyle(document.documentElement);
+        var orig = parseFloat(cs.getPropertyValue('--sub-font-size')) || 14;
+        var trans = parseFloat(cs.getPropertyValue('--sub-trans-size')) || 12;
+        // 最近若干段里有没有译文：有则按带译文的行高算
+        var hasTrans = false;
+        for (var i = content.children.length - 1; i >= 0 && i > content.children.length - 6; i--) {
+          var el = content.children[i];
+          if (el && el.querySelector && el.querySelector('.translation')) { hasTrans = true; break; }
+        }
+        var perLine = orig * 1.6 + (hasTrans ? trans * 1.55 + 3 : 0) + 10; // 段间距 10px
+        var chrome = 6 * 2 + 24 + 12 + 14 + 2; // root padding + dragbar + content padding + border
+        var h = Math.ceil(chrome + perLine * style.lines);
+        // 同一高度不重复调用（窗口还没建好时命令会空跑，渲染后再调一次即可）
+        if (h === lastAppliedHeight) return;
+        lastAppliedHeight = h;
+        tauriInvoke('set_subtitle_overlay_height', { height: h });
+      }
+
+      function applyStyle(s) {
+        var root = document.documentElement;
+        root.style.setProperty('--sub-font-size', s.fontSize + 'px');
+        root.style.setProperty('--sub-trans-size', Math.max(10, s.fontSize - 2) + 'px');
+        root.style.setProperty('--sub-font-family', FONT_STACKS[s.fontFamily]);
+        root.style.setProperty('--sub-bg-opacity', String(s.bgOpacity / 100));
+        fontSizeInput.value = String(s.fontSize);
+        fontFamilySelect.value = s.fontFamily;
+        bgOpacityInput.value = String(s.bgOpacity);
+        linesSelect.value = String(s.lines);
+        fontSizeVal.textContent = s.fontSize + 'px';
+        bgOpacityVal.textContent = s.bgOpacity + '%';
+        linesVal.textContent = s.lines + ' 行';
+        syncWindowHeight();
+      }
+
+      function saveStyle(s) {
+        try { localStorage.setItem(STYLE_KEY, JSON.stringify(s)); } catch(e) {}
+      }
+
+      var style = loadStyle();
+      applyStyle(style);
+
+      fontSizeInput.addEventListener('input', function() {
+        style.fontSize = Number(fontSizeInput.value);
+        applyStyle(style); saveStyle(style);
+      });
+      fontFamilySelect.addEventListener('change', function() {
+        style.fontFamily = fontFamilySelect.value;
+        applyStyle(style); saveStyle(style);
+      });
+      bgOpacityInput.addEventListener('input', function() {
+        style.bgOpacity = Number(bgOpacityInput.value);
+        applyStyle(style); saveStyle(style);
+      });
+      linesSelect.addEventListener('change', function() {
+        style.lines = Number(linesSelect.value);
+        stickToBottom = true;
+        applyStyle(style); saveStyle(style);
+        // 行数变了高度也变，滚动位置重算一次
+        content.scrollTop = content.scrollHeight;
+        updateJumpLatest();
+      });
+      settingsReset.addEventListener('click', function() {
+        style = Object.assign({}, DEFAULT_STYLE);
+        applyStyle(style); saveStyle(style);
+      });
+
+      settingsBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var open = settingsPanel.classList.toggle('open');
+        settingsBtn.classList.toggle('active', open);
+        container.classList.toggle('settings-open', open);
+      });
+      // 点面板外区域收起（面板和齿轮上的点击不触发）
+      document.addEventListener('mousedown', function(e) {
+        if (!settingsPanel.classList.contains('open')) return;
+        if (settingsPanel.contains(e.target) || settingsBtn.contains(e.target)) return;
+        settingsPanel.classList.remove('open');
+        settingsBtn.classList.remove('active');
+        container.classList.remove('settings-open');
       });
 
       // --- Polling fallback (reliable in static HTML windows) ---

@@ -8,7 +8,7 @@
 
 use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
-    Arc, Mutex,
+    Arc, Mutex, OnceLock,
 };
 use std::thread;
 use std::time::{Duration, Instant};
@@ -28,6 +28,16 @@ use super::{
 
 // Global test session so only one audio test can run at a time.
 static AUDIO_TEST_SESSION: Mutex<Option<AudioTestSession>> = Mutex::new(None);
+
+/// 启动阶段的取消信号：start_audio_test 在注册进 AUDIO_TEST_SESSION 之前
+/// （模型校验/设备启动窗口）被 stop 时，stop 没有会话可拿，就置位当前取消标志；
+/// start 在关键检查点读取它并自行清理退出。会话注册后则走会话内的 cancelled 标志。
+static CURRENT_CANCEL: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
+
+/// 进程级缓存：example_audio.wav 的 24k→48k sinc 重采样耗时 ~5.6s，
+/// 每次测试都重做会让「点开始 → 出声」等待接近 9 秒（用户感知为「加载时间长」）。
+/// 文件内容固定，首次测试时算一次，之后的测试直接复用。
+static RESAMPLED_WAV_CACHE: OnceLock<Arc<Vec<f32>>> = OnceLock::new();
 
 struct WavPlaybackController {
     stop_flag: Arc<AtomicBool>,
@@ -49,32 +59,65 @@ impl WavPlaybackController {
 struct AudioTestSession {
     manager: RecordingManager,
     _transcription_task: JoinHandle<()>,
-    wav_playback: WavPlaybackController,
-    transcript_listener_id: tauri::EventId,
+    /// 播放控制器：启动阶段（等待管线稳定）为 None，播放开始后挂上。
+    wav_playback: Option<WavPlaybackController>,
     samples: Arc<Vec<f32>>,
     source_rate: u32,
+    /// 会话被 stop 时置位；start 任务在等待/播放检查点读取并放弃继续。
+    cancelled: Arc<AtomicBool>,
+    /// 注销 transcript-update 监听的闭包（stop 与 Drop 二选一执行）。
+    /// 会话被覆盖/丢弃而不注销会导致监听泄漏：同一个转写事件被转发两次，
+    /// 前端识别文本重复（2026-09-20 日志排查出的「识别重复」根因之一）。
+    unlisten: Option<Box<dyn FnOnce() + Send>>,
+}
+
+impl Drop for AudioTestSession {
+    fn drop(&mut self) {
+        if let Some(unlisten) = self.unlisten.take() {
+            unlisten();
+        }
+    }
 }
 
 /// Start an audio-test session.
 ///
 /// * `model_name` — ASR model to exercise (e.g. "x-asr-480ms", "sense-voice",
 ///   "qwen3-asr-remote-streaming").
+/// * `mic_device_name` / `system_device_name` — 可选的设备名（测试弹窗里用户显式
+///   选择的采集设备）；均为 None 时沿用系统默认（macOS 智能选择）。
 ///
 /// On success, returns the duration of the test WAV in seconds.
 #[tauri::command]
 pub async fn start_audio_test<R: Runtime>(
     app: AppHandle<R>,
     model_name: String,
+    mic_device_name: Option<String>,
+    system_device_name: Option<String>,
+    remote_asr_model: Option<String>,
 ) -> Result<f32, String> {
-    // Prevent concurrent sessions.
-    {
-        let guard = AUDIO_TEST_SESSION.lock().unwrap();
-        if guard.is_some() {
-            return Err("音频测试正在进行中".to_string());
+    // 先停掉任何残留会话再启动：前端「停止→启动」两步之间旧会话可能尚未清理完，
+    // 直接返回「正在进行中」会让重新测试偶发失败。停旧开新保证只有一个采集管线。
+    stop_internal().await;
+
+    info!("🎧 Starting audio test with model: {}", model_name);
+
+    // 远程模型竞态修复（2026-09-28，与 api_save_transcript_config 的 remote_asr_model 同源）：
+    // 前端把当前真实远程选择一并传来，后端以此为权威 —— 用户刚在弹窗里切完模型就点
+    // 「开始测试」时，选择器的异步持久化可能还没落盘，不覆盖就会拿旧模型跑测试。
+    if model_name.starts_with("qwen3-asr-remote") {
+        if let Some(explicit) = remote_asr_model.as_deref() {
+            transcription::apply_explicit_remote_asr_model(explicit);
         }
     }
 
-    info!("🎧 Starting audio test with model: {}", model_name);
+    // 音频测试免计费：测试期间的远程流式会话带 free=1（网关记 0 积分消耗）。
+    // 所有提前返回路径都必须复位，否则下一次录音会被误判成免费。
+    transcription::remote_asr_streaming_provider::set_asr_free_billing(true);
+
+    // 取消信号：在会话注册进 AUDIO_TEST_SESSION 之前（校验/建流窗口）收到 stop 时，
+    // stop 会把该标志置位，start 在检查点读到后自行清理退出。
+    let cancel = Arc::new(AtomicBool::new(false));
+    *CURRENT_CANCEL.lock().unwrap() = Some(cancel.clone());
 
     // 1. Persist the selected model as the active transcript config so the
     //    transcription worker picks it up.
@@ -95,6 +138,7 @@ pub async fn start_audio_test<R: Runtime>(
             model_name.clone(),
             None,
             None,
+            None,
         )
         .await
         .map_err(|e| format!("保存 ASR 配置失败: {}", e))?;
@@ -103,6 +147,7 @@ pub async fn start_audio_test<R: Runtime>(
     // 2. Validate / load the model before opening the audio pipeline.
     if let Err(e) = transcription::validate_transcription_model_ready(&app).await {
         error!("Audio test model validation failed: {}", e);
+        transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
         return Err(format!(
             "ASR 模型加载失败：{}。请返回上一步更换模型后再试。",
             e
@@ -110,43 +155,141 @@ pub async fn start_audio_test<R: Runtime>(
     }
 
     // 3. Resolve the test WAV resource path.
-    let resource_dir = app
+    //    dev 模式下 app.path().resource_dir() 可能报 "unknown path"（未打包无资源目录），
+    //    此时回退到源码目录（CARGO_MANIFEST_DIR = frontend/src-tauri）。
+    let wav_path = app
         .path()
         .resource_dir()
-        .map_err(|e| format!("无法定位应用资源目录: {}", e))?;
-    let wav_path = resource_dir.join("example_audio.wav");
-    info!("Audio test WAV path: {:?}", wav_path);
+        .ok()
+        .map(|d| d.join("example_audio.wav"))
+        .filter(|p| p.exists())
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example_audio.wav")
+        });
 
     if !wav_path.exists() {
+        transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
         return Err(format!(
             "找不到测试音频文件: {}。请确认应用已正确打包。",
             wav_path.display()
         ));
     }
 
-    let wav_bytes = std::fs::read(&wav_path)
-        .map_err(|e| format!("读取测试音频失败: {}", e))?;
-    let (samples, source_rate) =
-        parse_wav(&wav_bytes).map_err(|e| format!("解析 WAV 失败: {}", e))?;
-    let samples = Arc::new(samples);
+    // 预重采样到 48kHz（P0 修复 + 进程级缓存）：example_audio.wav 是 24kHz，
+    // sinc 重采样耗时 ~5.6s，原先每次测试都在这里重做，且「缓存进会话」随会话
+    // 结束即失效——每次测试都重新付这笔时间。改为进程级 OnceLock 缓存，首次算一次，
+    // 之后的测试（含 X-ASR/远程切换重启）零等待。
+    let samples: Arc<Vec<f32>> = if let Some(cached) = RESAMPLED_WAV_CACHE.get() {
+        cached.clone()
+    } else {
+        let wav_bytes = std::fs::read(&wav_path).map_err(|e| format!("读取测试音频失败: {}", e))?;
+        let (parsed, parsed_rate) =
+            parse_wav(&wav_bytes).map_err(|e| format!("解析 WAV 失败: {}", e))?;
+        let t_resample = Instant::now();
+        let resampled = if parsed_rate != 48000 {
+            let rate = parsed_rate;
+            let res = tokio::task::spawn_blocking(move || {
+                super::audio_processing::resample_audio(&parsed, rate, 48000)
+            })
+            .await
+            .map_err(|e| format!("重采样任务失败: {}", e));
+            match res {
+                Ok(v) => v,
+                Err(e) => {
+                    transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
+                    return Err(e);
+                }
+            }
+        } else {
+            parsed
+        };
+        info!(
+            "🔊 WAV pre-resampled {}→48000Hz ({} samples) in {:.1?}",
+            parsed_rate,
+            resampled.len(),
+            t_resample.elapsed()
+        );
+        RESAMPLED_WAV_CACHE
+            .get_or_init(|| Arc::new(resampled))
+            .clone()
+    };
+    let source_rate = 48000u32;
 
     let duration_seconds = samples.len() as f32 / source_rate as f32;
 
     // 4. Build a standalone RecordingManager (do NOT use the global
     //    RECORDING_MANAGER used by meeting recording).
     let mut manager = RecordingManager::new();
-    let bypass_vad = model_name.starts_with("x-asr-");
+    // X-ASR 与「远程流式 ASR」都需要持续音频流 → 绕过 VAD 分段
+    let bypass_vad = model_name.starts_with("x-asr-")
+        || (model_name.starts_with("qwen3-asr-remote")
+            && crate::audio::transcription::engine::is_remote_asr_streaming());
 
-    let transcription_receiver = manager
-        .start_recording_with_defaults_and_auto_save(false, bypass_vad)
-        .await
-        .map_err(|e| format!("启动音频采集失败: {}", e))?;
+    // 设备：用户在测试弹窗显式选择时走自定义设备路径；否则沿用系统默认（macOS 智能选择）
+    let transcription_receiver = if mic_device_name.is_some() || system_device_name.is_some() {
+        use super::devices::configuration::{AudioDevice, DeviceType};
+        let mic_device = match &mic_device_name {
+            Some(name) => Some(Arc::new(
+                AudioDevice::from_name_with_hint(name, &DeviceType::Input)
+                    .map_err(|e| format!("无效的麦克风设备 '{}': {}", name, e))?,
+            )),
+            None => super::devices::default_input_device().ok().map(Arc::new),
+        };
+        let sys_device = match &system_device_name {
+            Some(name) => Some(Arc::new(
+                AudioDevice::from_name_with_hint(name, &DeviceType::Output)
+                    .map_err(|e| format!("无效的系统音频设备 '{}': {}", name, e))?,
+            )),
+            None => super::devices::default_output_device().ok().map(Arc::new),
+        };
+        info!(
+            "🎧 Audio test with custom devices: mic={:?}, system={:?}",
+            mic_device_name, system_device_name
+        );
+        manager
+            .start_recording(
+                mic_device,
+                sys_device,
+                false,
+                mic_device_name.is_none(),
+                system_device_name.is_none(),
+                bypass_vad,
+                // 音频测试不设会议名，saver 不会创建会议目录；此参数仅为满足签名
+                super::recording_preferences::get_default_recordings_folder(),
+            )
+            .await
+            .map_err(|e| {
+                transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
+                format!("启动音频采集失败: {}", e)
+            })?
+    } else {
+        manager
+            .start_recording_with_defaults_and_auto_save(
+                false,
+                bypass_vad,
+                super::recording_preferences::get_default_recordings_folder(),
+            )
+            .await
+            .map_err(|e| {
+                transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
+                format!("启动音频采集失败: {}", e)
+            })?
+    };
 
     // Audio test should capture both system audio and microphone speech.
     // The RecordingState defaults to mic-muted for meeting scenarios, so
     // explicitly unmute here.
     manager.unmute_microphone();
     info!("🎤 Audio test: microphone unmuted");
+
+    // 取消检查点：启动（校验/建流）期间用户已点停止 → 自行清理后静默退出。
+    if cancel.load(Ordering::Relaxed) {
+        info!("🎧 Audio test cancelled during startup (before transcription task)");
+        transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
+        let _ = manager.stop_streams_and_force_flush().await;
+        manager.cleanup_without_save().await;
+        return Ok(duration_seconds);
+    }
 
     // 5. Start the transcription worker.
     let task_handle = start_transcription_task(app.clone(), transcription_receiver);
@@ -170,14 +313,25 @@ pub async fn start_audio_test<R: Runtime>(
                     "audio_start_time": update.audio_start_time,
                     "audio_end_time": update.audio_end_time,
                     "duration": update.duration,
+                    "paragraph_id": update.paragraph_id,
                 }),
             );
         }
     });
+    let unlisten_app = app.clone();
+    let unlisten: Box<dyn FnOnce() + Send> = Box::new(move || {
+        unlisten_app.unlisten(transcript_listener_id);
+    });
 
     // 7. Start real-time audio level monitoring for the waveform bar.
-    let mic_name = manager.get_state().get_microphone_device().map(|d| d.name.clone());
-    let sys_name = manager.get_state().get_system_device().map(|d| d.name.clone());
+    let mic_name = manager
+        .get_state()
+        .get_microphone_device()
+        .map(|d| d.name.clone());
+    let sys_name = manager
+        .get_state()
+        .get_system_device()
+        .map(|d| d.name.clone());
     let mut monitoring_names = Vec::new();
     if let Some(name) = mic_name {
         monitoring_names.push(name);
@@ -189,12 +343,39 @@ pub async fn start_audio_test<R: Runtime>(
         let _ = simple_level_monitor::start_monitoring(app.clone(), monitoring_names).await;
     }
 
+    // ⚠️ 关键：先注册会话再进入等待。此前注册推迟到播放开始之后，导致
+    // 「启动窗口内点停止」找不到会话而被忽略——旧会话继续跑、继续播放测试音、
+    // 继续按时长计费（2026-09-20 日志：切换模型后 mimo 会话仍播完整段测试音）。
+    // 会话与启动取消信号共用同一个 Arc：注册后 stop 走会话内标志，
+    // 注册前 stop 走 CURRENT_CANCEL——无论停在哪一步，检查点都能读到。
+    {
+        let mut guard = AUDIO_TEST_SESSION.lock().unwrap();
+        *guard = Some(AudioTestSession {
+            manager,
+            _transcription_task: task_handle,
+            wav_playback: None,
+            samples: samples.clone(),
+            source_rate,
+            cancelled: cancel.clone(),
+            unlisten: Some(unlisten),
+        });
+    }
+
     // 8. Give the ASR pipeline a moment to be ready before starting playback.
     //    This ensures the very beginning of the test WAV is captured by the
     //    system-audio loopback and transcribed, rather than being played before
-    //    the ASR is listening.
-info!("⏳ Waiting for ASR pipeline to stabilize before playback...");
-tokio::time::sleep(Duration::from_millis(3000)).await;
+    //    the ASR is listening. 等待可被停止打断（100ms 粒度）。
+    info!("⏳ Waiting for ASR pipeline to stabilize before playback...");
+    let mut remaining_ms = 2000u32;
+    while remaining_ms > 0 {
+        if cancel.load(Ordering::Relaxed) {
+            // stop 已接管会话并完成清理（stop_internal 里会复位免计费标志）
+            return Ok(duration_seconds);
+        }
+        let step = remaining_ms.min(100);
+        tokio::time::sleep(Duration::from_millis(step as u64)).await;
+        remaining_ms -= step;
+    }
 
     // 9. Start playback of the test WAV on the default output device.  The
     //    system-audio capture loopback will pick it up and mix it with the mic.
@@ -204,6 +385,13 @@ tokio::time::sleep(Duration::from_millis(3000)).await;
     })
     .await
     .unwrap_or(None);
+    if cancel.load(Ordering::Relaxed) {
+        // 播放流刚建好但用户已停止：立即停掉播放线程，避免测试音继续外放
+        transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
+        wav_playback.stop();
+        wav_playback.join();
+        return Ok(duration_seconds);
+    }
     if ready_result.is_some() {
         info!("✅ WAV playback is live");
     } else {
@@ -216,63 +404,89 @@ tokio::time::sleep(Duration::from_millis(3000)).await;
         serde_json::json!({ "duration": duration_seconds }),
     );
 
-    let session = AudioTestSession {
-        manager,
-        _transcription_task: task_handle,
-        wav_playback,
-        transcript_listener_id,
-        samples: samples.clone(),
-        source_rate,
-    };
-
+    // 把播放控制器挂回会话。若挂接时发现会话已被 stop 取走（take），说明
+    // 停止发生在「播放已出声、控制器尚未挂接」的瞬间——立即停掉播放。
     {
         let mut guard = AUDIO_TEST_SESSION.lock().unwrap();
-        *guard = Some(session);
+        match guard.as_mut() {
+            Some(session) => {
+                session.wav_playback = Some(wav_playback);
+            }
+            None => {
+                transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
+                wav_playback.stop();
+                wav_playback.join();
+                return Ok(duration_seconds);
+            }
+        }
     }
 
-    info!("✅ Audio test started, WAV duration: {:.2}s", duration_seconds);
+    info!(
+        "✅ Audio test started, WAV duration: {:.2}s",
+        duration_seconds
+    );
     Ok(duration_seconds)
 }
 
-/// Stop the running audio-test session and release all resources.
-#[tauri::command]
-pub async fn stop_audio_test<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
-    info!("🛑 Stopping audio test");
-
+/// 停止当前音频测试会话并释放全部资源（start 与 stop 命令共用）。
+/// 会话不存在但启动还在早期阶段（尚未注册会话）时，置位启动取消信号，
+/// 由 start 任务在检查点自行清理——保证「启动中点停止」真正生效。
+async fn stop_internal() {
     let session_opt = {
         let mut guard = AUDIO_TEST_SESSION.lock().unwrap();
         guard.take()
     };
 
-    if let Some(mut session) = session_opt {
-        // Stop playback first so the user doesn't continue hearing the test tone.
-        session.wav_playback.stop();
+    // 测试会话结束：复位免计费标志（无论是否有会话）
+    transcription::remote_asr_streaming_provider::set_asr_free_billing(false);
 
-        // Stop level monitoring.
-        let _ = simple_level_monitor::stop_monitoring().await;
-
-        // Stop capture and flush remaining audio through the pipeline.
-        if let Err(e) = session.manager.stop_streams_and_force_flush().await {
-            warn!("Error stopping audio test streams: {}", e);
+    let Some(mut session) = session_opt else {
+        // 启动早期阶段（校验模型/建流中，会话尚未注册）：置位取消信号，
+        // 由 start 任务在检查点读到后自行清理退出。
+        if let Some(cancel) = CURRENT_CANCEL.lock().unwrap().as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+            info!("🎧 Audio test cancelled while starting");
         }
+        return;
+    };
 
-        // Clean up recording state.
-        session.manager.cleanup_without_save().await;
+    session.cancelled.store(true, Ordering::Relaxed);
+    let playback = session.wav_playback.take();
 
-        // Remove transcript listener.
-        {
-            use tauri::Listener;
-            app.unlisten(session.transcript_listener_id);
-        }
-
-        // Wait for playback thread to finish.
-        session.wav_playback.join();
-
-        info!("✅ Audio test stopped and cleaned up");
-    } else {
-        info!("No active audio test session to stop");
+    // Stop playback first so the user doesn't continue hearing the test tone.
+    if let Some(p) = &playback {
+        p.stop();
     }
 
+    // Stop level monitoring.
+    let _ = simple_level_monitor::stop_monitoring().await;
+
+    // Stop capture and flush remaining audio through the pipeline.
+    if let Err(e) = session.manager.stop_streams_and_force_flush().await {
+        warn!("Error stopping audio test streams: {}", e);
+    }
+
+    // Clean up recording state.
+    session.manager.cleanup_without_save().await;
+
+    // Remove transcript listener（会话 Drop 兜底双保险：此处显式注销）。
+    if let Some(unlisten) = session.unlisten.take() {
+        unlisten();
+    }
+
+    // Wait for playback thread to finish.
+    if let Some(p) = playback {
+        p.join();
+    }
+
+    info!("✅ Audio test stopped and cleaned up");
+}
+
+/// Stop the running audio-test session and release all resources.
+#[tauri::command]
+pub async fn stop_audio_test<R: Runtime>(_app: AppHandle<R>) -> Result<(), String> {
+    info!("🛑 Stopping audio test");
+    stop_internal().await;
     Ok(())
 }
 
@@ -297,7 +511,9 @@ pub async fn replay_audio_test<R: Runtime>(app: AppHandle<R>) -> Result<f32, Str
     {
         let mut guard = AUDIO_TEST_SESSION.lock().unwrap();
         if let Some(session) = guard.as_mut() {
-            session.wav_playback.stop();
+            if let Some(p) = &session.wav_playback {
+                p.stop();
+            }
         }
     }
 
@@ -316,7 +532,7 @@ pub async fn replay_audio_test<R: Runtime>(app: AppHandle<R>) -> Result<f32, Str
     {
         let mut guard = AUDIO_TEST_SESSION.lock().unwrap();
         if let Some(session) = guard.as_mut() {
-            session.wav_playback = wav_playback;
+            session.wav_playback = Some(wav_playback);
         }
     }
 
@@ -351,7 +567,10 @@ fn spawn_wav_playback(
                 return;
             }
         };
-        info!("🔊 WAV playback: default output device resolved in {:.1?}", t0.elapsed());
+        info!(
+            "🔊 WAV playback: default output device resolved in {:.1?}",
+            t0.elapsed()
+        );
 
         let target_rate = 48000u32;
         let output_samples = if source_rate != target_rate {
@@ -368,7 +587,10 @@ fn spawn_wav_playback(
                 return;
             }
         };
-        info!("🔊 WAV playback: enumerated configs in {:.1?}", t1.elapsed());
+        info!(
+            "🔊 WAV playback: enumerated configs in {:.1?}",
+            t1.elapsed()
+        );
 
         let t2 = Instant::now();
         let config_range = match supported
@@ -437,11 +659,18 @@ fn spawn_wav_playback(
         let t3 = Instant::now();
         let stream = match build_stream(&stream_config) {
             Ok(s) => {
-                info!("✅ WAV playback stream built with low-latency buffer size {:?} in {:.1?}", stream_config.buffer_size, t3.elapsed());
+                info!(
+                    "✅ WAV playback stream built with low-latency buffer size {:?} in {:.1?}",
+                    stream_config.buffer_size,
+                    t3.elapsed()
+                );
                 s
             }
             Err(e) => {
-                warn!("Low-latency playback config failed ({}), falling back to default buffer size", e);
+                warn!(
+                    "Low-latency playback config failed ({}), falling back to default buffer size",
+                    e
+                );
                 match build_stream(&config_range.config()) {
                     Ok(s) => s,
                     Err(e) => {

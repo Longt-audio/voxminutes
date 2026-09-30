@@ -37,12 +37,29 @@ impl std::fmt::Display for TranscriptionError {
 
 impl std::error::Error for TranscriptionError {}
 
+/// 分句（含说话人）：上游返回分句级结果时逐句给出（豆包录音文件识别等）。
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct TranscriptUtterance {
+    pub text: String,
+    /// 分句在本次上传音频内的起始/结束毫秒偏移
+    pub start_ms: i64,
+    pub end_ms: i64,
+    /// 说话人匿名编号（"1"/"2"/…；无说话人分离能力时为空串）
+    pub speaker: String,
+}
+
 /// Unified transcription result across all providers
 #[derive(Debug, Clone)]
 pub struct TranscriptResult {
     pub text: String,
     pub confidence: Option<f32>, // None if provider doesn't support confidence scores
     pub is_partial: bool,
+    /// 分句级结果（含说话人）。空表示上游未返回分句信息。
+    pub utterances: Vec<TranscriptUtterance>,
+    /// 上游给出的**用户可见告警**（内容风控部分拦截、档位降级、语言提示被拒…）。
+    /// 由网关随响应下发；离线识别会把它们汇总后展示给用户，避免把「结果不完整」
+    /// 误当成软件故障（2026-09-22 用户要求）。
+    pub warnings: Vec<String>,
 }
 
 /// Trait for transcription providers (Whisper, Parakeet, future providers)

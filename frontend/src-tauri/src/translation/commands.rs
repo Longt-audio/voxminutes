@@ -7,14 +7,17 @@ use std::sync::atomic::Ordering;
 use crate::database::repositories::setting::SettingsRepository;
 use crate::state::AppState;
 
-use super::{current_engine, get_engine, is_model_installed, llm, HOME_LANG, TARGET_LANG, TRANSLATION_ENABLED, TRANSLATION_ENGINE};
+use super::{
+    current_engine, get_engine, is_model_installed, llm, HOME_LANG, TARGET_LANG,
+    TRANSLATION_ENABLED, TRANSLATION_ENGINE,
+};
 
-/// Translate a block of text. direction: "auto" | "zh-en" | "en-zh"（hymt2 引擎
-/// 额外支持任意 "{src}-{tgt}" 语言对，如 "en-ja"、"zh-Hant-en"）。
-/// target 为可选的目标语言覆盖（仅 hymt2 引擎生效；不传或 "auto" 时回退到
+/// Translate a block of text. direction: "auto" | "zh-en" | "en-zh"（hymt2/remote/
+/// custom-api 等 LLM 引擎额外支持任意 "{src}-{tgt}" 语言对，如 "en-ja"、"zh-Hant-en"）。
+/// target 为可选的目标语言覆盖（仅 LLM 引擎生效；不传或 "auto" 时回退到
 /// 全局 TARGET_LANG 设置解析）。opus 引擎忽略 target，仅支持 zh ⇄ en。
-/// hymt2 引擎下源语言与解析出的目标语言相同时，无需翻译，直接返回原文。
-/// request_id 提供时（仅 hymt2 引擎），生成过程中的增量文本以
+/// LLM 引擎下源语言与解析出的目标语言相同时，无需翻译，直接返回原文。
+/// request_id 提供时（仅 LLM 引擎），生成过程中的增量文本以
 /// `translate-text-stream` 事件（payload `{request_id, delta}`）推给前端；
 /// 返回值始终是完整译文。opus 引擎忽略 request_id。
 /// Blocking inference runs on the blocking pool.
@@ -31,7 +34,7 @@ pub async fn translate_text(
     }
 
     let engine = current_engine();
-    if engine == "hymt2" || engine == "remote" {
+    if engine == "hymt2" || engine == "remote" || engine == "custom-api" {
         let explicit = llm::parse_direction(&direction);
         // 源语言：显式方向优先，否则按文本特征检测
         let src = explicit
@@ -73,11 +76,56 @@ pub async fn translate_text(
                             serde_json::json!({ "request_id": rid, "delta": delta }),
                         );
                     };
-                    return super::remote::translate_remote(&text, &resolved, false, Some(&mut cb))
-                        .await;
+                    return super::remote::translate_remote(
+                        &text,
+                        &resolved,
+                        false,
+                        None,
+                        Some(&mut cb),
+                        // 翻译页是单发动作：失败直接报错给用户手动重试，不自动重试
+                        0,
+                    )
+                    .await
+                    .map(|r| r.text);
                 }
                 None => {
-                    return super::remote::translate_remote(&text, &resolved, false, None).await;
+                    return super::remote::translate_remote(&text, &resolved, false, None, None, 0)
+                        .await
+                        .map(|r| r.text);
+                }
+            }
+        }
+
+        if engine == "custom-api" {
+            // 自定义 API 引擎：走用户配置的 OpenAI 兼容 / Anthropic 端点（SSE 流式）
+            let config = crate::summary::config::custom_api_config().ok_or_else(|| {
+                "自定义 API 未配置，请先在会议总结的 API 设置中填写端点地址。".to_string()
+            })?;
+            use tauri::Emitter;
+            match request_id.clone() {
+                Some(rid) => {
+                    let app2 = app.clone();
+                    let mut cb = move |delta: &str| {
+                        let _ = app2.emit(
+                            "translate-text-stream",
+                            serde_json::json!({ "request_id": rid, "delta": delta }),
+                        );
+                    };
+                    return super::custom_api::translate_custom_api(
+                        &config,
+                        &text,
+                        &resolved,
+                        false,
+                        None,
+                        Some(&mut cb),
+                    )
+                    .await;
+                }
+                None => {
+                    return super::custom_api::translate_custom_api(
+                        &config, &text, &resolved, false, None, None,
+                    )
+                    .await;
                 }
             }
         }
@@ -91,14 +139,20 @@ pub async fn translate_text(
             if let Some(request_id) = request_id {
                 // 流式：增量文本以 translate-text-stream 事件推给前端
                 let app = app.clone();
-                llm::translate(&text, &resolved, false, Some(&mut |delta: &str| {
-                    let _ = app.emit(
-                        "translate-text-stream",
-                        serde_json::json!({ "request_id": request_id, "delta": delta }),
-                    );
-                }))
+                llm::translate(
+                    &text,
+                    &resolved,
+                    false,
+                    None,
+                    Some(&mut |delta: &str| {
+                        let _ = app.emit(
+                            "translate-text-stream",
+                            serde_json::json!({ "request_id": request_id, "delta": delta }),
+                        );
+                    }),
+                )
             } else {
-                llm::translate(&text, &resolved, false, None)
+                llm::translate(&text, &resolved, false, None, None)
             }
         })
         .await
@@ -136,12 +190,19 @@ pub async fn set_translation_engine(
     state: tauri::State<'_, AppState>,
     engine: String,
 ) -> Result<(), String> {
-    if !matches!(engine.as_str(), "opus" | "hymt2" | "remote") {
+    if !matches!(engine.as_str(), "opus" | "hymt2" | "remote" | "custom-api") {
         return Err(format!("不支持的翻译引擎: {}", engine));
     }
     // 选择远程引擎要求远程服务总开关已开启（否则翻译会静默失败）
     if engine == "remote" && !crate::audio::transcription::remote_enabled() {
         return Err("远程服务总开关未开启，请先在用户中心启用远程服务。".to_string());
+    }
+    // 选择自定义 API 引擎要求 summary.api_config 已配置可用端点（与 current_engine
+    // 的回落规则一致，提前给出明确错误而不是静默回落 opus）
+    if engine == "custom-api" && crate::summary::config::custom_api_config().is_none() {
+        return Err(
+            "自定义 API 未配置，请先在会议总结的 API 设置中填写端点地址并保存。".to_string(),
+        );
     }
     log::info!("Translation engine: {}", engine);
     {

@@ -37,6 +37,7 @@ import type {
   ModelLoadingEvent,
   ImportModelResult,
   TtsSynthesisResult,
+  MergedRecordingResult,
 } from '@/types'
 
 // ── 事件监听安全包装 ──────────────────────────────────────────────────────────
@@ -123,6 +124,10 @@ export async function setMicMute(enabled: boolean): Promise<boolean> {
 
 export async function getMicMute(): Promise<boolean> {
   return invoke<boolean>('get_mic_mute')
+}
+
+export async function toggleMicMute(): Promise<boolean> {
+  return invoke<boolean>('toggle_mic_mute')
 }
 
 // ── 音频设备 ──────────────────────────────────────────────────────────────────
@@ -242,6 +247,24 @@ export async function apiDeleteRecording(recordingId: string): Promise<void> {
   return invoke('api_delete_recording', { recordingId, authToken: null })
 }
 
+/**
+ * 合并多个录音工程：音频拼接 + 转写段按时间偏移衔接，生成一个新工程。
+ * markerTemplate 为交界标记段模板（占位符 {n} {title} {time}），由 i18n 提供。
+ */
+export async function apiMergeRecordings(
+  recordingIds: string[],
+  title: string | null,
+  deleteSources: boolean,
+  markerTemplate?: string | null
+): Promise<MergedRecordingResult> {
+  return invoke<MergedRecordingResult>('api_merge_recordings', {
+    recordingIds,
+    title,
+    deleteSources,
+    markerTemplate: markerTemplate ?? null,
+  })
+}
+
 export async function apiSaveRecordingTitle(recordingId: string, title: string): Promise<void> {
   return invoke('api_save_recording_title', { recordingId, title, authToken: null })
 }
@@ -258,6 +281,7 @@ export async function apiSaveTranscript(
     duration?: number
     speaker?: string
     source?: string
+    translation?: string
   }>,
   folderPath?: string | null
 ): Promise<{ status: string; message: string; recording_id: string }> {
@@ -286,6 +310,33 @@ export async function apiUpdateSegmentText(segmentId: string, text: string): Pro
   return invoke('api_update_segment_text', { segmentId, text })
 }
 
+/** 读会议文件夹的说话人命名表（{speakerId: 自定义名}）。 */
+export async function getSpeakerNames(folderPath: string): Promise<Record<string, string>> {
+  return invoke('api_get_speaker_names', { folderPath })
+}
+
+/** 读会议文件夹 metadata.json 里记录的离线识别模型。 */
+export async function getRetranscribedModel(folderPath: string): Promise<string> {
+  return invoke('api_get_retranscribed_model', { folderPath })
+}
+
+/** 读会议文件夹 metadata.json 里的离线识别摘要（模型 / 音频时长 / 识别耗时）。 */
+export async function getOfflineRecognitionInfo(folderPath: string): Promise<{
+  model?: string
+  duration_seconds?: number
+  elapsed_seconds?: number
+  retranscribed_at?: string
+  /** 上游告警（内容风控部分拦截 / 档位降级 / 部分分片失败） */
+  warnings?: string[]
+}> {
+  return invoke('api_get_offline_recognition_info', { folderPath })
+}
+
+/** 保存某个说话人的自定义名（空名 = 恢复默认「说话人N」）。 */
+export async function setSpeakerName(folderPath: string, speakerId: string, name: string): Promise<void> {
+  return invoke('api_set_speaker_name', { folderPath, speakerId, name })
+}
+
 export async function openRecordingFolder(recordingId: string): Promise<void> {
   return invoke('open_recording_folder', { recordingId })
 }
@@ -304,8 +355,12 @@ export async function apiGetTranscriptConfig(): Promise<{ provider: string; mode
   return invoke('api_get_transcript_config', { authToken: null })
 }
 
-export async function apiSaveTranscriptConfig(provider: string, model: string, apiKey: string | null): Promise<void> {
-  return invoke('api_save_transcript_config', { provider, model, apiKey, authToken: null })
+/** 保存转写配置。远程（provider=remote-qwen3-asr）时必须把当前真实远程模型 id
+ *  一并传给后端（remoteAsrModel）——后端以此为权威同步 REMOTE_ASR_MODEL 并落盘，
+ *  不依赖模型选择器先前的异步持久化（2026-09-28 竞态修复：刚切完模型就点开始录音，
+ *  异步落盘未完成时引擎会拿旧模型跑整场录音）。 */
+export async function apiSaveTranscriptConfig(provider: string, model: string, apiKey: string | null, remoteAsrModel?: string | null): Promise<void> {
+  return invoke('api_save_transcript_config', { provider, model, apiKey, authToken: null, remoteAsrModel: remoteAsrModel ?? null })
 }
 
 // ── 录音偏好 ──────────────────────────────────────────────────────────────────
@@ -340,8 +395,31 @@ export async function setRemoteConfig(serverUrl: string, license: string, modelN
   return invoke('set_remote_config', { serverUrl, license, modelName: modelName ?? null })
 }
 
-export async function checkRemoteAsrHealth(endpoint: string): Promise<boolean> {
-  return invoke<boolean>('check_remote_asr_health_cmd', { endpoint })
+/** 只更新远程服务器地址（空串 = 恢复内置默认 https://api.voxmin.top），不动授权码/模型选择。 */
+export async function setRemoteEndpoint(endpoint: string): Promise<void> {
+  return invoke('set_remote_endpoint', { endpoint })
+}
+
+/** 远程连通性检查结果（两段式）。
+ *  - ok：HTTP /health（服务器/域名/证书可达）
+ *  - streamingOk：流式识别通道（wss 握手）是否可用；null = 不适用/未检测
+ *    （未选流式模型、无授权码，或服务器本身不可达）
+ *  - streamingError：streamingOk === false 时的原因（可直接展示） */
+export interface RemoteHealthResult {
+  ok: boolean
+  streamingOk: boolean | null
+  streamingError: string | null
+}
+
+export async function checkRemoteAsrHealth(endpoint: string): Promise<RemoteHealthResult> {
+  return invoke<RemoteHealthResult>('check_remote_asr_health_cmd', { endpoint })
+}
+
+/** 提前预热流式识别通道（fire-and-forget）：App 启动 / 打开录音弹窗 / 切换识别模型时调用。
+ *  预检成功有 5 分钟缓存，点「开始录音」时命中即免掉 ~3.5s 跨境握手。
+ *  未配置远程/探测失败都被后端吞掉（只记日志），调用方无需处理错误。 */
+export function warmRemoteStreaming(): void {
+  invoke('warm_remote_streaming').catch(() => {})
 }
 
 export async function getRemoteConfig(): Promise<RemoteAsrConfig> {
@@ -366,48 +444,113 @@ export interface RemoteModelItem {
   object: string
   owned_by: string
   kind: 'asr' | 'translate' | 'tts'
+  /** 前端显示名（可空串，空则回退 id） */
+  display_name?: string
+  /** 支持语言（可空串） */
+  languages?: string
+  /** ASR 专用：机器可读的支持语言码（规范码 ISO-639-1 + yue，由网关随目录下发）。
+   *  用于在 ASR 模型旁渲染「识别语言」下拉框；客户端只发规范码，
+   *  到各上游实际代码（豆包 zh-CN / Deepgram 粤语 zh-HK 等）的转换在网关完成。 */
+  language_codes?: string[]
+  /** 推荐模型（排序置顶 + 推荐标记） */
+  recommended?: boolean
   price?: number
   price_unit?: string
   /** 流式(streaming) / 非流式(batch) */
   mode?: 'streaming' | 'batch'
+  /** 推理模型（先输出思维链）：**不适合实时逐句翻译**（长句会把 max_tokens 全花在
+   *  推理上 → 正文为空）。客户端据此把它们从实时翻译选择器里排除；会议总结不受影响。 */
+  reasoning?: boolean
+  /** LLM 用途（网关后台可配，随 /v1/models 下发）：
+   *  'both' 翻译与会议总结都能选；'translate' 只翻译（如豆包机器翻译）；
+   *  'summary' 只总结（如 deepseek-flash：输出价是输入的 4 倍，翻译成本是 qwen-flash 的 15 倍）。
+   *  客户端据此过滤选择器，与网关侧强制校验（routing.ts）保持一致。
+   *  旧版网关不下发此字段 → 一律按 'both' 处理（向后兼容）。非 LLM 恒为 'both'。 */
+  usage?: 'both' | 'translate' | 'summary'
   /** 调用协议/端点 */
   protocol?: string
+  /** TTS 专用：音色清单（由网关随目录下发，客户端不再硬编码）。
+   *  lang='*' 表示与语言无关（Supertonic 的 sid 只决定音色，发音由 language 决定）。 */
+  voices?: TtsVoiceOption[]
+}
+
+/** 网关下发的 TTS 音色项。 */
+export interface TtsVoiceOption {
+  /** 传给上游的 voice 取值（MiMo 是中文音色名，Supertonic 是 sid 数字字符串） */
+  id: string
+  /** 适用语言码；'*' = 与语言无关 */
+  lang?: string
+  gender?: string
+}
+
+/** list_remote_models 的返回负载：新版为 { data, updated_at }，旧版直接是数组（兼容） */
+type RemoteModelsPayload = RemoteModelItem[] | { data?: RemoteModelItem[]; updated_at?: string }
+
+function parseRemoteModelsPayload(payload: RemoteModelsPayload): { models: RemoteModelItem[]; updatedAt: string } {
+  if (Array.isArray(payload)) return { models: payload, updatedAt: '' }
+  return { models: payload?.data ?? [], updatedAt: payload?.updated_at ?? '' }
 }
 
 /** 网关 /v1/models 全量列表（供模型选择器下拉） */
 export async function listRemoteModels(): Promise<RemoteModelItem[]> {
-  return invoke<RemoteModelItem[]>('list_remote_models')
+  const payload = await invoke<RemoteModelsPayload>('list_remote_models')
+  return parseRemoteModelsPayload(payload).models
 }
 
-/** 读回三种能力的远程模型选择 */
-export async function getRemoteModelChoice(): Promise<{ asr: string; translate: string; tts: string }> {
+/** 网关 /v1/models 完整目录（含 updated_at，用于轮询变更检测） */
+export async function listRemoteCatalog(): Promise<{ models: RemoteModelItem[]; updatedAt: string }> {
+  const payload = await invoke<RemoteModelsPayload>('list_remote_models')
+  return parseRemoteModelsPayload(payload)
+}
+
+/** 读回各能力的远程模型选择（asr=实时转录用流式模型；asr_offline=历史离线重识别用非流式模型） */
+export async function getRemoteModelChoice(): Promise<{ asr: string; asr_offline: string; translate: string; summary: string; tts: string }> {
   return invoke('get_remote_model_choice')
 }
 
-/** 设置三种能力的远程模型选择（asr_mode 透传网关 mode，用于决定流式/非流式） */
-export async function setRemoteModelChoice(choice: { asr?: string; asr_mode?: string; translate?: string; tts?: string }): Promise<void> {
+/** 设置各能力的远程模型选择（asr_mode 透传网关 mode，用于决定流式/非流式） */
+export async function setRemoteModelChoice(choice: { asr?: string; asr_mode?: string; asr_offline?: string; translate?: string; summary?: string; tts?: string }): Promise<void> {
+  // ⚠️ Tauri v2 命令参数按 camelCase 匹配 Rust 参数名（snake_case）。
+  // 此前一直用 snake_case 传 asr_mode/asr_offline → Rust 侧永远收到 None：
+  // 「流式/非流式判断」与「离线重识别模型」两个字段从未生效（2026-09-20
+  // 音频测试豆包 400 / 会议总结离线识别失败 的共同根因）。
   return invoke('set_remote_model_choice', {
     asr: choice.asr ?? null,
-    asr_mode: choice.asr_mode ?? null,
+    asrMode: choice.asr_mode ?? null,
+    asrOffline: choice.asr_offline ?? null,
     translate: choice.translate ?? null,
+    summary: choice.summary ?? null,
     tts: choice.tts ?? null,
   })
+}
+
+/** 录音中热切换流式 ASR 引擎（调用前需先持久化新选择：apiSaveTranscriptConfig + 远程模型选择）。
+ *  切到远程时把当前真实远程模型 id 一并传给后端（2026-09-28 竞态修复：以显式指定为准）。 */
+export async function switchAsrModel(remoteAsrModel?: string | null): Promise<void> {
+  return invoke('switch_asr_model', { remoteAsrModel: remoteAsrModel ?? null })
 }
 
 // ── 远程 TTS（网关 /v1/audio/speech） ──────────────────────────────────────────
 
 /** 合成一段文本为语音，返回 base64 音频 + MIME 类型。
  *  voice: 音色（可选；缺省走供应商默认音色）
- *  model: 指定远程 TTS 模型（可选；缺省用「远程服务」里选择的 TTS 模型） */
+ *  model: 指定远程 TTS 模型（可选；缺省用「远程服务」里选择的 TTS 模型）
+ *  instructions: 自然语言指令（可选；MiMo 的风格/情感/语速，或音色设计的音色描述）
+ *  language: 文本语言码（可选；**强烈建议传**）—— 网关据此路由到合适的 TTS 模型
+ *            （中文→MiMo，其余 31 语种→自建 Supertonic），且 Supertonic 必须靠它才能正确发音 */
 export async function ttsSynthesize(
   text: string,
   voice?: string,
   model?: string,
+  instructions?: string,
+  language?: string,
 ): Promise<TtsSynthesisResult> {
   return invoke<TtsSynthesisResult>('tts_synthesize', {
     text,
     voice: voice ?? null,
     model: model ?? null,
+    instructions: instructions ?? null,
+    language: language ?? null,
   })
 }
 
@@ -472,12 +615,16 @@ export async function startRetranscription(
   meetingId: string,
   meetingFolderPath: string,
   model?: string | null,
-  provider?: string | null
+  provider?: string | null,
+  /** 识别语言（规范码）。'auto'/空 = 交给上游自动检测。 */
+  language?: string | null
 ): Promise<{ meeting_id: string; message: string }> {
   return invoke('start_retranscription_command', {
     meetingId,
     meetingFolderPath,
-    language: null,
+    // 传 'auto' 而不是 null：null 会让后端回落到「上一次录音的全局语言偏好」，
+    // 而这里用户明确选了自动检测（见 retranscription.rs 的语言语义注释）。
+    language: language && language !== '' ? language : 'auto',
     model: model ?? null,
     provider: provider ?? null,
     estimatedRtf: null,
@@ -486,6 +633,11 @@ export async function startRetranscription(
 
 export async function cancelRetranscription(): Promise<void> {
   return invoke('cancel_retranscription_command')
+}
+
+/** 翻译链路告警（如「模型返回空译文」）——后端 60s 节流后下发，前端 toast 提示。 */
+export function onTranslationWarning(callback: (e: { message: string }) => void): Promise<UnlistenFn> {
+  return listen<{ message: string }>('translation-warning', (e) => callback(e.payload))
 }
 
 export function onRetranscriptionProgress(callback: (p: RetranscriptionProgress) => void): Promise<UnlistenFn> {
@@ -500,18 +652,84 @@ export function onRetranscriptionError(callback: (e: RetranscriptionError) => vo
   return listen<RetranscriptionError>('retranscription-error', (e) => callback(e.payload))
 }
 
+/** 用户主动「停止识别」成功中断（不是故障）：前端提示「已停止」并复位进行中状态 */
+export function onRetranscriptionCancelled(callback: (e: { meeting_id: string }) => void): Promise<UnlistenFn> {
+  return listen<{ meeting_id: string }>('retranscription-cancelled', (e) => callback(e.payload))
+}
+
 export function onRetranscriptionPartial(callback: (p: RetranscriptionPartial) => void): Promise<UnlistenFn> {
   return listen<RetranscriptionPartial>('retranscription-partial', (e) => callback(e.payload))
 }
 
 // ── 音频测试（模型验证） ──────────────────────────────────────────────────────
 
-export async function startAudioTest(modelName: string): Promise<number> {
-  return invoke<number>('start_audio_test', { modelName })
+export async function startAudioTest(
+  modelName: string,
+  micDeviceName?: string | null,
+  systemDeviceName?: string | null,
+  remoteAsrModel?: string | null,
+): Promise<number> {
+  return invoke<number>('start_audio_test', {
+    modelName,
+    micDeviceName: micDeviceName ?? null,
+    systemDeviceName: systemDeviceName ?? null,
+    remoteAsrModel: remoteAsrModel ?? null,
+  })
 }
 
 export async function stopAudioTest(): Promise<void> {
   return invoke('stop_audio_test')
+}
+
+/** 重新播放示例音频（自检进行中再次触发），返回 WAV 时长（秒）。 */
+export async function replayAudioTest(): Promise<number> {
+  return invoke<number>('replay_audio_test')
+}
+
+/** 自检转写事件（payload 与 TranscriptUpdate 一致，来自独立测试链路）。 */
+export function onAudioTestTranscript(callback: (update: TranscriptUpdate) => void): Promise<UnlistenFn> {
+  return listen<TranscriptUpdate>('audio-test-transcript', (event) => callback(event.payload))
+}
+
+/** 自检示例音频开始播放（带 duration，驱动前端进度条）。 */
+export function onAudioTestPlaybackStarted(
+  callback: (payload: { duration: number }) => void
+): Promise<UnlistenFn> {
+  return listen<{ duration: number }>('audio-test-playback-started', (event) => callback(event.payload))
+}
+
+/** 转写错误事件 payload（录音与音频自检共用同一转写链路，后端两处都会发）。 */
+export interface TranscriptionErrorPayload {
+  error: string
+  userMessage?: string
+  actionable?: boolean
+}
+
+/** 转写致命错误（如模型初始化失败 / 远程连接失败）。 */
+export function onTranscriptionError(callback: (e: TranscriptionErrorPayload) => void): Promise<UnlistenFn> {
+  return listen<TranscriptionErrorPayload>('transcription-error', (e) => callback(e.payload))
+}
+
+/** 转写非致命警告（payload 为纯文本消息，如远程流式会话内错误）。 */
+export function onTranscriptionWarning(callback: (message: string) => void): Promise<UnlistenFn> {
+  return listen<string>('transcription-warning', (e) => callback(e.payload))
+}
+
+/**
+ * 识别链路状态（2026-09-29）：远程流式 ASR 连上时 running=true，终止时 running=false
+ * + reason（'credits' 积分不足 | 'config' 鉴权/配置 | 'unavailable' 重连耗尽
+ * | 'ended' 正常结束）。只用于把底部「● 实时转写中」换成「▲ 识别已停止」——
+ * 录音与落盘完全不受影响。
+ */
+export interface TranscriptionStatusPayload {
+  running: boolean
+  reason?: string
+}
+
+export function onTranscriptionStatus(
+  callback: (s: TranscriptionStatusPayload) => void
+): Promise<UnlistenFn> {
+  return listen<TranscriptionStatusPayload>('transcription-status', (e) => callback(e.payload))
 }
 
 // ── 语言偏好 ──────────────────────────────────────────────────────────────────
@@ -608,6 +826,15 @@ export async function setTranslationTargetLang(lang: TranslateTargetLang): Promi
 
 export async function getTranslationTargetLang(): Promise<TranslateTargetLang> {
   return invoke<TranslateTargetLang>('get_translation_target_lang')
+}
+
+/** 流式分段停顿（秒）：连续静音超过该时长后转写另起一段（仅流式引擎） */
+export async function getFlowPauseSecs(): Promise<number> {
+  return invoke<number>('get_flow_pause_secs')
+}
+
+export async function setFlowPauseSecs(secs: number): Promise<void> {
+  return invoke('set_flow_pause_secs', { secs })
 }
 
 export async function setTranslationHomeLang(lang: string): Promise<void> {
@@ -801,6 +1028,30 @@ export async function pushSubtitleTranslation(update: SubtitleTranslationInput):
   return invoke('push_subtitle_translation', { update })
 }
 
+// ── 悬浮球 ───────────────────────────────────────────────────────────────────
+
+export async function showFloatingBall(): Promise<void> {
+  return invoke('show_floating_ball')
+}
+
+export async function hideFloatingBall(): Promise<void> {
+  return invoke('hide_floating_ball')
+}
+
+export async function toggleFloatingBall(): Promise<boolean> {
+  return invoke<boolean>('toggle_floating_ball')
+}
+
+export async function getFloatingBallState(): Promise<boolean> {
+  return invoke<boolean>('get_floating_ball_state')
+}
+
+export function onFloatingBallState(
+  callback: (payload: { visible: boolean }) => void
+): Promise<UnlistenFn> {
+  return listen<{ visible: boolean }>('floating-ball-state', (event) => callback(event.payload))
+}
+
 // ── 远程推送消息（tips / 公告 / 最新版本） ─────────────────────────────────────
 
 export interface RemoteMessage {
@@ -833,17 +1084,42 @@ export interface NoticeDocument {
   updated_at: string
 }
 
-/** 拉取启动文档列表（最新在第一页）；离线时返回本地缓存。 */
-export async function fetchNoticeDocuments(): Promise<NoticeDocument[]> {
-  const r = await invoke<{ items: NoticeDocument[] }>('fetch_notice_documents')
+/** 拉取启动文档列表（最新在第一页）；离线时返回本地缓存。
+ *  lang = 界面语言（zh/en/ko/ja），透传网关 ?lang= 取对应语言文档；缓存按语言分文件。 */
+export async function fetchNoticeDocuments(lang?: string): Promise<NoticeDocument[]> {
+  const r = await invoke<{ items: NoticeDocument[] }>('fetch_notice_documents', { lang: lang ?? null })
   return r.items || []
 }
 
-export async function fetchRemoteMessages(): Promise<{
+/** 欢迎弹窗的欢迎词（网关推送，无需鉴权）。 */
+export interface WelcomeMessage {
+  title: string
+  body: string
+  updated_at?: string
+}
+
+/** 拉取欢迎词（GET {server}/v1/welcome?lang=…）；网关未配置/不可达时 reject，前端回退默认欢迎词。 */
+export async function fetchWelcome(lang?: string): Promise<WelcomeMessage> {
+  return invoke<WelcomeMessage>('fetch_welcome', { lang: lang ?? null })
+}
+
+export async function fetchRemoteMessages(lang?: string): Promise<{
   announcements: RemoteMessage[]
   latestVersion: RemoteLatestVersion | null
 }> {
-  return invoke('fetch_remote_messages')
+  return invoke('fetch_remote_messages', { lang: lang ?? null })
+}
+
+/** 重要信息推送（顶部横幅）：text 为空串 = 不显示。 */
+export interface ImportantNotice {
+  text: string
+  updated_at: string
+  lang?: string | null
+}
+
+/** 拉取重要信息推送（GET {server}/v1/important-notice?lang=…）；网关未配置/不可达时 reject，前端静默不渲染。 */
+export async function fetchImportantNotice(lang?: string): Promise<ImportantNotice> {
+  return invoke<ImportantNotice>('fetch_important_notice', { lang: lang ?? null })
 }
 
 /** 拉取积分余额（网关 /v1/usage，含低余额预警）。 */
@@ -895,6 +1171,33 @@ export async function getRemoteUsageByModel(): Promise<{ items: ModelUsageItem[]
   return invoke('get_remote_usage_by_model')
 }
 
+/** 任务消耗汇总（网关 /v1/usage/tasks）：一次录音 / 一次离线识别 / 一次会议总结各消耗多少。
+ *
+ *  与「按模型消耗」的区别：按模型看不出「这次录音花了多少」（一次录音有几百次翻译调用），
+ *  任务口径把同一次录音的识别 + 翻译 + 总结合成一行，用户一眼能读懂。 */
+export interface TaskUsageBreakdown {
+  kind: string
+  label: string
+  credits: number
+  units: number
+  unit: string
+  calls: number
+  models: string[]
+}
+export interface TaskUsageItem {
+  task_key: string
+  session_id: string
+  task: string
+  started_at: string
+  ended_at: string
+  total_credits: number
+  total_cost_cny: number
+  breakdown: TaskUsageBreakdown[]
+}
+export async function getRemoteUsageTasks(): Promise<{ items: TaskUsageItem[] }> {
+  return invoke('get_remote_usage_tasks')
+}
+
 /** 模型测速（仅测往返延迟，不扣积分）：kind = asr | llm | tts。 */
 export interface SpeedTestResult {
   kind: string
@@ -908,15 +1211,51 @@ export async function runSpeedTest(kind: 'asr' | 'llm' | 'tts', model?: string):
   return invoke<SpeedTestResult>('run_speed_test', { kind, model: model ?? null })
 }
 
-/** 提交用户反馈（文字 + 可选截图 base64 + 联系方式）。 */
+/** 提交用户反馈（文字 + 可选截图 base64 + 联系方式 + 可选诊断日志）。 */
 export async function submitFeedback(
   text: string,
   screenshot?: string | null,
-  contact?: string | null
+  contact?: string | null,
+  diagLog?: string | null
 ): Promise<void> {
   return invoke('submit_feedback', {
     text,
     screenshot: screenshot ?? null,
     contact: contact ?? null,
+    diagLog: diagLog ?? null,
   })
+}
+
+/**
+ * 收集客户端诊断日志（脱敏后的日志尾部），供反馈一键附加。
+ * 软件发布后我们拿不到用户机器上的日志文件，只能靠这里带上来。
+ */
+export async function collectDiagLog(): Promise<string> {
+  return invoke('collect_diag_log')
+}
+
+/** 诊断日志附加范围（2026-09-28）：按文件数（最近 N 次运行）或按时间窗（最近一天）。 */
+export interface DiagLogRange {
+  /** 最近 N 个日志文件（≈ 最近 N 次运行），每文件 ≤160KB */
+  maxFiles?: number
+  /** 最近 N 小时内修改过的日志文件（优先于 maxFiles），每文件 ≤80KB */
+  sinceHours?: number
+}
+
+/** 按用户选择的范围收集诊断日志；range 省略时等同 collectDiagLog（默认最近 2 个文件）。 */
+export async function collectDiagLogRange(range?: DiagLogRange): Promise<string> {
+  return invoke('collect_diag_log', {
+    maxFiles: range?.maxFiles ?? null,
+    sinceHours: range?.sinceHours ?? null,
+  })
+}
+
+/** 应用日志目录绝对路径：「附加日志文件…」对话框的默认定位（macOS/Windows 通用，dev 模式指向 target 旁 logs/）。 */
+export async function getLogDir(): Promise<string | null> {
+  return invoke('get_log_dir')
+}
+
+/** 读取用户手动挑选的日志文件（同样脱敏 + 单文件 ≤160KB），头部标注「用户手动附加」。 */
+export async function collectManualLogs(paths: string[]): Promise<string> {
+  return invoke('collect_manual_logs', { paths })
 }

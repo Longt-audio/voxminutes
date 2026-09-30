@@ -1,18 +1,20 @@
-use std::sync::Arc;
-use tokio::sync::mpsc;
 use anyhow::Result;
 use log::{debug, error, info, warn};
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
-use super::devices::{AudioDevice, list_audio_devices, default_input_device, default_output_device};
+use super::devices::{
+    default_input_device, default_output_device, list_audio_devices, AudioDevice,
+};
 
 #[cfg(target_os = "macos")]
 use super::devices::get_safe_recording_devices_macos;
 
-use super::recording_state::{RecordingState, AudioChunk, DeviceType as RecordingDeviceType};
-use super::pipeline::AudioPipelineManager;
-use super::stream::AudioStreamManager;
-use super::recording_saver::RecordingSaver;
 use super::device_monitor::{AudioDeviceMonitor, DeviceEvent, DeviceMonitorType};
+use super::pipeline::{AudioPipelineManager, SharedTranscriptionFeed, TranscriptionFeed};
+use super::recording_saver::RecordingSaver;
+use super::recording_state::{AudioChunk, DeviceType as RecordingDeviceType, RecordingState};
+use super::stream::AudioStreamManager;
 
 /// Stream manager type enumeration
 pub enum StreamManagerType {
@@ -29,6 +31,12 @@ pub struct RecordingManager {
     device_event_receiver: Option<mpsc::UnboundedReceiver<DeviceEvent>>,
     follow_mic: bool,
     follow_system: bool,
+    /// 当前转写喂送通道（录音中热切换流式引擎的换接点；停止时需显式关闭，
+    /// 否则转写任务的 receiver 永远收不到 None 而无法收尾）
+    transcription_feed: Option<SharedTranscriptionFeed>,
+    /// 停止流时在 cleanup() 之前抢出的有效录音时长（cleanup 会把 recording_start 清空，
+    /// 之后 save_recording_only 再读 get_active_recording_duration 只能得到 None）
+    last_stopped_duration: Option<f64>,
 }
 
 // SAFETY: RecordingManager contains types that we've marked as Send
@@ -51,6 +59,21 @@ impl RecordingManager {
             device_event_receiver: Some(device_event_receiver),
             follow_mic: false,
             follow_system: false,
+            transcription_feed: None,
+            last_stopped_duration: None,
+        }
+    }
+
+    /// 当前转写喂送通道（热切换/停止时用）；未在录音时为 None。
+    pub fn get_transcription_feed(&self) -> Option<SharedTranscriptionFeed> {
+        self.transcription_feed.clone()
+    }
+
+    /// 关闭转写喂送通道并摘除引用：释放 sender，让当前转写任务收 None 收尾。
+    /// 必须在「等转写任务结束」之前调用，否则任务永远等不到输入结束。
+    fn close_transcription_feed(&mut self) {
+        if let Some(feed) = self.transcription_feed.take() {
+            TranscriptionFeed::close(&feed);
         }
     }
 
@@ -68,6 +91,7 @@ impl RecordingManager {
     /// * `microphone_device` - Optional microphone device to use
     /// * `system_device` - Optional system audio device to use
     /// * `auto_save` - Whether to save audio checkpoints (true) or just transcripts/metadata (false)
+    /// * `save_folder` - Base recordings directory (from the user's preferences)
     pub async fn start_recording(
         &mut self,
         microphone_device: Option<Arc<AudioDevice>>,
@@ -76,19 +100,34 @@ impl RecordingManager {
         follow_mic: bool,
         follow_system: bool,
         bypass_vad: bool,
+        save_folder: std::path::PathBuf,
     ) -> Result<mpsc::UnboundedReceiver<AudioChunk>> {
-        info!("Starting recording manager (auto_save: {}, follow_mic: {}, follow_system: {})", auto_save, follow_mic, follow_system);
+        info!(
+            "Starting recording manager (auto_save: {}, follow_mic: {}, follow_system: {})",
+            auto_save, follow_mic, follow_system
+        );
+
+        // 任务会话 id（2026-09-22）：一次录音 = 网关侧的一个积分任务。
+        // 本次录音期间的所有远程调用（流式识别 / 逐块翻译 / 收尾总结）都带同一个
+        // `x-vox-session` 头，网关据此把几百笔小额流水聚成「一次录音」的消耗，
+        // 用户中心才能看到「这次录音的识别用了多少、翻译用了多少」。
+        let session = crate::task_session::start_recording_session();
+        info!("📊 录音任务会话: {}", session);
 
         self.follow_mic = follow_mic;
         self.follow_system = follow_system;
 
         // Set up transcription channel
-        let (transcription_sender, transcription_receiver) = mpsc::unbounded_channel::<AudioChunk>();
+        let (transcription_sender, transcription_receiver) =
+            mpsc::unbounded_channel::<AudioChunk>();
+        // 共享 feed cell：管线经它喂转写；录音中可热切换（换 sender），停止时显式关闭
+        let feed = TranscriptionFeed::new_shared(transcription_sender);
+        self.transcription_feed = Some(feed.clone());
 
         // CRITICAL FIX: Create recording sender for pre-mixed audio from pipeline
         // Pipeline will mix mic + system audio professionally and send to this channel
         // Pass auto_save to control whether audio checkpoints are created
-        let recording_sender = self.recording_saver.start_accumulation(auto_save);
+        let recording_sender = self.recording_saver.start_accumulation(auto_save, save_folder)?;
 
         // Start recording state first
         self.state.start_recording()?;
@@ -98,23 +137,31 @@ impl RecordingManager {
         // - Bluetooth: Larger buffers (80-200ms) to handle jitter
         // - Wired: Smaller buffers (20-50ms) for low latency
         let (mic_name, mic_kind) = if let Some(ref mic) = microphone_device {
-            let device_kind = super::device_detection::InputDeviceKind::detect(&mic.name, 512, 48000);
+            let device_kind =
+                super::device_detection::InputDeviceKind::detect(&mic.name, 512, 48000);
             (mic.name.clone(), device_kind)
         } else {
-            ("No Microphone".to_string(), super::device_detection::InputDeviceKind::Unknown)
+            (
+                "No Microphone".to_string(),
+                super::device_detection::InputDeviceKind::Unknown,
+            )
         };
 
         let (sys_name, sys_kind) = if let Some(ref sys) = system_device {
-            let device_kind = super::device_detection::InputDeviceKind::detect(&sys.name, 512, 48000);
+            let device_kind =
+                super::device_detection::InputDeviceKind::detect(&sys.name, 512, 48000);
             (sys.name.clone(), device_kind)
         } else {
-            ("No System Audio".to_string(), super::device_detection::InputDeviceKind::Unknown)
+            (
+                "No System Audio".to_string(),
+                super::device_detection::InputDeviceKind::Unknown,
+            )
         };
 
         // Update recording metadata with device information
         self.recording_saver.set_device_info(
             microphone_device.as_ref().map(|d| d.name.clone()),
-            system_device.as_ref().map(|d| d.name.clone())
+            system_device.as_ref().map(|d| d.name.clone()),
         );
 
         // Start the audio processing pipeline with FFmpeg adaptive mixer
@@ -122,9 +169,9 @@ impl RecordingManager {
         // 3) Apply VAD and send speech segments to transcription (or bypass VAD for X-ASR)
         self.pipeline_manager.start(
             self.state.clone(),
-            transcription_sender,
-            0, // Ignored - using dynamic sizing internally
-            48000, // 48kHz sample rate
+            feed,
+            0,                      // Ignored - using dynamic sizing internally
+            48000,                  // 48kHz sample rate
             Some(recording_sender), // CRITICAL: Pass recording sender to receive pre-mixed audio
             mic_name,
             mic_kind,
@@ -138,11 +185,15 @@ impl RecordingManager {
 
         // Start audio streams - they send RAW unmixed chunks to pipeline for mixing
         // Pipeline handles mixing and distribution to both recording and transcription
-        self.stream_manager.start_streams(microphone_device.clone(), system_device.clone(), None).await?;
+        self.stream_manager
+            .start_streams(microphone_device.clone(), system_device.clone(), None)
+            .await?;
 
         // Start device monitoring to detect disconnects
         if let Some(ref mut monitor) = self.device_monitor {
-            if let Err(e) = monitor.start_monitoring(microphone_device.clone(), system_device.clone()) {
+            if let Err(e) =
+                monitor.start_monitoring(microphone_device.clone(), system_device.clone())
+            {
                 warn!("Failed to start device monitoring: {}", e);
                 // Non-fatal - continue without monitoring
             } else {
@@ -150,19 +201,31 @@ impl RecordingManager {
             }
         }
 
-        info!("Recording manager started successfully with {} active streams",
-               self.stream_manager.active_stream_count());
+        info!(
+            "Recording manager started successfully with {} active streams",
+            self.stream_manager.active_stream_count()
+        );
 
         // Remember which default device names we are following, so we can detect changes.
         self.state.set_current_default_names(
-            if follow_mic { microphone_device.as_ref().map(|d| d.name.clone()) } else { None },
-            if follow_system { system_device.as_ref().map(|d| d.name.clone()) } else { None },
+            if follow_mic {
+                microphone_device.as_ref().map(|d| d.name.clone())
+            } else {
+                None
+            },
+            if follow_system {
+                system_device.as_ref().map(|d| d.name.clone())
+            } else {
+                None
+            },
         );
         self.state.set_waiting_for_device(false);
         self.state.set_pending_device_check(false);
         self.state.set_rebuilding_streams(false);
-        self.state.set_stream_failed(RecordingDeviceType::Microphone, false);
-        self.state.set_stream_failed(RecordingDeviceType::System, false);
+        self.state
+            .set_stream_failed(RecordingDeviceType::Microphone, false);
+        self.state
+            .set_stream_failed(RecordingDeviceType::System, false);
 
         Ok(transcription_receiver)
     }
@@ -193,7 +256,12 @@ impl RecordingManager {
     ///
     /// User still hears audio via Bluetooth (playback), but recording captures
     /// via stable wired path for best quality.
-    pub async fn start_recording_with_defaults_and_auto_save(&mut self, auto_save: bool, bypass_vad: bool) -> Result<mpsc::UnboundedReceiver<AudioChunk>> {
+    pub async fn start_recording_with_defaults_and_auto_save(
+        &mut self,
+        auto_save: bool,
+        bypass_vad: bool,
+        save_folder: std::path::PathBuf,
+    ) -> Result<mpsc::UnboundedReceiver<AudioChunk>> {
         #[cfg(target_os = "macos")]
         {
             info!("🎙️ [macOS] Starting recording with smart device selection (Bluetooth override enabled)");
@@ -208,11 +276,22 @@ impl RecordingManager {
 
             // Ensure at least microphone is available
             if microphone_device.is_none() {
-                return Err(anyhow::anyhow!("❌ No microphone device available for recording"));
+                return Err(anyhow::anyhow!(
+                    "❌ No microphone device available for recording"
+                ));
             }
 
             // Start recording with selected devices and auto_save setting
-            self.start_recording(microphone_device, system_device, auto_save, true, true, bypass_vad).await
+            self.start_recording(
+                microphone_device,
+                system_device,
+                auto_save,
+                true,
+                true,
+                bypass_vad,
+                save_folder,
+            )
+            .await
         }
 
         #[cfg(not(target_os = "macos"))]
@@ -247,7 +326,16 @@ impl RecordingManager {
                 return Err(anyhow::anyhow!("No microphone device available"));
             }
 
-            self.start_recording(microphone_device, system_device, auto_save, true, true, bypass_vad).await
+            self.start_recording(
+                microphone_device,
+                system_device,
+                auto_save,
+                true,
+                true,
+                bypass_vad,
+                save_folder,
+            )
+            .await
         }
     }
 
@@ -272,6 +360,9 @@ impl RecordingManager {
         if let Err(e) = self.pipeline_manager.stop().await {
             error!("Error stopping audio pipeline: {}", e);
         }
+
+        // 关闭转写喂送通道，让转写任务收尾（否则 receiver 永远等不到 None）
+        self.close_transcription_feed();
 
         debug!("Recording streams stopped successfully");
         Ok(())
@@ -302,8 +393,13 @@ impl RecordingManager {
             error!("Error during force flush: {}", e);
         }
 
+        // 关闭转写喂送通道，让转写任务收尾（否则 receiver 永远等不到 None）
+        self.close_transcription_feed();
+
         // CRITICAL: Full cleanup to release all Arc references and resources
         // This ensures microphone is released even if Drop is delayed
+        // cleanup() 会清空 recording_start，先把有效时长抢出来留给 save_recording_only
+        self.last_stopped_duration = self.state.get_active_recording_duration();
         self.state.cleanup();
 
         info!("✅ Recording streams stopped with immediate flush completed");
@@ -311,15 +407,28 @@ impl RecordingManager {
     }
 
     /// Save recording after transcription is complete
-    pub async fn save_recording_only<R: tauri::Runtime>(&mut self, app: &tauri::AppHandle<R>) -> Result<()> {
+    pub async fn save_recording_only<R: tauri::Runtime>(
+        &mut self,
+        app: &tauri::AppHandle<R>,
+    ) -> Result<()> {
         debug!("Saving recording with transcript chunks");
 
-        // Get actual recording duration from state
-        let recording_duration = self.state.get_active_recording_duration();
-        info!("Recording duration from state: {:?}s", recording_duration);
+        // Get actual recording duration（优先用停止流时在 cleanup 前抢出的值）
+        let recording_duration = self
+            .last_stopped_duration
+            .take()
+            .or_else(|| self.state.get_active_recording_duration());
+        info!(
+            "Recording duration from state: {}",
+            recording_duration.map_or_else(|| "None".to_string(), |d| format!("{:.1}s", d))
+        );
 
         // Save the recording with actual duration
-        match self.recording_saver.stop_and_save(app, recording_duration).await {
+        match self
+            .recording_saver
+            .stop_and_save(app, recording_duration)
+            .await
+        {
             Ok(Some(file_path)) => {
                 info!("Recording saved successfully to: {}", file_path);
             }
@@ -337,12 +446,18 @@ impl RecordingManager {
     }
 
     /// Stop recording and save audio (legacy method)
-    pub async fn stop_recording<R: tauri::Runtime>(&mut self, app: &tauri::AppHandle<R>) -> Result<()> {
+    pub async fn stop_recording<R: tauri::Runtime>(
+        &mut self,
+        app: &tauri::AppHandle<R>,
+    ) -> Result<()> {
         info!("Stopping recording manager");
 
         // Get recording duration BEFORE stopping (important!)
         let recording_duration = self.state.get_active_recording_duration();
-        info!("Recording duration before stop: {:?}s", recording_duration);
+        info!(
+            "Recording duration before stop: {}",
+            recording_duration.map_or_else(|| "None".to_string(), |d| format!("{:.1}s", d))
+        );
 
         // Stop recording state first
         self.state.stop_recording();
@@ -357,8 +472,15 @@ impl RecordingManager {
             error!("Error stopping audio pipeline: {}", e);
         }
 
+        // 关闭转写喂送通道，让转写任务收尾
+        self.close_transcription_feed();
+
         // Save the recording with actual duration
-        match self.recording_saver.stop_and_save(app, recording_duration).await {
+        match self
+            .recording_saver
+            .stop_and_save(app, recording_duration)
+            .await
+        {
             Ok(Some(file_path)) => {
                 info!("Recording saved successfully to: {}", file_path);
             }
@@ -431,8 +553,10 @@ impl RecordingManager {
             warn!("🎤 No default microphone available — entering waiting state");
             let _ = self.stream_manager.stop_streams();
             self.state.set_waiting_for_device(true);
-            self.state.set_stream_failed(RecordingDeviceType::Microphone, false);
-            self.state.set_stream_failed(RecordingDeviceType::System, false);
+            self.state
+                .set_stream_failed(RecordingDeviceType::Microphone, false);
+            self.state
+                .set_stream_failed(RecordingDeviceType::System, false);
             info!("✅ Entered waiting state (no default microphone)");
             return Ok(());
         }
@@ -463,8 +587,10 @@ impl RecordingManager {
             new_mic.as_ref().map(|d| d.name.clone()),
             new_sys.as_ref().map(|d| d.name.clone()),
         );
-        self.state.set_stream_failed(RecordingDeviceType::Microphone, false);
-        self.state.set_stream_failed(RecordingDeviceType::System, false);
+        self.state
+            .set_stream_failed(RecordingDeviceType::Microphone, false);
+        self.state
+            .set_stream_failed(RecordingDeviceType::System, false);
         self.state.reset_recoverable_error_count();
 
         // Update saver metadata so the final recording knows which devices were used.
@@ -473,9 +599,11 @@ impl RecordingManager {
             new_sys.as_ref().map(|d| d.name.clone()),
         );
 
-        info!("✅ Audio streams rebuilt with microphone={:?}, system={:?}",
-              new_mic.as_ref().map(|d| d.name.clone()),
-              new_sys.as_ref().map(|d| d.name.clone()));
+        info!(
+            "✅ Audio streams rebuilt with microphone={:?}, system={:?}",
+            new_mic.as_ref().map(|d| d.name.clone()),
+            new_sys.as_ref().map(|d| d.name.clone())
+        );
 
         Ok(())
     }
@@ -582,6 +710,9 @@ impl RecordingManager {
             if let Err(e) = self.pipeline_manager.stop().await {
                 error!("Error stopping audio pipeline during cleanup: {}", e);
             }
+
+            // 关闭转写喂送通道，让转写任务收尾
+            self.close_transcription_feed();
         }
         self.state.cleanup();
     }
@@ -604,14 +735,22 @@ impl RecordingManager {
 
     /// Attempt to reconnect a disconnected device
     /// Returns true if reconnection successful
-    pub async fn attempt_device_reconnect(&mut self, device_name: &str, device_type: DeviceMonitorType) -> Result<bool> {
-        info!("🔄 Attempting to reconnect device: {} ({:?})", device_name, device_type);
+    pub async fn attempt_device_reconnect(
+        &mut self,
+        device_name: &str,
+        device_type: DeviceMonitorType,
+    ) -> Result<bool> {
+        info!(
+            "🔄 Attempting to reconnect device: {} ({:?})",
+            device_name, device_type
+        );
 
         // List current devices
         let available_devices = list_audio_devices().await?;
 
         // Find the device by name
-        let device = available_devices.iter()
+        let device = available_devices
+            .iter()
             .find(|d| d.name == device_name)
             .cloned();
 
@@ -630,7 +769,9 @@ impl RecordingManager {
                     self.stream_manager.stop_streams()?;
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-                    self.stream_manager.start_streams(Some(device_arc.clone()), system_device, None).await?;
+                    self.stream_manager
+                        .start_streams(Some(device_arc.clone()), system_device, None)
+                        .await?;
                     self.state.set_microphone_device(device_arc);
 
                     info!("✅ Microphone reconnected successfully");
@@ -644,7 +785,9 @@ impl RecordingManager {
                     self.stream_manager.stop_streams()?;
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-                    self.stream_manager.start_streams(microphone_device, Some(device_arc.clone()), None).await?;
+                    self.stream_manager
+                        .start_streams(microphone_device, Some(device_arc.clone()), None)
+                        .await?;
                     self.state.set_system_device(device_arc);
 
                     info!("✅ System audio reconnected successfully");
@@ -659,8 +802,15 @@ impl RecordingManager {
 
     /// Handle a device disconnect event
     /// Pauses recording and attempts reconnection
-    pub async fn handle_device_disconnect(&mut self, device_name: String, device_type: DeviceMonitorType) {
-        warn!("📱 Device disconnected: {} ({:?})", device_name, device_type);
+    pub async fn handle_device_disconnect(
+        &mut self,
+        device_name: String,
+        device_type: DeviceMonitorType,
+    ) {
+        warn!(
+            "📱 Device disconnected: {} ({:?})",
+            device_name, device_type
+        );
 
         // Mark state as reconnecting (keeps recording alive but in waiting state)
         let device = match device_type {
@@ -678,11 +828,18 @@ impl RecordingManager {
     }
 
     /// Handle a device reconnect event
-    pub async fn handle_device_reconnect(&mut self, device_name: String, device_type: DeviceMonitorType) -> Result<()> {
+    pub async fn handle_device_reconnect(
+        &mut self,
+        device_name: String,
+        device_type: DeviceMonitorType,
+    ) -> Result<()> {
         info!("📱 Device reconnected: {} ({:?})", device_name, device_type);
 
         // Attempt to reconnect the device
-        match self.attempt_device_reconnect(&device_name, device_type).await {
+        match self
+            .attempt_device_reconnect(&device_name, device_type)
+            .await
+        {
             Ok(true) => {
                 info!("✅ Successfully reconnected device: {}", device_name);
                 self.state.stop_reconnecting();

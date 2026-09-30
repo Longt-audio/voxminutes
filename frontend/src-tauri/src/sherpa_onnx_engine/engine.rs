@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use sherpa_onnx::{
-    OfflineRecognizer, OfflineRecognizerConfig, OfflineSenseVoiceModelConfig,
-    OnlineRecognizer, OnlineRecognizerConfig, OnlineTransducerModelConfig,
+    OfflineRecognizer, OfflineRecognizerConfig, OfflineSenseVoiceModelConfig, OnlineRecognizer,
+    OnlineRecognizerConfig, OnlineTransducerModelConfig,
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -39,16 +39,10 @@ impl SherpaOnnxEngine {
         let model_file = model_dir.join("model.onnx");
         let tokens_file = model_dir.join("tokens.txt");
         if !model_file.exists() {
-            return Err(anyhow!(
-                "model.onnx not found at {}",
-                model_file.display()
-            ));
+            return Err(anyhow!("model.onnx not found at {}", model_file.display()));
         }
         if !tokens_file.exists() {
-            return Err(anyhow!(
-                "tokens.txt not found at {}",
-                tokens_file.display()
-            ));
+            return Err(anyhow!("tokens.txt not found at {}", tokens_file.display()));
         }
         // 语言偏好：优先使用用户选择（zh/en/...），默认 auto 自动检测
         let language = crate::get_language_preference_internal()
@@ -199,9 +193,19 @@ mod tests {
         let mut data = &[][..];
         while pos + 8 <= bytes.len() {
             let id = &bytes[pos..pos + 4];
-            let size = u32::from_le_bytes([bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]]) as usize;
+            let size = u32::from_le_bytes([
+                bytes[pos + 4],
+                bytes[pos + 5],
+                bytes[pos + 6],
+                bytes[pos + 7],
+            ]) as usize;
             if id == b"fmt " {
-                rate = u32::from_le_bytes([bytes[pos + 12], bytes[pos + 13], bytes[pos + 14], bytes[pos + 15]]);
+                rate = u32::from_le_bytes([
+                    bytes[pos + 12],
+                    bytes[pos + 13],
+                    bytes[pos + 14],
+                    bytes[pos + 15],
+                ]);
             }
             if id == b"data" {
                 data = &bytes[pos + 8..(pos + 8 + size).min(bytes.len())];
@@ -237,7 +241,8 @@ mod tests {
         let audio_secs = samples_16k.len() as f64 / 16000.0;
 
         let t0 = Instant::now();
-        let engine = XAsrOnlineEngine::create_x_asr(&model_dir, "x-asr-480ms").expect("load engine");
+        let engine =
+            XAsrOnlineEngine::create_x_asr(&model_dir, "x-asr-480ms").expect("load engine");
         eprintln!("engine load time: {:?}", t0.elapsed());
 
         let stream = engine.recognizer.create_stream();
@@ -256,7 +261,10 @@ mod tests {
         let rtf = decode_elapsed.as_secs_f64() / audio_secs;
 
         if let Some(result) = engine.recognizer.get_result(&stream) {
-            eprintln!("text: {}", result.text.chars().take(120).collect::<String>());
+            eprintln!(
+                "text: {}",
+                result.text.chars().take(120).collect::<String>()
+            );
         }
         eprintln!(
             "audio: {:.1}s | decode: {:?} | RTF = {:.2} ({:.0}% of real time)",

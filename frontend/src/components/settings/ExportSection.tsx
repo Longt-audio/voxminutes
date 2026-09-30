@@ -35,7 +35,9 @@ export function ExportSection() {
     try {
       const folder = await selectRecordingFolder()
       if (!folder) return
-      await setRecordingPreferences({ recordingsFolder: folder, autoSave: true })
+      // 带上当前的 autoSave，避免改目录时把该偏好重置
+      const current = await getRecordingPreferences().catch(() => null)
+      await setRecordingPreferences({ recordingsFolder: folder, autoSave: current?.autoSave ?? true })
       setRecordingsFolder(folder)
       toast.success(t.setFolderUpdated)
     } catch (e) {

@@ -2,7 +2,6 @@ import type { Language } from '../languages'
 
 export interface TranslateMessages {
   trTitle: string
-  trSubtitle: string
   trAutoDetect: string
   trAutoPair: string
   trLangZh: string
@@ -37,6 +36,7 @@ export interface TranslateMessages {
   trEngineOpus: string
   trRemoteModel: string
   trEngineHymt2: string
+  recEngineCustomApi: string
   trPlaySource: string
   trPlayTarget: string
   trTtsLoading: string
@@ -44,12 +44,29 @@ export interface TranslateMessages {
   trTtsSaved: string
   trTtsSaving: string
   trSetDefaultVoice: string
+  trQuickSwitch: string
+  trModelSettings: string
+  trBackToTranslate: string
+  trTranslateModelsTitle: string
+  trCustomApiSection: string
+  trCustomApiNotConfigured: string
+  trTtsSection: string
+  trDefaultVoice: string
+  trVoiceProviderDefault: string
+  trGotoTtsPage: string
+  trOpusDesc: string
+  trHymt2Desc: string
+  trPickModel: string
+  trMoreSettings: string
+  /** 翻译页模型快速切换按钮上方的小标题 */
+  trModelLabel: string
+  /** 自定义 API 引导文案（配置入口已移到「设置 → 自定义 LLM」） */
+  trCustomApiGuide: string
 }
 
 export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
   en: {
     trTitle: 'Translate',
-    trSubtitle: 'Local translation models. Text never leaves your device.',
     trAutoDetect: 'Auto-detect',
     trAutoPair: 'Auto both ways',
     trLangZh: 'Chinese',
@@ -84,6 +101,7 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trRemoteModel: 'Remote model',
     trEngineOpus: 'OPUS-MT (fast)',
     trEngineHymt2: 'Hy-MT2 (high quality)',
+    recEngineCustomApi: 'Custom API',
     trPlaySource: 'Play source',
     trPlayTarget: 'Play translation',
     trTtsLoading: 'Synthesizing…',
@@ -91,10 +109,25 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trTtsSaved: 'Audio saved to {path}',
     trTtsSaving: 'Saving audio…',
     trSetDefaultVoice: 'Set default voice',
+    trQuickSwitch: 'Model',
+    trModelSettings: 'Models & Settings',
+    trBackToTranslate: 'Back to Translate',
+    trTranslateModelsTitle: 'Translation Models',
+    trCustomApiSection: 'Custom API',
+    trCustomApiNotConfigured: 'Not configured · Click to set up (use your own or self-hosted OpenAI-compatible / Anthropic API)',
+    trTtsSection: 'Text to Speech',
+    trDefaultVoice: 'Default voice',
+    trVoiceProviderDefault: 'Provider default',
+    trGotoTtsPage: 'Set voices on the TTS page',
+    trOpusDesc: 'Fast, lightweight Chinese ⇄ English translation',
+    trHymt2Desc: 'High-quality multilingual translation (zh/en/ja/ko and more)',
+    trPickModel: 'Choose translation model',
+    trMoreSettings: 'More settings',
+    trModelLabel: 'Translation model',
+    trCustomApiGuide: 'Custom APIs are configured in Settings → Custom LLM',
   },
   zh: {
     trTitle: '翻译',
-    trSubtitle: '本地模型翻译，文本不上传云端',
     trAutoDetect: '自动检测',
     trAutoPair: '自动互译',
     trLangZh: '中文',
@@ -129,6 +162,7 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trRemoteModel: '远程模型',
     trEngineOpus: 'OPUS-MT（快速）',
     trEngineHymt2: 'Hy-MT2（高质量）',
+    recEngineCustomApi: '自定义 API',
     trPlaySource: '播放原文',
     trPlayTarget: '播放译文',
     trTtsLoading: '语音合成中…',
@@ -136,10 +170,25 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trTtsSaved: '音频已保存到 {path}',
     trTtsSaving: '正在保存音频…',
     trSetDefaultVoice: '设置默认语音',
+    trQuickSwitch: '模型',
+    trModelSettings: '模型与设置',
+    trBackToTranslate: '返回翻译',
+    trTranslateModelsTitle: '翻译模型',
+    trCustomApiSection: '自定义 API',
+    trCustomApiNotConfigured: '未配置 · 点击前往配置（支持自有或本地部署的 OpenAI 兼容 / Anthropic API）',
+    trTtsSection: '语音合成',
+    trDefaultVoice: '默认音色',
+    trVoiceProviderDefault: '供应商默认',
+    trGotoTtsPage: '去语音合成页设置音色',
+    trOpusDesc: '轻量快速的中英互译模型',
+    trHymt2Desc: '高质量多语言翻译模型（中/英/日/韩等）',
+    trPickModel: '选择翻译模型',
+    trMoreSettings: '更多设置',
+    trModelLabel: '翻译模型',
+    trCustomApiGuide: '自定义 API 在「设置 → 自定义 LLM」中配置',
   },
   ko: {
     trTitle: '번역',
-    trSubtitle: '로컬 번역 모델을 사용하며, 텍스트는 클라우드에 업로드되지 않습니다.',
     trAutoDetect: '자동 감지',
     trAutoPair: '자동 양방향',
     trLangZh: '중국어',
@@ -174,6 +223,7 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trRemoteModel: '원격 모델',
     trEngineOpus: 'OPUS-MT (빠름)',
     trEngineHymt2: 'Hy-MT2 (고품질)',
+    recEngineCustomApi: '사용자 지정 API',
     trPlaySource: '원문 재생',
     trPlayTarget: '번역 재생',
     trTtsLoading: '음성 합성 중…',
@@ -181,10 +231,25 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trTtsSaved: '오디오가 {path}에 저장되었습니다',
     trTtsSaving: '오디오 저장 중…',
     trSetDefaultVoice: '기본 음성 설정',
+    trQuickSwitch: '모델',
+    trModelSettings: '모델 및 설정',
+    trBackToTranslate: '번역으로 돌아가기',
+    trTranslateModelsTitle: '번역 모델',
+    trCustomApiSection: '사용자 지정 API',
+    trCustomApiNotConfigured: '설정되지 않음 · 클릭하여 설정 (자체 또는 로컬 배포 OpenAI 호환 / Anthropic API 지원)',
+    trTtsSection: '음성 합성',
+    trDefaultVoice: '기본 음색',
+    trVoiceProviderDefault: '공급자 기본값',
+    trGotoTtsPage: '음성 합성 페이지에서 음색 설정',
+    trOpusDesc: '빠르고 가벼운 중국어 ⇄ 영어 번역 모델',
+    trHymt2Desc: '고품질 다국어 번역 모델(중/영/일/한 등)',
+    trPickModel: '번역 모델 선택',
+    trMoreSettings: '더 많은 설정',
+    trModelLabel: '번역 모델',
+    trCustomApiGuide: '사용자 지정 API는 「설정 → 사용자 정의 LLM」에서 설정합니다',
   },
   ja: {
     trTitle: '翻訳',
-    trSubtitle: 'ローカルの翻訳モデルを使用。テキストはクラウドにアップロードされません。',
     trAutoDetect: '自動検出',
     trAutoPair: '自動相互翻訳',
     trLangZh: '中国語',
@@ -219,6 +284,7 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trRemoteModel: 'リモートモデル',
     trEngineOpus: 'OPUS-MT（高速）',
     trEngineHymt2: 'Hy-MT2（高品質）',
+    recEngineCustomApi: 'カスタム API',
     trPlaySource: '原文を再生',
     trPlayTarget: '訳文を再生',
     trTtsLoading: '音声合成中…',
@@ -226,5 +292,21 @@ export const TRANSLATE_MESSAGES: Record<Language, TranslateMessages> = {
     trTtsSaved: '音声を {path} に保存しました',
     trTtsSaving: '音声を保存中…',
     trSetDefaultVoice: 'デフォルト音声を設定',
+    trQuickSwitch: 'モデル',
+    trModelSettings: 'モデルと設定',
+    trBackToTranslate: '翻訳に戻る',
+    trTranslateModelsTitle: '翻訳モデル',
+    trCustomApiSection: 'カスタム API',
+    trCustomApiNotConfigured: '未設定 · クリックして設定（自前またはローカルデプロイの OpenAI 互換 / Anthropic API に対応）',
+    trTtsSection: '音声合成',
+    trDefaultVoice: 'デフォルト音声',
+    trVoiceProviderDefault: 'プロバイダーのデフォルト',
+    trGotoTtsPage: '音声合成ページで音声を設定',
+    trOpusDesc: '軽量で高速な中国語 ⇄ 英語翻訳モデル',
+    trHymt2Desc: '高品質な多言語翻訳モデル（中/英/日/韓など）',
+    trPickModel: '翻訳モデルを選択',
+    trMoreSettings: 'その他の設定',
+    trModelLabel: '翻訳モデル',
+    trCustomApiGuide: 'カスタム API は「設定 → カスタム LLM」で設定します',
   },
 }
