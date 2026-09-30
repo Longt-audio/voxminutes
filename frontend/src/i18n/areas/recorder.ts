@@ -57,6 +57,8 @@ export interface RecorderMessages {
   recMicLevelTitle: string
   /** 麦克风静音时显示在能量条旁边的可点击提示（点一下即取消静音） */
   recMicMutedHint: string
+  /** 「不再显示」按钮的提示文案 */
+  recMicMutedHintDismiss: string
   recSysLevelTitle: string
   recSetupTitle: string
   recSetupDesc: string
@@ -285,6 +287,7 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recSysShort: 'Sys',
     recMicLevelTitle: 'Microphone level (should fluctuate when you speak; a constantly empty bar means no audio is reaching the app)',
     recMicMutedHint: 'Mic is muted by default — only system audio is recorded. Click to unmute for speaking or in-person meetings',
+    recMicMutedHintDismiss: 'Don\'t show again',
     recSysLevelTitle: 'System audio level (should fluctuate while sound is playing)',
     recSetupTitle: 'Before You Start Recording',
     recSetupDesc: 'Choose the model and audio devices for this recording.',
@@ -434,6 +437,7 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recSysShort: '系',
     recMicLevelTitle: '麦克风电平（说话时应有波动；恒为空说明系统未送到声音）',
     recMicMutedHint: '麦克风默认静音，只录系统声音；需要自己发言或录制面对面会议时，点此开启麦克风',
+    recMicMutedHintDismiss: '不再显示',
     recSysLevelTitle: '系统音频电平（播放声音时应有波动）',
     recSetupTitle: '开始录音前确认',
     recSetupDesc: '选择本次录音使用的模型与音频设备。',
@@ -583,6 +587,7 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recSysShort: 'Sys',
     recMicLevelTitle: '마이크 레벨(말할 때 움직여야 합니다. 계속 비어 있으면 시스템에서 소리가 전달되지 않는 것입니다)',
     recMicMutedHint: '마이크는 기본 음소거이며 시스템 오디오만 녹음됩니다. 발언하거나 대면 회의를 녹음하려면 클릭해 해제하세요',
+    recMicMutedHintDismiss: '다시 표시 안 함',
     recSysLevelTitle: '시스템 오디오 레벨(소리 재생 시 움직여야 합니다)',
     recSetupTitle: '녹음 시작 전 확인',
     recSetupDesc: '이번 녹음에 사용할 모델과 오디오 기기를 선택하세요.',
@@ -732,6 +737,7 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recSysShort: 'Sys',
     recMicLevelTitle: 'マイクレベル（話すと変動します。常に空の場合は音声が届いていません）',
     recMicMutedHint: 'マイクは既定でミュートされており、システム音声のみ録音します。発言や対面会議の録音はクリックで解除してください',
+    recMicMutedHintDismiss: '今後表示しない',
     recSysLevelTitle: 'システム音声レベル（音の再生中に変動します）',
     recSetupTitle: '録音開始前の確認',
     recSetupDesc: 'この録音で使用するモデルとオーディオデバイスを選択してください。',

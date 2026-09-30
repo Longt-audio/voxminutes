@@ -27,6 +27,8 @@ import {
   setTranslationHomeLang,
   toggleSubtitleWindow,
   getRemoteEnabled,
+  apiGetSettings,
+  apiSaveSetting,
 } from '@/services/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -670,6 +672,9 @@ function LevelMeter({
   )
 }
 
+/** 用户点过「不再显示」后置 true，之后不再展示麦克风静音提示 */
+const MIC_HINT_DISMISSED_KEY = 'recorder.micHintDismissed'
+
 /** 右栏上方信息行：空闲时显示录制来源提示；录音时显示计时 + 双路电平 + 真实频谱 */
 export function RecorderInfo() {
   const isRecording = useAppStore((s) => s.isRecording)
@@ -680,6 +685,19 @@ export function RecorderInfo() {
   const isMicMuted = useAppStore((s) => s.isMicMuted)
   const setMicMuted = useAppStore((s) => s.setMicMuted)
   const t = useMessages()
+  // 静音提示可被用户永久关掉（设置项 recorder.micHintDismissed）
+  const [hintDismissed, setHintDismissed] = useState(false)
+
+  useEffect(() => {
+    apiGetSettings()
+      .then((st) => setHintDismissed(!!st[MIC_HINT_DISMISSED_KEY]))
+      .catch(() => {})
+  }, [])
+
+  const dismissMicHint = () => {
+    setHintDismissed(true)
+    apiSaveSetting(MIC_HINT_DISMISSED_KEY, 'true').catch(() => {})
+  }
 
   useAudioLevel()
 
@@ -739,15 +757,26 @@ export function RecorderInfo() {
       {/* 麦克风默认静音时，在能量条与频谱之间的空位给出可点击的提示。
           用 -webkit-box + line-clamp 两行截断（Tailwind 3.4 的 line-clamp-2 也等价），
           完整文案挂在 title 上，窗口很窄时也能看到全文。 */}
-      {isMicMuted && (
-        <button
-          type="button"
-          onClick={handleUnmuteMic}
-          title={t.recMicMutedHint}
-          className="min-w-0 flex-1 basis-24 max-w-[320px] overflow-hidden text-left text-[10px] leading-[1.15] text-amber-600 hover:underline [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] dark:text-amber-500"
-        >
-          {t.recMicMutedHint}
-        </button>
+      {isMicMuted && !hintDismissed && (
+        <div className="flex min-w-0 flex-1 basis-24 max-w-[340px] items-center gap-1">
+          <button
+            type="button"
+            onClick={handleUnmuteMic}
+            title={t.recMicMutedHint}
+            className="min-w-0 flex-1 overflow-hidden text-left text-[10px] leading-[1.15] text-muted-foreground/70 hover:text-muted-foreground hover:underline [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical]"
+          >
+            {t.recMicMutedHint}
+          </button>
+          {/* 关掉后写入设置，永久不再显示（用户 2026-09-30 要求） */}
+          <button
+            type="button"
+            title={t.recMicMutedHintDismiss}
+            onClick={dismissMicHint}
+            className="shrink-0 rounded px-1 text-[10px] leading-none text-muted-foreground/50 hover:bg-muted hover:text-muted-foreground"
+          >
+            ✕
+          </button>
+        </div>
       )}
       {/* 能量条：ml-auto 整体靠右与计时/指示灯拉开间距；flex-1 加宽、max-w 限宽、min-w 防窄窗口溢出 */}
       <div className="ml-auto flex-1 min-w-[100px] max-w-[380px] h-full rounded-md border bg-muted/40 px-1.5 py-0.5">

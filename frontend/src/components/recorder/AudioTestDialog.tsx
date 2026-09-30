@@ -177,7 +177,7 @@ export function AudioTestDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto custom-scrollbar">
+      <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto custom-scrollbar [&_*]:min-w-0">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
