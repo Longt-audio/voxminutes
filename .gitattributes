@@ -1,0 +1,43 @@
+# ── 统一行尾（重要，别删）────────────────────────────────────────────────────
+#
+# 为什么必须有这个文件：
+#   `sqlx::migrate!()` 的迁移校验和是**对文件字节**算的，**行尾 CRLF / LF 不同就会不一致**。
+#   Git for Windows 默认 `core.autocrlf=true`，会把仓库里的 LF 在检出时转成 CRLF ——
+#   于是「Windows 上打的包」和「macOS/CI 上打的包」内嵌的校验和不同，
+#   同一个数据库在两者之间切换就会报：
+#       migration 20260717000000 was previously applied but has been modified
+#   应用随即启动失败（2026-09-30 真机实测，用户永久卡在启动页）。
+#
+#   把行尾钉死成 LF，本机 / CI / Windows 三处校验和就永远一致。
+#
+#   注意：即使有了本文件，**老的数据库里记录的仍是旧校验和**，所以
+#   `database/manager.rs` 里还留了一条「校验和不匹配就刷新并重跑」的自愈逻辑，
+#   两处配合才算根治。
+
+* text=auto eol=lf
+
+# Windows 脚本保持 CRLF：cmd.exe 对 LF-only 的 .bat 处理不可靠（goto/label 会出错）
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# 二进制（禁止任何行尾/编码转换）
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.icns  binary
+*.dll   binary
+*.exe   binary
+*.wav   binary
+*.mp3   binary
+*.mp4   binary
+*.zip   binary
+*.bz2   binary
+*.gz    binary
+*.7z    binary
+*.gguf  binary
+*.onnx  binary
+*.bytes binary
