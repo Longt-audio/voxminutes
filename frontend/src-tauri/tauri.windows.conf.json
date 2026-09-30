@@ -20,6 +20,7 @@
         ]
     },
     "bundle": {
+        "licenseFile": "installer-license.txt",
         "resources": {
             "resources-dll/onnxruntime.dll": "onnxruntime.dll",
             "resources-dll/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll",

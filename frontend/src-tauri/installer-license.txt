@@ -1,0 +1,59 @@
+VoxMinutes 用户协议与隐私政策（摘要）
+
+安装或使用本软件前，请阅读以下要点。完整的《用户协议》与《隐私政策》见文末链接，
+继续安装即表示你已阅读并同意这两份文件。
+
+一、本软件会把哪些数据传出你的电脑
+  · 使用「本地模型」时，录音与文本全程不离开你的电脑。
+  · 只有当你主动选择「远程」模型或开启「远程服务」时：
+      - 语音识别：音频片段（流式）或整段录音（离线重识别）会上传到我们的服务器，
+        并由服务器转发给上游 AI 服务商；用于临时托管的音频最长 2 小时后自动删除。
+      - 翻译 / 会议总结：待处理的文本会上传并转发给上游 AI 服务商。
+  · 上游服务商位于中国大陆（阿里云百炼、火山引擎、小米 MiMo 等）与美国（Deepgram），
+    我们的服务器位于中国香港 —— 因此属于个人信息跨境传输。不同意请只使用本地模型。
+  · 我们不会将你的音频或文本用于训练模型，也不会用于本摘要未说明的用途。
+
+二、我们不收集什么
+  不需要注册账号；不收集姓名、手机号、邮箱、位置、通讯录、剪贴板；
+  不读取你电脑上的其他文件；软件内未集成任何第三方统计分析 SDK。
+
+三、你的录音存在哪里
+  录音与转写保存在你自己选择的录音目录，本地数据库与日志保存在应用数据目录。
+  【注意】卸载本软件不会自动删除这些文件，如需删除请手动清理。
+
+四、完整条款
+  用户协议： https://voxmin.top/terms.html
+  隐私政策： https://voxmin.top/privacy.html
+  运营者：VoxMinutes 开发者      联系邮箱：voxmin@qq.com
+
+------------------------------------------------------------
+
+VoxMinutes Terms of Service & Privacy Policy (Summary)
+
+Please read the following before installing. The full documents are linked below;
+by continuing the installation you confirm that you have read and agree to them.
+
+1. What leaves your computer
+   · With "local" models, your audio and text never leave your computer.
+   · Only when you explicitly select a "remote" model / enable the remote service:
+       - Speech recognition: audio segments (streaming) or the whole recording (batch)
+         are uploaded to our server and forwarded to an upstream AI provider.
+         Temporarily hosted audio is deleted automatically within 2 hours.
+       - Translation / summarization: the text to be processed is uploaded and forwarded.
+   · Upstream providers are located in mainland China (Alibaba Bailian, Volcengine,
+     Xiaomi MiMo, ...) and the United States (Deepgram); our server is in Hong Kong.
+     This is a cross-border transfer. If you do not agree, use local models only.
+   · We never use your audio or text to train models, nor for any purpose not stated here.
+
+2. What we do NOT collect
+   No account registration; no name, phone, email, location, contacts or clipboard;
+   no access to other files on your computer; no third-party analytics SDK.
+
+3. Where your recordings are stored
+   Recordings and transcripts live in the folder you choose; the local database and logs
+   live in the application data directory. NOTE: uninstalling does NOT delete them.
+
+4. Full documents
+   Terms of Service: https://voxmin.top/en/terms.html
+   Privacy Policy:   https://voxmin.top/en/privacy.html
+   Operator: VoxMinutes Developer     Contact: voxmin@qq.com
