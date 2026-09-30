@@ -179,8 +179,9 @@ jobs:
       #   别处，甚至不重新下载）；② src-tauri/build.rs 递归搜索（target/ 里根本没有）。
       # 所以干脆把 build.rs **已经暂存好的** resources-dll/ 直接缓存起来 ——
       # 只要成功构建过一次，之后每次都能命中。
-      - name: Cache build-script outputs
-        uses: actions/cache@v4
+      - name: Restore build-script outputs
+        id: bso
+        uses: actions/cache/restore@v4
         with:
           # ⚠️ 两个都要缓存，缺一不可（2026-09-30 血泪）：
           #   ① target/<profile>/build —— ort-sys / sherpa-onnx-sys 的构建脚本产物：
@@ -295,3 +296,17 @@ jobs:
 
             安装说明：双击安装包 → 出现「Windows 已保护你的电脑」时点
             **「更多信息」→「仍要运行」**（未做代码签名，属预期现象）。
+
+      # ── 无论如何都保存构建脚本产物 ────────────────────────────────────────
+      # ⚠️ 为什么不能直接用 actions/cache：它**只在 job 成功时**才保存。
+      #   2026-09-30 实测踩到：构建与打包都成功了，只是后面的「签名产物校验」
+      #   失败 → 缓存被跳过 → 下一次运行又回到「没有 .lib/.dll」的状态、链接必失败。
+      #   构建脚本产物是**最贵且最不该丢**的东西，所以拆成 restore + save(always())。
+      - name: Save build-script outputs
+        if: always() && steps.bso.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            frontend/src-tauri/resources-dll
+            target/${{ env.TARGET_DIR }}/build
+          key: ${{ steps.bso.outputs.cache-primary-key }}
