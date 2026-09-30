@@ -319,7 +319,7 @@ export function SummaryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-base">{t.sumDialogTitle}</DialogTitle>
         </DialogHeader>
