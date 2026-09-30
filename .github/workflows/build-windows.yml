@@ -34,7 +34,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # ⚠️ 必须 ≥ 22.13：pnpm 11 依赖 Node 内置的 `node:sqlite`，
+          # Node 20 上会直接 ERR_UNKNOWN_BUILTIN_MODULE 崩掉（2026-09-30 实测）。
+          # 本机开发用的是 Node 26 + pnpm 11，这里对齐大版本。
+          node-version: '22'
 
       - uses: pnpm/action-setup@v4
         with:
