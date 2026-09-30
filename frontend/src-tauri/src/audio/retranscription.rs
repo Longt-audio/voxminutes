@@ -1220,6 +1220,41 @@ async fn run_retranscription<R: Runtime>(
                 } => unreachable!("等待期心跳循环不会返回"),
             };
             drop(heartbeat);
+
+            // ── 失败自动重试一次（2026-09-30 用户要求）──────────────────────────
+            // 动机：真机实测 18:34 那次离线识别因瞬时 TCP 连接超时（os error 10060）
+            // 整段失败，用户只能手动再点一次；而 10 秒后换模型重试同一段是成功的。
+            // 约束：只重试一次、且排除用户主动取消 —— 避免把慢上游放大成更长的等待。
+            let transcribe_result = match transcribe_result {
+                Ok(r) => Ok(r),
+                Err(first_err) => {
+                    // 用户取消不重试（否则用户点了取消还要再等一轮）
+                    if first_err.to_string().contains("取消") {
+                        Err(first_err)
+                    } else {
+                        warn!(
+                            "⚠️ 离线识别第 {}/{} 段失败，2 秒后自动重试一次：{}",
+                            i + 1,
+                            chunks_count,
+                            first_err
+                        );
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                        let retry = tokio::select! {
+                            r = transcription_provider.transcribe(chunk.samples.clone(), language.clone()) => r,
+                            _ = wait_cancelled() => {
+                                info!("重识别已被用户取消（第 {}/{} 段重试期间）", i + 1, chunks_count);
+                                return Err(cancelled_error());
+                            }
+                        };
+                        match &retry {
+                            Ok(_) => info!("✅ 离线识别第 {}/{} 段重试成功", i + 1, chunks_count),
+                            Err(e) => warn!("❌ 离线识别第 {}/{} 段重试仍失败：{}", i + 1, chunks_count, e),
+                        }
+                        retry
+                    }
+                }
+            };
+
             match transcribe_result {
                 Ok(result) => {
                     for w in &result.warnings {

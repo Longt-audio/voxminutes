@@ -1063,7 +1063,10 @@ pub async fn stop_recording<R: Runtime>(
     };
 
     if let Some(task_handle) = transcription_task {
-        info!("⏳ Waiting for ALL transcription chunks to be processed (no timeout - preserving every chunk)");
+        // 2026-09-30：这里以前声称 "no timeout"，实际下面写的是 600s —— 
+        // 真机实测停止录音卡 24.3s / 19.0s（见 f1 日志 18:27、18:33 两次），
+        // 用户感知就是「点了停止半天没反应」。改成有上限的等待并诚实记录丢弃量。
+        info!("⏳ 等待转写管线收尾（上限 20s；超时则带着已完成的部分收尾）");
 
         // Enhanced progress monitoring during shutdown
         let progress_app = app.clone();
@@ -1088,23 +1091,31 @@ pub async fn stop_recording<R: Runtime>(
             }
         });
 
-        // Wait up to 10 minutes for transcription completion to prevent indefinite hangs
+        // 等待上限 20s（原为 600s）。取 20s 的依据：真机观测到的最慢一次收尾是 24.3s，
+        // 其中绝大多数时间花在等上游返回最后几个 chunk；20s 能覆盖正常情况，
+        // 又不会让用户面对「停止后干等几分钟」。超时不会崩，只是尾部可能少几段。
+        let drain_started = std::time::Instant::now();
         match tokio::time::timeout(
-            tokio::time::Duration::from_secs(600), // 10 minutes max
+            tokio::time::Duration::from_secs(20),
             task_handle,
         )
         .await
         {
             Ok(Ok(())) => {
-                info!("✅ ALL transcription chunks processed successfully - no data lost");
+                info!(
+                    "✅ 转写管线收尾完成（耗时 {:.1}s，无数据丢失）",
+                    drain_started.elapsed().as_secs_f64()
+                );
             }
             Ok(Err(e)) => {
                 warn!("⚠️ Transcription task completed with error: {:?}", e);
                 // Continue anyway - the worker may have processed most chunks
             }
             Err(_) => {
-                warn!("⏱️ Transcription timeout (10 minutes) reached, continuing shutdown to prevent indefinite hang");
-                // Continue shutdown even on timeout - better to lose some chunks than hang forever
+                warn!(
+                    "⏱️ 转写管线收尾超过 20s 仍未完成，带着已完成的部分收尾（尾部可能少几段文字）。\
+                     若频繁出现，通常是上游流式识别迟迟不给 final —— 可查日志里的『首字延迟/心跳』。"
+                );
             }
         }
 
@@ -1129,7 +1140,9 @@ pub async fn stop_recording<R: Runtime>(
     // 下面的写库 / 写 transcripts.json / emit recording-stopped 都拿不到尾部译文，
     // 历史记录里末尾几段会永久缺译文（前端收到 recording-stopped 时 store 里也没有）。
     if crate::translation::TRANSLATION_ENABLED.load(Ordering::SeqCst) {
-        if crate::translation::drain_pending_translations(std::time::Duration::from_secs(20))
+        if // 20s → 10s：真机实测这一步单独吃掉 15.8s（18:33 那次停止录音）。
+            // 尾部译文晚到一点可以接受，让用户干等十几秒不行。
+            crate::translation::drain_pending_translations(std::time::Duration::from_secs(10))
             .await
         {
             info!("✅ 翻译队列已排空，最终译文随段落持久化");
