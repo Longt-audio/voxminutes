@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { Mic, Square, Pause, Play, MicOff, Speaker, Languages, Captions, Info } from 'lucide-react'
 import { useAppStore } from '@/state'
-import { useRecorder, DEFAULT_ASR_MODEL } from '@/hooks/useRecorder'
+import { useRecorder, REMOTE_ASR_PLACEHOLDER } from '@/hooks/useRecorder'
 import { useAudioLevel } from '@/hooks/useAudioLevel'
 import {
   sherpaOnnxGetModels,
@@ -75,8 +75,19 @@ function useRecorderInit() {
             }
           }
         } catch {}
+        // ── 默认选中谁（用户 2026-09-30 明确的四档规则）────────────────────
+        //   1. 上次选过且仍然可用        → 用它（上面的 cfg 分支已 return）
+        //   2. 远程服务已开启            → 选推荐的远程流式模型
+        //   3. 否则                      → 第一个【已安装】的本地模型
+        //   4. 都没有                    → 不选（此前会回退到 DEFAULT_ASR_MODEL，
+        //      而那是个**没下载**的模型名，新机器上等于默认选了个用不了的模型）
+        const remoteOn = await getRemoteEnabled().catch(() => false)
+        if (remoteOn) {
+          setSelectedModel(REMOTE_ASR_PLACEHOLDER)
+          return
+        }
         const firstAvailable = list.find((m) => !m.hidden && !m.is_remote && m.status !== 'Missing')
-        setSelectedModel(firstAvailable?.name || DEFAULT_ASR_MODEL)
+        setSelectedModel(firstAvailable?.name ?? '')
       })
 
     getDefaultAudioDevices()
@@ -311,6 +322,18 @@ export function RecorderControls() {
     // 只更新 store：set_mic_mute 需要活动录音（开始前调用会失败），
     // 录音开始后由 useRecorder 的 onRecordingStarted 把该状态下发到音频管线
     setMicMuted(setup.micMuted)
+    // 记住这次选的识别模型 —— 此前只在 useRecorder.startRecording 里落库，
+    // 结果是「在确认弹窗里换了模型但没真按开始录音」= 选择丢失（用户 2026-09-30 反馈）。
+    // 这里改成确认时就写，做到「没开始录音也记住」。
+    if (setup.modelName) {
+      const isRemote = setup.modelName.startsWith(REMOTE_ASR_PLACEHOLDER)
+      apiSaveTranscriptConfig(
+        isRemote ? 'remote-qwen3-asr' : setup.modelName.startsWith('x-asr-') ? 'x-asr' : 'sherpaonnx',
+        setup.modelName,
+        null,
+        isRemote ? remoteAsr.value || null : null
+      ).catch(() => {})
+    }
     startRecording({
       modelName: setup.modelName,
       micDeviceName: setup.micDeviceName,
@@ -606,14 +629,43 @@ export function RecorderControls() {
 }
 
 /** 单路迷你电平条（原始 RMS，开方缩放便于观察） */
-function LevelMeter({ label, value, title }: { label: string; value: number; title: string }) {
+/**
+ * 单路电平条。muted=true 时进入「已静音」外观：
+ *   整体压暗 + 灰白 45° 斜纹铺满 + 红色 MicOff 图标。
+ * 为什么用斜纹而不是单纯变色：变色在深色主题下容易被误读成「音量小」，
+ * 斜纹是通用的「已屏蔽」符号语言，12px 宽度下也能一眼区分（2026-09-30 用户要求）。
+ */
+function LevelMeter({
+  label,
+  value,
+  title,
+  muted = false,
+}: {
+  label: string
+  value: number
+  title: string
+  muted?: boolean
+}) {
   const h = Math.min(1, Math.sqrt(Math.max(0, value)) * 1.5)
   return (
-    <div className="flex items-center gap-1" title={title}>
+    <div className={cn('flex items-center gap-1', muted && 'opacity-60')} title={title}>
       <span className="text-[10px] text-muted-foreground">{label}</span>
       <div className="h-5 w-1.5 rounded-sm bg-muted overflow-hidden flex flex-col-reverse">
-        <div className="w-full bg-primary transition-[height] duration-75" style={{ height: `${h * 100}%` }} />
+        {muted ? (
+          // 满格斜纹：表示「这条路被切断了」，与音量大小无关
+          <div
+            className="w-full"
+            style={{
+              height: '100%',
+              backgroundImage:
+                'repeating-linear-gradient(45deg, rgba(115,115,125,0.75) 0 2px, rgba(0,0,0,0) 2px 4px)',
+            }}
+          />
+        ) : (
+          <div className="w-full bg-primary transition-[height] duration-75" style={{ height: `${h * 100}%` }} />
+        )}
       </div>
+      {muted && <MicOff className="h-3 w-3 shrink-0 text-destructive" />}
     </div>
   )
 }
@@ -625,9 +677,21 @@ export function RecorderInfo() {
   const recordingDuration = useAppStore((s) => s.recordingDuration)
   const audioLevels = useAppStore((s) => s.audioLevels)
   const models = useAppStore((s) => s.models)
+  const isMicMuted = useAppStore((s) => s.isMicMuted)
+  const setMicMuted = useAppStore((s) => s.setMicMuted)
   const t = useMessages()
 
   useAudioLevel()
+
+  /** 点提示语直接取消静音（省得用户去找按钮）。失败则回滚，避免状态与后端不一致。 */
+  const handleUnmuteMic = async () => {
+    setMicMuted(false)
+    try {
+      await ipcSetMicMute(false)
+    } catch {
+      setMicMuted(true)
+    }
+  }
 
   const anyModelInstalled = models.some((m) => !m.hidden && !m.is_remote && m.status !== 'Missing')
 
@@ -662,10 +726,29 @@ export function RecorderInfo() {
         {formatDuration(recordingDuration)}
       </span>
       {isPaused && <Badge variant="warning">{t.recPaused}</Badge>}
+      {/* 顺序：系统音频在左、麦克风在右 —— 这样静音提示紧挨着麦克风条（2026-09-30 用户要求） */}
       <div className="flex items-center gap-2 shrink-0">
-        <LevelMeter label={t.recMicShort} value={audioLevels.mic} title={t.recMicLevelTitle} />
         <LevelMeter label={t.recSysShort} value={audioLevels.system} title={t.recSysLevelTitle} />
+        <LevelMeter
+          label={t.recMicShort}
+          value={audioLevels.mic}
+          title={isMicMuted ? t.recMicMutedHint : t.recMicLevelTitle}
+          muted={isMicMuted}
+        />
       </div>
+      {/* 麦克风默认静音时，在能量条与频谱之间的空位给出可点击的提示。
+          用 -webkit-box + line-clamp 两行截断（Tailwind 3.4 的 line-clamp-2 也等价），
+          完整文案挂在 title 上，窗口很窄时也能看到全文。 */}
+      {isMicMuted && (
+        <button
+          type="button"
+          onClick={handleUnmuteMic}
+          title={t.recMicMutedHint}
+          className="min-w-0 flex-1 basis-24 max-w-[320px] overflow-hidden text-left text-[10px] leading-[1.15] text-amber-600 hover:underline [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] dark:text-amber-500"
+        >
+          {t.recMicMutedHint}
+        </button>
+      )}
       {/* 能量条：ml-auto 整体靠右与计时/指示灯拉开间距；flex-1 加宽、max-w 限宽、min-w 防窄窗口溢出 */}
       <div className="ml-auto flex-1 min-w-[100px] max-w-[380px] h-full rounded-md border bg-muted/40 px-1.5 py-0.5">
         <AudioSpectrumBars />

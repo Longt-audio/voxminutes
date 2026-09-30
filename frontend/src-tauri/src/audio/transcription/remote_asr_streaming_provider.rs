@@ -401,6 +401,16 @@ impl RemoteAsrStreamingProvider {
             let mut final_wait = 0u32;
             let session_start = std::time::Instant::now();
             let mut got_text = false;
+            // ── 诊断埋点（2026-09-30 加）──────────────────────────────────────
+            // 这条链路此前**收到文本时一行日志都不打**：用户报「卡顿」「没有译文」，
+            // 拿着 4 份日志也完全无法定位（音频测试那两次连一条文本记录都没有）。
+            // 现在记录 首字延迟 / 每条 partial·final 的到达时刻 / 已发音频块数，
+            // 并每 10s 打一条心跳 —— 「在发音频但收不到文本」从此一眼可见。
+            let mut chunks_sent: u64 = 0;
+            let mut texts_received: u64 = 0;
+            let mut first_text_at: Option<std::time::Instant> = None;
+            let mut last_text_at: Option<std::time::Instant> = None;
+            let mut last_heartbeat = std::time::Instant::now();
             // 读看门狗（2026-09-23 首版，2026-09-24 接入应用层心跳）：
             // 跨境链路曾出现「能发不能收」的下行假死 —— 网关照常收到音频、照常下发文本，
             // 客户端 30+ 秒收不到任何帧，字幕一路冻结到停止录音才爆发式出现。
@@ -432,9 +442,29 @@ impl RemoteAsrStreamingProvider {
                                     flow.note_audio(chunk.timestamp, rms);
                                 }
                                 let pcm = Self::to_pcm16_16k(&chunk.data, chunk.sample_rate);
+                                let pcm_len = pcm.len();
                                 if ws.send(WsMessage::Binary(pcm.into())).await.is_err() {
                                     warn!("远程流式 ASR 发送音频失败，连接已断");
                                     channel_closed = true;
+                                } else {
+                                    chunks_sent += 1;
+                                    if chunks_sent == 1 {
+                                        info!("🎙️ 远程流式 ASR 开始上行音频（首块 {} 字节）", pcm_len);
+                                    }
+                                    // 心跳挂在发送侧：音频块持续到达，所以无需往 select 里加定时分支
+                                    // （不动 select 结构 = 不去碰那条已经调好的重连/看门狗逻辑）
+                                    if last_heartbeat.elapsed() >= std::time::Duration::from_secs(10) {
+                                        last_heartbeat = std::time::Instant::now();
+                                        info!(
+                                            "💓 远程流式 ASR 心跳：已发音频 {} 块 / 已收文本 {} 条 / 距上次文本 {}",
+                                            chunks_sent,
+                                            texts_received,
+                                            match last_text_at {
+                                                Some(t) => format!("{:.1}s", t.elapsed().as_secs_f32()),
+                                                None => "从未收到".to_string(),
+                                            }
+                                        );
+                                    }
                                 }
                             }
                             None => {
@@ -457,6 +487,26 @@ impl RemoteAsrStreamingProvider {
                                         match kind {
                                             "partial" | "final" => {
                                                 got_text = true;
+                                                texts_received += 1;
+                                                let now = std::time::Instant::now();
+                                                let text_len = payload.chars().count();
+                                                if first_text_at.is_none() {
+                                                    first_text_at = Some(now);
+                                                    info!(
+                                                        "🎯 远程流式 ASR 首字延迟 {:.2}s（WS 连上→首条文本，{} 字）",
+                                                        session_start.elapsed().as_secs_f32(),
+                                                        text_len
+                                                    );
+                                                }
+                                                last_text_at = Some(now);
+                                                // 只记长度不记正文（日志可能被用户上传，避免带出会议内容）
+                                                info!(
+                                                    "📝 远程流式 ASR 收到 {}（t+{:.2}s，{} 字，本会话第 {} 条）",
+                                                    kind,
+                                                    session_start.elapsed().as_secs_f32(),
+                                                    text_len,
+                                                    texts_received
+                                                );
                                                 // final = 上游定稿边界；管线只在稳定文本内闭合单元
                                                 flow.push_text(&app, payload, kind == "final");
                                             }

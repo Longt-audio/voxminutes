@@ -257,7 +257,7 @@ export function AudioTestDialog({
               />
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 [&>*]:min-w-0">
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Mic className="h-3 w-3" /> {t.recMic}
