@@ -1106,6 +1106,54 @@ pub fn get_language_preference_internal() -> Option<String> {
     LANGUAGE_PREFERENCE.lock().ok().map(|lang| lang.clone())
 }
 
+/// 启动期致命错误提示。
+///
+/// Windows release 构建是 GUI 子系统（`windows_subsystem = "windows"`），**没有控制台**：
+/// 任何 `eprintln!`/panic 信息都无处输出，用户看到的只是「双击后窗口闪一下就不见了」。
+/// 所以这里弹一个原生 MessageBox，让问题至少对用户可见、可截图反馈；
+/// 其它平台只记日志（终端里本来就看得见）。
+fn show_startup_error(message: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        #[link(name = "user32")]
+        extern "system" {
+            fn MessageBoxW(
+                hwnd: *mut std::ffi::c_void,
+                lp_text: *const u16,
+                lp_caption: *const u16,
+                u_type: u32,
+            ) -> i32;
+        }
+        const MB_OK: u32 = 0x0000_0000;
+        const MB_ICONERROR: u32 = 0x0000_0010;
+
+        let to_wide = |s: &str| -> Vec<u16> {
+            OsStr::new(s)
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect()
+        };
+        let text = to_wide(message);
+        let caption = to_wide("VoxMinutes 启动失败");
+        // SAFETY: 两个宽字符串都以 NUL 结尾且在整个调用期间存活；hwnd 传 null 表示无父窗口。
+        unsafe {
+            MessageBoxW(
+                std::ptr::null_mut(),
+                text.as_ptr(),
+                caption.as_ptr(),
+                MB_OK | MB_ICONERROR,
+            );
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = message;
+    }
+}
+
 pub fn run() {
     log::set_max_level(log::LevelFilter::Info);
 
@@ -1230,13 +1278,18 @@ pub fn run() {
             sherpa_onnx_engine::commands::set_models_directory(&_app.handle());
 
             // Initialize database (handles first launch detection and conditional setup)
-            tauri::async_runtime::block_on(async {
-                let init_result =
-                    database::setup::initialize_database_on_startup(&_app.handle()).await;
-
-                init_result
-            })
-            .expect("Failed to initialize database");
+            let init_result = tauri::async_runtime::block_on(async {
+                database::setup::initialize_database_on_startup(&_app.handle()).await
+            });
+            if let Err(e) = init_result {
+                // 不要用 .expect()：panic 在 Windows GUI 子系统下没有 stderr，
+                // 用户只会看到「双击后窗口闪一下就没了」，日志也停在上一句（2026-09-30 实测）。
+                // 改成「明确记日志 + 弹原生错误框 + 干净退出」。
+                let msg = format!("数据库初始化失败，应用无法启动。\n\n{e}");
+                log::error!("{}", msg);
+                show_startup_error(&msg);
+                std::process::exit(1);
+            }
 
             // 读回持久化的翻译设置（引擎/home 语言/目标语言）写入内存态，读不到保持默认值
             {

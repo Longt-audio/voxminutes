@@ -317,6 +317,59 @@ extern "system" {
     fn SetConsoleOutputCP(wCodePageID: u32) -> i32;
 }
 
+/// 安装 panic 钩子：把 panic 写进统一日志文件，并单独留一份 crash 文件。
+///
+/// 为什么必须有（2026-09-30 真机崩溃排查踩到）：
+///   默认的 panic 钩子只往 **stderr** 打印。而本程序 release 构建带
+///   `windows_subsystem = "windows"`（GUI 子系统，没有控制台）→ stderr 无处可去，
+///   panic 信息**彻底消失**：用户看到的只是「双击后窗口闪一下就没了」，
+///   日志里最后一条还是崩溃前那句无关的 INFO，完全无法定位。
+///   装了这个钩子之后，panic 会以 `[ERROR] PANIC at 文件:行号: 消息` 落进同一个日志文件，
+///   同时在 `logs/` 下单独写一份 `crash_<时间戳>.log`（用户只需发这一个文件）。
+fn install_panic_hook() {
+    use std::io::Write as _;
+
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_else(|| "未知位置".to_string());
+        let message = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            (*s).to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "（无法解析的 panic 载荷）".to_string()
+        };
+
+        let line = format!("PANIC at {location}: {message}");
+        // 1) 统一日志（用户反馈时附带的诊断日志会带上它）
+        log::error!("{}", line);
+
+        // 2) 单独一份 crash 文件，便于用户「只发这一个」
+        if let Ok(log_file) = std::env::var("APP_LOG_FILE") {
+            let stamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            let crash = std::path::Path::new(&log_file)
+                .with_file_name(format!("crash_{stamp}.log"));
+            let _ = fs::write(
+                &crash,
+                format!(
+                    "{line}\n\n版本: {}\n系统: {} {}\n日志: {log_file}\n",
+                    env!("CARGO_PKG_VERSION"),
+                    std::env::consts::OS,
+                    std::env::consts::ARCH,
+                ),
+            );
+            // 没有日志目录时至少尝试写到 stderr（开发期可见）
+            let _ = writeln!(std::io::stderr(), "{line}");
+        }
+
+        // 3) 交给默认钩子（有控制台时仍能看到，并保留 RUST_BACKTRACE 行为）
+        previous(info);
+    }));
+}
+
 fn main() {
     #[cfg(target_os = "windows")]
     unsafe {
@@ -350,6 +403,7 @@ fn main() {
             let dual = DualLogger::new(file);
             log::set_max_level(dual.level_filter());
             let _ = log::set_boxed_logger(Box::new(dual));
+            install_panic_hook();
         }
         Err(e) => {
             // Fallback: env_logger to stderr only
@@ -367,6 +421,7 @@ fn main() {
                     )
                 })
                 .init();
+            install_panic_hook();
         }
     }
 
