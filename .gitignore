@@ -9,6 +9,11 @@ yarn.lock
 
 # Build outputs
 target/
+# ⚠️ `/target`（前面带斜杠）是**符号链接**形态的 target 目录：
+# 本机把 target 软链到了外置卷（/Volumes/...），而 `target/` 只匹配目录、不匹配符号链接，
+# 于是 `git add -A` 会把这条指向本机绝对路径的链接提交进去 ——
+# 到了 CI 上就变成断链，cargo 的构建目录直接坏掉（2026-09-30 实测踩到）。
+/target
 dist/
 build/
 !frontend/src-tauri/build/
