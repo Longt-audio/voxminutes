@@ -161,6 +161,32 @@ jobs:
             "$dst/llama-helper-x86_64-pc-windows-msvc.exe" -Force
           Get-ChildItem $dst | Format-Table Name, Length
 
+      # ── 强制重新暂存运行时 DLL（缓存命中后必须做，否则打包必失败）──────────
+      # 背景（2026-09-30 踩到，而且是「缓存修好之后才暴露」的）：
+      #   onnxruntime / sherpa-onnx 的 .dll 是 **ort-sys / sherpa-onnx-sys 的 build script
+      #   在构建时复制到 target/<profile>/ 的**（不是 cargo 的产物）。
+      #   rust-cache 只缓存 cargo 自己的产物，**不会带这些 DLL**。
+      #   于是：
+      #     冷构建 → build script 重跑 → DLL 被复制 → src-tauri/build.rs 捡到 → ✓
+      #     缓存命中 → build script 不重跑 → DLL 从未出现 → src-tauri/build.rs 找不到
+      #              → ❌ "resource path `resources-dll\onnxruntime.dll` doesn't exist"
+      #   实测：修好缓存后 release 档 2.2 分钟就失败在这里。
+      # 解法：每次构建前删掉这两家的 build 产物与指纹，逼它们重跑（代价是重新下载几十 MB，
+      #     GitHub runner 上很快；比整个构建失败划算）。
+      - name: Force re-stage runtime DLLs
+        shell: pwsh
+        run: |
+          $dir = "target/${{ env.TARGET_DIR }}"
+          $n = 0
+          foreach ($sub in @("build", ".fingerprint")) {
+            $p = Join-Path $dir $sub
+            if (-not (Test-Path $p)) { continue }
+            Get-ChildItem $p -Directory -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match '^(ort-sys|ort|sherpa-onnx|sherpa-onnx-sys)' } |
+              ForEach-Object { Write-Host "清理 $sub/$($_.Name)"; Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; $n++ }
+          }
+          Write-Host "共清理 $n 项（>0 表示会重新下载/复制运行时 DLL）"
+
       # ── 主程序：先 build 一次，让 build.rs 把运行时 DLL 暂存到 resources-dll/ ──
       - name: Build app (stages runtime DLLs via build.rs)
         run: cargo build --profile ${{ env.BUILD_PROFILE }} -p voxminutes
