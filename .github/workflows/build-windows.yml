@@ -243,13 +243,19 @@ jobs:
       - name: Verify updater artifacts (签名产物必须存在)
         shell: pwsh
         run: |
+          # ⚠️ Tauri v2 的 **NSIS** 更新产物就是安装包本身：
+          #      <name>.exe      ← 更新载荷（客户端下载并静默安装的就是它）
+          #      <name>.exe.sig  ← 与之配对的签名
+          #   并不是 .nsis.zip（那是别的 bundle 形态的命名，2026-09-30 实测确认）。
           $dir = "target/${{ env.TARGET_DIR }}/bundle/nsis"
-          $zip = Get-ChildItem $dir -Filter *.nsis.zip -ErrorAction SilentlyContinue
-          $sig = Get-ChildItem $dir -Filter *.nsis.zip.sig -ErrorAction SilentlyContinue
-          if (-not $zip) { Write-Error "❌ 没有 .nsis.zip：createUpdaterArtifacts 没生效，自动更新会失效"; exit 1 }
-          if (-not $sig) { Write-Error "❌ 没有 .sig 签名：签名密钥没配好（TAURI_SIGNING_PRIVATE_KEY？），自动更新会失效"; exit 1 }
-          Write-Host "✅ 更新载荷: $($zip.Name)  $([math]::Round($zip.Length/1MB,1)) MB"
+          $exe = Get-ChildItem $dir -Filter *.exe -ErrorAction SilentlyContinue
+          $sig = Get-ChildItem $dir -Filter *.exe.sig -ErrorAction SilentlyContinue
+          if (-not $exe) { Write-Error "❌ 没有 .exe：NSIS 打包没产出安装包"; exit 1 }
+          if (-not $sig) { Write-Error "❌ 没有 .exe.sig：签名没生效（TAURI_SIGNING_PRIVATE_KEY 配好了吗？），自动更新会失效"; exit 1 }
+          Write-Host "✅ 更新载荷: $($exe.Name)  $([math]::Round($exe.Length/1MB,1)) MB"
           Write-Host "✅ 签名文件: $($sig.Name)  $($sig.Length) 字节"
+          Write-Host "---- 签名内容（latest.json 要用）----"
+          Get-Content $sig.FullName | Select-Object -First 1
 
       - name: Upload nsis installer
         uses: actions/upload-artifact@v4
@@ -259,8 +265,7 @@ jobs:
           # .exe = 完整安装包；.nsis.zip = 自动更新的载荷；.sig = 签名
           path: |
             target/${{ env.TARGET_DIR }}/bundle/nsis/*.exe
-            target/${{ env.TARGET_DIR }}/bundle/nsis/*.nsis.zip
-            target/${{ env.TARGET_DIR }}/bundle/nsis/*.nsis.zip.sig
+            target/${{ env.TARGET_DIR }}/bundle/nsis/*.exe.sig
           if-no-files-found: error
 
       # ── 固定入口：每次构建都更新同一个 Release ────────────────────────────
@@ -278,8 +283,7 @@ jobs:
           # 同名资产会被替换，保证这个页面永远是最新的
           files: |
             target/${{ env.TARGET_DIR }}/bundle/nsis/*.exe
-            target/${{ env.TARGET_DIR }}/bundle/nsis/*.nsis.zip
-            target/${{ env.TARGET_DIR }}/bundle/nsis/*.nsis.zip.sig
+            target/${{ env.TARGET_DIR }}/bundle/nsis/*.exe.sig
           body: |
             **这是自动发布的最新 Windows 构建**（档位：`${{ env.BUILD_PROFILE }}`），每次 CI 构建成功后覆盖更新。
 
