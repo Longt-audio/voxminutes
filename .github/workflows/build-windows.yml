@@ -146,7 +146,7 @@ jobs:
         with:
           tag_name: windows-latest
           name: VoxMinutes · Windows 最新构建（自动更新）
-          prerelease: true
+          prerelease: false
           # 同名资产会被替换，保证这个页面永远是最新的
           files: target/release/bundle/nsis/*.exe
           body: |
