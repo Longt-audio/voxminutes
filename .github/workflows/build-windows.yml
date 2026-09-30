@@ -128,7 +128,11 @@ jobs:
           # 且因为 key 没变，rust-cache 每次都「命中」它并**跳过保存** →
           # 52 分钟里 51 分钟都在重编依赖。改这个前缀会强制重新保存一份完整缓存。
           # 以后再遇到「缓存看着命中但构建依然很慢」，就把 v1 改成 v2、v3… 再跑一次。
-          prefix-key: v1-rust
+          # ⚠️ v1 → v2（2026-09-30）：v1 那次缓存虽然省了编译时间，但暴露了
+          #   「运行时 DLL 不在 cargo 缓存里」→ 打包必失败（见下面 Force re-stage 的注释）。
+          #   改用 v2 走一次冷构建，把 DLL 重新产出并写进下面的 resources-dll 专用缓存；
+          #   之后 v2 缓存 + resources-dll 缓存都在，才既快又能出包。
+          prefix-key: v2-rust
           # 失败也要存缓存：首次失败在最后一步（打包），若不留缓存，
           # 下一次重跑要白白再编译 30 多分钟。
           cache-on-failure: true
@@ -160,6 +164,22 @@ jobs:
           Copy-Item "target/${{ env.TARGET_DIR }}/llama-helper.exe" `
             "$dst/llama-helper-x86_64-pc-windows-msvc.exe" -Force
           Get-ChildItem $dst | Format-Table Name, Length
+
+      # ── 运行时 DLL 专用缓存（**这是真正的解法**）──────────────────────────
+      # 为什么不能只靠 rust-cache：onnxruntime.dll / sherpa-onnx-*.dll 是
+      #   ort-sys / sherpa-onnx-sys **构建时的副作用产物**（下载后复制），
+      #   cargo 不把它们当产物，rust-cache 也就不会缓存；
+      #   缓存命中时 build script 不重跑 → DLL 从未出现 → 打包报
+      #   "resource path `resources-dll\onnxruntime.dll` doesn't exist"。
+      # 实测过两条不奏效的路：① 删 build 目录逼 build script 重跑（重跑后 DLL 落在
+      #   别处，甚至不重新下载）；② src-tauri/build.rs 递归搜索（target/ 里根本没有）。
+      # 所以干脆把 build.rs **已经暂存好的** resources-dll/ 直接缓存起来 ——
+      # 只要成功构建过一次，之后每次都能命中。
+      - name: Cache runtime DLLs
+        uses: actions/cache@v4
+        with:
+          path: frontend/src-tauri/resources-dll
+          key: runtime-dll-${{ env.TARGET_DIR }}-${{ hashFiles('Cargo.lock') }}
 
       # ── 强制重新暂存运行时 DLL（缓存命中后必须做，否则打包必失败）──────────
       # 背景（2026-09-30 踩到，而且是「缓存修好之后才暴露」的）：
