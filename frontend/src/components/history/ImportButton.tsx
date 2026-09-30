@@ -65,7 +65,10 @@ export function ImportButton({ onImported }: ImportButtonProps) {
       return
     }
     if (!info) return // 用户取消
-    const title = info.filename.replace(/\.[^.]+$/, '') || info.filename
+    // Rust 侧返回的 filename 已经是去掉扩展名的 file_stem（import.rs），
+    // 这里不要再剥一次 —— 否则 "meeting.v2.mp3" 会变成 "meeting"、
+    // "2026.03.15 standup.wav" 会变成 "2026.03.15"。
+    const title = info.filename || t.histImportAudio
     setImporting(true)
     setProgress(0)
     try {

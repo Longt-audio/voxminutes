@@ -1,11 +1,22 @@
 # Windows 打包（nsis 安装包）
 # 触发：手动 workflow_dispatch，或推送 v* 标签
 #
-# ⚠️ 首次跑大概率要迭代 1-2 次，注意两个可能踩坑点：
-#   1) sherpa-onnx 的 Windows DLL：依赖 sherpa-onnx crate 的 `shared` feature 在
-#      cargo build 时自动下载；若没有自动下载成功，需要补一步手动下载
-#      （见下方「下载 sherpa-onnx DLL」注释掉的步骤，把 URL 换成正确版本）。
-#   2) ffmpeg.exe 的下载地址可能变，失败时换成 gyan.dev 或 BtbN 的其他包。
+# 本地等价流程见 frontend/scripts/prepare-windows-sidecars.ps1（装 ffmpeg.exe + llama-helper.exe）。
+#
+# 关键约束（都踩过，别再改回去）：
+#   1) `pnpm install` 必须带 `--ignore-workspace`：仓库根有 pnpm-workspace.yaml，
+#      不加的话 pnpm 会按 workspace 根安装，frontend/node_modules 根本不会生成。
+#      同样原因，frontend 的 pnpm 命令都不要在仓库根跑。
+#   2) 仓库根是 cargo workspace（members = frontend/src-tauri + llama-helper），
+#      所以构建产物在 **<repo>/target/** 下，不是 llama-helper/target/ 也不是
+#      frontend/src-tauri/target/。以前 CI 去 llama-helper/target 拷 exe 是错的。
+#   3) 运行时 DLL（sherpa-onnx-c-api/cxx-api、onnxruntime、onnxruntime_providers_shared）
+#      由 src-tauri/build.rs 在 Windows 构建时自动从 target/release 暂存到
+#      src-tauri/resources-dll/，再由 tauri.windows.conf.json 的 bundle.resources 打进包。
+#      下面「Verify runtime DLLs」会硬性拦住 0 字节/缺失的情况 —— 不要删。
+#   4) 先单独跑一次 `cargo build -p voxminutes` 让 build.rs 完成暂存与校验，
+#      再 `pnpm tauri build`（第二次是增量，不会重复编译）。
+#   5) ffmpeg.exe 的下载地址可能变，失败时换 BtbN 的包。
 
 name: Build Windows (nsis)
 
@@ -33,39 +44,65 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
       - name: Install frontend deps
         working-directory: frontend
-        run: pnpm install
+        run: pnpm install --ignore-workspace
 
-      - name: Build llama-helper (Windows)
-        working-directory: llama-helper
-        run: cargo build --release --target x86_64-pc-windows-msvc
-
-      - name: Copy llama-helper to binaries
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path frontend/src-tauri/binaries | Out-Null
-          Copy-Item llama-helper/target/x86_64-pc-windows-msvc/release/llama-helper.exe `
-            frontend/src-tauri/binaries/llama-helper-x86_64-pc-windows-msvc.exe
+      # ── 侧车（externalBin）───────────────────────────────────────────────
+      # Tauri 按 target triple 找 binaries/<name>-<triple>[.exe]，
+      # 少一个都会在 `tauri build` 阶段直接报错。
+      - name: Build llama-helper sidecar
+        run: cargo build --release -p llama-helper
 
       - name: Download ffmpeg.exe
         shell: pwsh
         run: |
+          $dst = "frontend/src-tauri/binaries"
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
           Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip
           Expand-Archive ffmpeg.zip -DestinationPath ffmpeg -Force
           $bin = Get-ChildItem -Path ffmpeg -Recurse -Filter ffmpeg.exe | Select-Object -First 1
-          Copy-Item $bin.FullName frontend/src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+          Copy-Item $bin.FullName "$dst/ffmpeg-x86_64-pc-windows-msvc.exe" -Force
 
-      # 若 cargo build 没自动把 sherpa-onnx DLL 放到 resources-dll，取消注释这一步，
-      # 并把 URL 换成 sherpa-onnx v1.13 的 win-x64 预编译包（含以下 dll）：
-      #   sherpa-onnx-c-api.dll / sherpa-onnx-cxx-api.dll / onnxruntime.dll /
-      #   onnxruntime_providers_shared.dll / DirectML.dll
-      # - name: Download sherpa-onnx Windows DLL
-      #   shell: pwsh
-      #   run: |
-      #     Invoke-WebRequest -Uri "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.0/sherpa-onnx-v1.13.0-win-x64.tar.bz2" -OutFile sherpa.tar.bz2
-      #     tar -xjf sherpa.tar.bz2
-      #     Copy-Item sherpa-onnx-*/bin/*.dll frontend/src-tauri/resources-dll/
+      - name: Stage sidecars into binaries/
+        shell: pwsh
+        run: |
+          $dst = "frontend/src-tauri/binaries"
+          Copy-Item "target/release/llama-helper.exe" `
+            "$dst/llama-helper-x86_64-pc-windows-msvc.exe" -Force
+          Get-ChildItem $dst | Format-Table Name, Length
+
+      # ── 主程序：先 build 一次，让 build.rs 把运行时 DLL 暂存到 resources-dll/ ──
+      - name: Build app (stages runtime DLLs via build.rs)
+        run: cargo build --release -p voxminutes
+
+      - name: Verify runtime DLLs
+        shell: pwsh
+        run: |
+          $dir = "frontend/src-tauri/resources-dll"
+          $required = @(
+            "sherpa-onnx-c-api.dll",
+            "sherpa-onnx-cxx-api.dll",
+            "onnxruntime.dll",
+            "onnxruntime_providers_shared.dll"
+          )
+          $bad = @()
+          foreach ($n in $required) {
+            $p = Join-Path $dir $n
+            $len = if (Test-Path $p) { (Get-Item $p).Length } else { 0 }
+            Write-Host ("{0,-40} {1} bytes" -f $n, $len)
+            if ($len -le 0) { $bad += $n }
+          }
+          if ($bad.Count -gt 0) {
+            Write-Error ("运行时 DLL 缺失或为 0 字节: " + ($bad -join ", ") + "`n" +
+              "原因通常是 sherpa-onnx(shared) / ort 的构建脚本没能下载预编译库（网络/代理）。`n" +
+              "没有这些 DLL，装出来的包在 Windows 上本地语音识别与 OPUS-MT 翻译会加载失败。")
+            exit 1
+          }
 
       - name: Build Tauri app (nsis)
         working-directory: frontend
@@ -75,4 +112,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: voxminutes-windows
-          path: frontend/src-tauri/target/release/bundle/nsis/*.exe
+          # 仓库根是 cargo workspace，bundle 产物在 <repo>/target 下
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error

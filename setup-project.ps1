@@ -97,23 +97,18 @@ Write-Step "Approving native builds..."
 pnpm approve-builds msgpackr-extract
 Write-Done "Native builds approved"
 
-# 4. Install backend dependencies
-Write-Step "Installing Python backend dependencies..."
-Set-Location "$ProjectRoot\backend"
-if (-not (Test-Path venv)) {
-    python -m venv venv
-    Write-Done "Python virtual environment created"
+# 4. Prepare Windows sidecars (ffmpeg.exe + llama-helper.exe)
+#    ⚠️ 旧的「Python backend」步骤已删除：MVP 运行时是纯 Rust，`backend/` 目录
+#    在 .gitignore 里被标为「已不存在的遗留 Python 后端」，新克隆的机器上根本没有，
+#    照旧脚本跑会直接 Set-Location 失败、整个 setup 中断。
+Write-Step "Preparing Windows sidecars (ffmpeg + llama-helper)..."
+Set-Location $ProjectRoot
+& "$ProjectRoot\frontend\scripts\prepare-windows-sidecars.ps1"
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "侧车准备失败 —— 打包会失败，但 `pnpm tauri:dev` 开发仍可继续。"
 } else {
-    Write-Done "Python virtual environment already exists"
+    Write-Done "Windows sidecars ready"
 }
-
-.\venv\Scripts\Activate.ps1
-python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-python -m pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
-
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-Write-Done "Python backend dependencies installed"
 
 # 5. Install Rust dependencies (verify build)
 Write-Step "Verifying Rust workspace..."
@@ -130,6 +125,9 @@ Write-Host "To start development:" -ForegroundColor Cyan
 Write-Host "  cd frontend" -ForegroundColor White
 Write-Host "  pnpm tauri:dev" -ForegroundColor White
 Write-Host "`nNote: You may need to download ASR models before running." -ForegroundColor White
-Write-Host "Run the model download script when available." -ForegroundColor White
+Write-Host "Open the app and use the model download page (Settings → local models)." -ForegroundColor White
+Write-Host "`nTo build a Windows installer:" -ForegroundColor Cyan
+Write-Host "  cd frontend" -ForegroundColor White
+Write-Host "  pnpm tauri build" -ForegroundColor White
 
 Read-Host -Prompt "Press Enter to exit"
