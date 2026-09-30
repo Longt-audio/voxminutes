@@ -34,3 +34,7 @@ export function termsOfServiceUrl(language: string): string {
 /** 记录「用户已同意条款」的设置键：值为同意时的 ISO 时间戳。
  *  留痕用途（上架审核/监管问询时能证明告知与同意的时点），不参与业务逻辑。 */
 export const LEGAL_CONSENT_SETTING_KEY = 'legal.consent_accepted_at'
+
+/** 客服 / 退款 / 换机迁移的联系邮箱。
+ *  与《用户协议》《隐私政策》里写的是同一个地址（改这里要同步改 legal/ 下的四份文稿和官网页面）。 */
+export const SUPPORT_EMAIL = 'voxmin@qq.com'

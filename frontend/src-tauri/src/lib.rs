@@ -1180,6 +1180,24 @@ pub fn run() {
                 log::error!("Failed to create system tray: {}", e);
             }
 
+            // 关闭主窗口 = 彻底退出。
+            //
+            // 2026-09-30 真机反馈：点右上角 X 后主窗口没了，但托盘图标和悬浮球还在、
+            // 进程still活着，而且**主窗口再也打不开**（tray.rs 只有
+            // `get_webview_window("main")`，窗口已销毁 → 日志里出现
+            // "Could not find main window"），用户只能去任务管理器杀进程。
+            // 这里显式接住主窗口的关闭请求并退出整个应用（RunEvent::Exit 里的
+            // 数据库 checkpoint 等清理逻辑照常执行）。
+            if let Some(main_window) = _app.get_webview_window("main") {
+                let app_handle = _app.handle().clone();
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        log::info!("Main window close requested — exiting application");
+                        app_handle.exit(0);
+                    }
+                });
+            }
+
             // Explicitly set the main window icon so Windows taskbar shows the app icon.
             if let Some(main_window) = _app.get_webview_window("main") {
                 match tauri::image::Image::from_bytes(include_bytes!("../icons/app_icon.ico")) {
@@ -1552,6 +1570,7 @@ pub fn run() {
             collect_diag_log,
             get_log_dir,
             collect_manual_logs,
+            diagnostics::open_log_folder,
             tts::tts_synthesize,
             tts::save_tts_audio,
             remote_messages::fetch_remote_messages,

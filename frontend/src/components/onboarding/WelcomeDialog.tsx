@@ -113,6 +113,8 @@ export function WelcomeDialog() {
   const loadedRef = useRef(false)
   const initialKeyRef = useRef('')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** 首次运行（向导从未走完）→ 远程服务默认打开，见 init() 的说明 */
+  const firstRunRef = useRef(false)
 
   // 加载远程配置（自动保存基线）。挂载时 + 每次打开弹窗时 + 收到他处保存事件时都要刷新，
   // 否则会出现「在用户中心填了授权码，欢迎弹窗里还是空的」。
@@ -127,7 +129,13 @@ export function WelcomeDialog() {
         setRemoteKey(cfg.license || '')
         initialKeyRef.current = cfg.license || ''
       }
-      setRemoteEnable(!!en)
+      setRemoteEnable(!!en || firstRunRef.current)
+      // 首次运行且后端还没开 → 真的把开关写进去（否则界面勾着、后端仍是关的）
+      if (firstRunRef.current && !en) {
+        setRemoteEnabled(true)
+          .then(() => dispatchRemoteConfigChanged({ enabled: true }))
+          .catch(() => {})
+      }
       loadedRef.current = true
       setRemoteCfgLoaded(true)
       setJustClaimed(false)
@@ -143,6 +151,10 @@ export function WelcomeDialog() {
       try {
         const settings = await apiGetSettings()
         const disabled = !!settings[DISABLED_KEY]
+        // 「首次运行」= 向导还没走完过。只有首次运行时才把远程服务默认打开
+        // （2026-09-30 用户要求：新用户开箱即用推荐走远程，不必自己去找开关）。
+        // 老用户/已走过向导的人**不动**这个开关，避免覆盖他们手动关掉的设置。
+        firstRunRef.current = !settings['onboarding.completed']
         if (disposed) return
         setDontShow(disabled)
         if (!disabled) setOpen(true)
@@ -236,8 +248,15 @@ export function WelcomeDialog() {
   }, [remoteKey])
 
   // 任何完成/关闭（含点 X）都写入 onboarding.completed，兼容旧逻辑
+  //
+  // 同时写入 welcome.disabled —— 引导向导**只在首次启动出现一次**。
+  // 此前只在用户主动勾选「以后不再打开」时才写，于是向导每次启动都弹、每次都引导领积分，
+  // 老用户觉得很烦（2026-09-30 真机反馈）。公告另有 ImportantNoticeBanner/页脚推送两条通道，
+  // 设置页也保留了「再次打开欢迎弹窗」开关，需要时仍可调出。
   const finish = useCallback(() => {
     apiSaveSetting('onboarding.completed', 'true').catch(() => {})
+    apiSaveSetting(DISABLED_KEY, 'true').catch(() => {})
+    setDontShow(true)
     setOpen(false)
     setStep(0)
   }, [])
@@ -614,8 +633,10 @@ export function WelcomeDialog() {
               </div>
             </div>
 
-            {/* 未安装本地识别模型时提示去 P3 下载 */}
-            {!asrInstalled && (
+            {/* 未安装本地识别模型时提示去 P3 下载。
+                但**远程服务已开启时不再提示** —— 远程模型同样能用，本地模型不是必须的
+                （2026-09-30 用户反馈：有远程服务了还提示「必须装本地模型」是误导）。 */}
+            {!asrInstalled && !remoteEnable && (
               <p className="text-xs text-muted-foreground">{t.welNoAsrHint}</p>
             )}
 

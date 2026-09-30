@@ -23,7 +23,7 @@ import { useMessages } from '@/i18n/useMessages'
 import type { Messages } from '@/i18n/messages'
 import { findRemoteModel, useRemoteCatalogStore } from '@/stores/remoteCatalogStore'
 import { remoteModelDisplayName } from '@/lib/remoteModelChoice'
-import { OFFICIAL_WEBSITE_URL, OFFICIAL_WEBSITE_LABEL } from '@/lib/site'
+import { OFFICIAL_WEBSITE_URL, OFFICIAL_WEBSITE_LABEL, SUPPORT_EMAIL } from '@/lib/site'
 import { cn } from '@/lib/utils'
 
 /** 账本流水类型 → i18n 标签（未知类型原样显示，空类型归「其他」） */
@@ -457,6 +457,27 @@ export default function AccountPage() {
   return (
     <div className="h-full overflow-y-auto p-6">
       <h1 className="text-lg font-semibold">{t.accTitle}</h1>
+
+      {/* 醒目提示：遇到问题找谁。用户中心是用户最常来的页面，
+          把客服邮箱放在这里，比藏在「意见反馈」卡片里更容易被看到。 */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+        <span className="font-medium text-foreground">{t.accSupportHint}</span>
+        <button
+          type="button"
+          className="font-medium text-primary underline underline-offset-2 hover:opacity-80"
+          title={`mailto:${SUPPORT_EMAIL}`}
+          onClick={() => {
+            // 复制而不是直接 mailto：桌面端没配默认邮件客户端时 mailto 会静默失败，
+            // 复制到剪贴板对用户更稳妥（提示里也说了可以手动发邮件）。
+            navigator.clipboard
+              ?.writeText(SUPPORT_EMAIL)
+              .then(() => toast.success(t.accSupportCopied.replace('{email}', SUPPORT_EMAIL)))
+              .catch(() => toast.message(SUPPORT_EMAIL))
+          }}
+        >
+          {SUPPORT_EMAIL}
+        </button>
+      </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 左列：积分 + 授权码 + 充值兑换 + 积分消耗（tab 分页） + 使用说明 */}

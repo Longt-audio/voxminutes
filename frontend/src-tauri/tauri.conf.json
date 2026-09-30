@@ -33,9 +33,9 @@
             "default-src": "'self'",
             "script-src": "'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3118",
             "style-src": "'self' 'unsafe-inline' http://localhost:3118",
-            "img-src": "'self' asset: https://asset.localhost data: http://localhost:3118",
+            "img-src": "'self' asset: http://asset.localhost https://asset.localhost data: http://localhost:3118",
             "media-src": "'self' blob: data:",
-            "connect-src": "'self' http://localhost:11434 http://127.0.0.1:11434 http://localhost:5167 http://127.0.0.1:5167 ws://localhost:5167 ws://127.0.0.1:5167 http://localhost:8178 http://127.0.0.1:8178 https://api.ollama.ai http://localhost:5000 http://127.0.0.1:5000 http://localhost:3118 ws://localhost:3118 http://127.0.0.1:3118 ws://127.0.0.1:3118 http://localhost:8001 http://127.0.0.1:8001"
+            "connect-src": "'self' ipc: http://ipc.localhost http://localhost:11434 http://127.0.0.1:11434 http://localhost:5167 http://127.0.0.1:5167 ws://localhost:5167 ws://127.0.0.1:5167 http://localhost:8178 http://127.0.0.1:8178 https://api.ollama.ai http://localhost:5000 http://127.0.0.1:5000 http://localhost:3118 ws://localhost:3118 http://127.0.0.1:3118 ws://127.0.0.1:3118 http://localhost:8001 http://127.0.0.1:8001"
             },
             "assetProtocol": {
                 "enable": true,
@@ -55,6 +55,7 @@
                     ],
                     "permissions": [
                         "fs:default",
+                        "dialog:default",
                         "fs:allow-read-file",
                         "fs:read-all",
                         "fs:write-all",

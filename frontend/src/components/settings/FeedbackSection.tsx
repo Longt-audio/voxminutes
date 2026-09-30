@@ -8,6 +8,7 @@ import {
   collectDiagLogRange,
   collectManualLogs,
   getLogDir,
+  openLogFolder,
   type DiagLogRange,
 } from '@/services/ipc'
 import { Button } from '@/components/ui/button'
@@ -132,9 +133,24 @@ export function FeedbackSection() {
       </div>
       {/* 手动附加日志文件：对话框默认定位到应用日志目录，多选 .log，可逐个移除 */}
       <div className="mt-2 flex flex-col gap-1">
-        <Button variant="outline" size="sm" className="h-7 w-fit px-2 text-xs" onClick={handlePickLogs}>
-          {t.accAttachLogs}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-7 w-fit px-2 text-xs" onClick={handlePickLogs}>
+            {t.accAttachLogs}
+          </Button>
+          {/* 一键打开日志文件夹：用户报障时不用自己去找 %LOCALAPPDATA%\VoxMinutes\logs */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 w-fit px-2 text-xs"
+            onClick={() => {
+              openLogFolder()
+                .then((p) => toast.success(p))
+                .catch((e) => toast.error(String(e)))
+            }}
+          >
+            {t.accOpenLogFolder}
+          </Button>
+        </div>
         {manualLogPaths.length > 0 && (
           <div className="flex flex-col gap-0.5">
             {manualLogPaths.map((p) => (
