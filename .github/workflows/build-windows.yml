@@ -196,6 +196,32 @@ jobs:
             target/${{ env.TARGET_DIR }}/build
           key: build-script-out-${{ env.TARGET_DIR }}-${{ hashFiles('Cargo.lock') }}
 
+      # ── 一次性「预热」构建脚本产物 ─────────────────────────────────────────
+      # 背景（2026-09-30 排查结论）：
+      #   ort-sys / sherpa-onnx-sys 的构建脚本产物（**链接期必需的 .lib** 与运行时 .dll）
+      #   位于 target/<profile>/build/<crate>-<hash>/out/ —— 而 **rust-cache 保存
+      #   target/ 时会排除 build/*/out**（实测：我们的 build-script-out 缓存只有
+      #   125 MB，里面根本没有 sherpa-onnx-c-api.lib）。
+      #   于是缓存命中时：cargo 因指纹还在而跳过构建脚本 → .lib/.dll 从未出现 → 链接失败：
+      #       lld-link: error: could not open 'sherpa-onnx-c-api.lib'
+      #
+      # 做法：只删**指纹**（保留 build/ 目录），逼这两家重跑构建脚本一次。
+      #   · 只删指纹、不删 build/ —— 上一轮删整个 build/ 把链接搜索路径也删掉了，
+      #     反而制造了另一个失败。
+      #   · 重跑后 out/ 会被重新填充（下载包来自 rust-cache 里的 ~/.cargo，很快）。
+      #   · 重跑产生的完整 build/ 会被下面的 Save 步骤存进专用缓存，
+      #     之后即便命中 rust-cache 也能直接读到 .lib/.dll。
+      - name: Prime build-script outputs (force re-run ort-sys / sherpa-onnx-sys)
+        shell: pwsh
+        run: |
+          $fp = "target/${{ env.TARGET_DIR }}/.fingerprint"
+          if (-not (Test-Path $fp)) { Write-Host "没有 .fingerprint，跳过（冷构建本就会跑）"; exit 0 }
+          $n = 0
+          Get-ChildItem $fp -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^(ort|ort-sys|sherpa-onnx|sherpa-onnx-sys)-' } |
+            ForEach-Object { Write-Host "删除指纹 $($_.Name)"; Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue; $n++ }
+          Write-Host "共删除 $n 个指纹（>0 表示这两家构建脚本本次会重跑）"
+
       # ── 主程序：先 build 一次，让 build.rs 把运行时 DLL 暂存到 resources-dll/ ──
       - name: Build app (stages runtime DLLs via build.rs)
         run: cargo build --profile ${{ env.BUILD_PROFILE }} -p voxminutes
