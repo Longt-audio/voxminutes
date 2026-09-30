@@ -6,6 +6,7 @@ import { X, Rocket } from 'lucide-react'
 import { fetchRemoteMessages, openExternalUrl, type RemoteLatestVersion } from '@/services/ipc'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { LATEST_DOWNLOAD_URL } from '@/lib/site'
 import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
 import { pickLangSegment } from '@/lib/langSegment'
@@ -112,14 +113,14 @@ export function UpdateBanner() {
             <span className="text-emerald-800/80"> · {pickLangSegment(latest.release_notes, lang)}</span>
           )}
         </span>
-        {latest.download_url && (
+        {(latest.download_url || LATEST_DOWNLOAD_URL) && (
           // 必须走 Rust 的 open_external_url：WebView2 / WKWebView 里
           // `<a target="_blank">` 会触发 NewWindowRequested，而 Tauri 没有注册
           // on_new_window 处理器 → 请求被静默取消（点了完全没反应）。
           <button
             type="button"
             className="shrink-0 whitespace-nowrap font-medium underline underline-offset-2 hover:text-emerald-700"
-            onClick={() => void openExternalUrl(latest.download_url).catch(() => {})}
+            onClick={() => void openExternalUrl(latest.download_url || LATEST_DOWNLOAD_URL).catch(() => {})}
           >
             {t.comDownload}
           </button>

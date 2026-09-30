@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
-import { Globe, RefreshCw, Rocket } from 'lucide-react'
+import { Globe, RefreshCw, Rocket , Download} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SettingsSection } from './SettingsSection'
 import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
 import { fetchRemoteMessages, openExternalUrl } from '@/services/ipc'
 import { pickLangSegment } from '@/lib/langSegment'
-import { OFFICIAL_WEBSITE_URL, privacyPolicyUrl, termsOfServiceUrl } from '@/lib/site'
+import { OFFICIAL_WEBSITE_URL, LATEST_DOWNLOAD_URL, privacyPolicyUrl, termsOfServiceUrl } from '@/lib/site'
 
 // 官网地址已挪到 @/lib/site 共享（欢迎弹窗 P2 也用）；保留再导出兼容旧引用
 export { OFFICIAL_WEBSITE_URL }
@@ -154,6 +154,18 @@ export function AboutSection() {
           >
             <Globe className="h-3.5 w-3.5" />
             {t.setAboutWebsite}
+          </Button>
+          {/* 直接下载最新完整安装包（VPS 直供，国内比 GitHub 快）。
+              与「检查更新」互补：检查更新只提示，这里是拿到包的入口。 */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => void openExternalUrl(LATEST_DOWNLOAD_URL).catch(() => {})}
+            title={LATEST_DOWNLOAD_URL}
+          >
+            <Download className="h-4 w-4" />
+            {t.setAboutDownload}
           </Button>
         </div>
       </div>

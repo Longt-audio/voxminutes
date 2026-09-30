@@ -38,3 +38,13 @@ export const LEGAL_CONSENT_SETTING_KEY = 'legal.consent_accepted_at'
 /** 客服 / 退款 / 换机迁移的联系邮箱。
  *  与《用户协议》《隐私政策》里写的是同一个地址（改这里要同步改 legal/ 下的四份文稿和官网页面）。 */
 export const SUPPORT_EMAIL = 'voxmin@qq.com'
+
+/** 最新版完整安装包下载地址（VPS 直供）。
+ *  为什么不用 GitHub：国内访问 GitHub 经常很慢甚至超时，
+ *  所以主下载源放在自己的 VPS（voxmin.top），GitHub Releases 保留为备用源。
+ *  这个 URL 指向 VPS 上的**稳定别名**（每次发版覆盖同名文件），版本号不会变，
+ *  所以可以安全地写死在客户端里。 */
+export const LATEST_DOWNLOAD_URL = 'https://voxmin.top/downloads/voxmin/VoxMinutes-Windows-latest.exe'
+
+/** 下载页（含历史版本 / macOS / GitHub 备用源），软件内「所有下载」入口用 */
+export const DOWNLOAD_PAGE_URL = 'https://voxmin.top/downloads/voxmin/'
