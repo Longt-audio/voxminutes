@@ -56,6 +56,7 @@
                     "permissions": [
                         "fs:default",
                         "dialog:default",
+                        "updater:default",
                         "fs:allow-read-file",
                         "fs:read-all",
                         "fs:write-all",
@@ -82,7 +83,6 @@
                         "store:default",
                         "notification:default",
                         "notification:allow-is-permission-granted",
-                        "updater:default",
                         "process:default",
                         "shell:default",
                         "shell:allow-open",
@@ -105,7 +105,7 @@
             "nsis",
             "dmg"
         ],
-        "createUpdaterArtifacts": false,
+        "createUpdaterArtifacts": true,
         "icon": [
             "icons/app_icon.ico",
             "icons/icon.png",
@@ -141,8 +141,10 @@
     },
     "plugins": {
         "updater": {
-            "pubkey": "",
-            "endpoints": []
-        }
+                "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI2RjExM0IwRTRENkEwQUEKUldTcW9OYmtzQlB4SnU4ZlZmLzYxMnBiSGkwVnRSSVVYQTB4V0kya2cwcmUrTmFNSjdsMmhkeG4K",
+                "endpoints": [
+                    "https://voxmin.top/downloads/voxmin/latest.json"
+                ]
+            }
     }
 }
