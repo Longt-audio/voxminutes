@@ -38,7 +38,13 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: '9'
+          # ⚠️ 必须跟本机开发用的 pnpm 大版本一致（本机 11.x）。
+          # 2026-09-30 实测：pnpm **v9** 在 `pnpm tauri build` 阶段直接报
+          #   ERROR  packages field missing or empty
+          # 因为仓库根的 pnpm-workspace.yaml 只有 allowBuilds、**没有 packages 字段**
+          # （见 frontend/.npmrc 的说明：根 workspace 不属于本项目构建）。
+          # pnpm 11 对这种情况只警告「No projects found」并继续，v9 直接退出。
+          version: '11'
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -47,6 +53,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: '. -> target'
+          # 失败也要存缓存：首次失败在最后一步（打包），若不留缓存，
+          # 下一次重跑要白白再编译 32 分钟。
+          cache-on-failure: true
 
       - name: Install frontend deps
         working-directory: frontend
@@ -106,7 +115,11 @@ jobs:
 
       - name: Build Tauri app (nsis)
         working-directory: frontend
+        # 这步会顺带跑 tauri.conf.json 的 beforeBuildCommand（`pnpm build` = next build）。
         run: pnpm tauri build
+        env:
+          # 让 Tauri CLI 不要在 CI 上尝试彩色/交互输出（日志更干净）
+          CI: 'true'
 
       - name: Upload nsis installer
         uses: actions/upload-artifact@v4
