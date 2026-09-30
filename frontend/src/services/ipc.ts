@@ -1236,9 +1236,9 @@ export async function collectDiagLog(): Promise<string> {
 
 /** 诊断日志附加范围（2026-09-28）：按文件数（最近 N 次运行）或按时间窗（最近一天）。 */
 export interface DiagLogRange {
-  /** 最近 N 个日志文件（≈ 最近 N 次运行），每文件 ≤160KB */
+  /** 最近 N 个日志文件（≈ 最近 N 次运行），每文件 ≤320KB */
   maxFiles?: number
-  /** 最近 N 小时内修改过的日志文件（优先于 maxFiles），每文件 ≤80KB */
+  /** 最近 N 小时内修改过的日志文件（优先于 maxFiles），每文件 ≤160KB */
   sinceHours?: number
 }
 

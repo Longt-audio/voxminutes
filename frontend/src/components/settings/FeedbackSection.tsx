@@ -42,7 +42,9 @@ export function FeedbackSection() {
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [contact, setContact] = useState('')
   const [attachLog, setAttachLog] = useState(true)
-  const [logRange, setLogRange] = useState<LogRangeKey>('2')
+  // 默认「最近 5 次运行」：用户报障时常说的「刚才那次」往往不是最后一次运行
+// （2026-09-30 实测：默认 2 次时，doubao 报错/卡顿那几次根本没被带上）
+  const [logRange, setLogRange] = useState<LogRangeKey>('5')
   // 预收集的诊断日志（收集失败为 null，提交时退化为不附加，绝不挡住反馈）；随范围变化重新收集
   const [diagLog, setDiagLog] = useState<string | null>(null)
   // 用户手动挑选的日志文件绝对路径（提交时由 Rust 侧读内容、脱敏后并入 diag_log）

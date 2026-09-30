@@ -322,8 +322,48 @@ pub fn get_remote_tts_model() -> String {
         .unwrap_or_default()
 }
 
+/// 上次尝试惰性重读 keychain 的时刻（节流用，避免热路径狂读凭据管理器）
+static LAST_LICENSE_RELOAD: std::sync::LazyLock<std::sync::Mutex<Option<std::time::Instant>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(None));
+
+/// 取授权码。
+///
+/// 缓存为空时**惰性重读一次 keychain**（≥3 秒节流）：启动早期凭据管理器偶发不可用时，
+/// 以前会把「空」缓存一整个会话，用户必须去设置页手动重填或重开欢迎弹窗才能恢复
+/// （2026-09-30 实测：用户中心积分一直出不来，开一次欢迎页就好了）。
+/// 现在只要后续任意一次调用时能读到，就自动恢复，无需用户操作。
 pub fn get_remote_license() -> String {
-    REMOTE_LICENSE.lock().map(|l| l.clone()).unwrap_or_default()
+    let cached = REMOTE_LICENSE.lock().map(|l| l.clone()).unwrap_or_default();
+    if !cached.is_empty() {
+        return cached;
+    }
+
+    // 缓存为空 → 考虑重读
+    let should_try = {
+        match LAST_LICENSE_RELOAD.lock() {
+            Ok(mut last) => match *last {
+                Some(t) if t.elapsed() < std::time::Duration::from_secs(3) => false,
+                _ => {
+                    *last = Some(std::time::Instant::now());
+                    true
+                }
+            },
+            Err(_) => false,
+        }
+    };
+    if !should_try {
+        return String::new();
+    }
+
+    let fresh = load_license_from_keyring();
+    if fresh.is_empty() {
+        return String::new();
+    }
+    log::info!("授权码已从 keychain 惰性恢复（{} 字符）", fresh.chars().count());
+    if let Ok(mut l) = REMOTE_LICENSE.lock() {
+        *l = fresh.clone();
+    }
+    fresh
 }
 
 /// 只设置授权码（供自动注册后写入），并持久化到 keychain。
@@ -475,8 +515,27 @@ fn save_license_to_keyring(license: &str) {
 
 fn load_license_from_keyring() -> String {
     match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
-        Ok(entry) => entry.get_password().unwrap_or_default(),
-        Err(_) => String::new(),
+        Ok(entry) => match entry.get_password() {
+            Ok(p) => p,
+            // ⚠️ 这里以前是 `unwrap_or_default()` —— 读失败与「确实没存过」无法区分，
+            // 而且完全不打日志。结果：Windows 凭据管理器在启动早期偶发读失败时，
+            // 授权码被当成空串缓存一整个会话，所有远程调用都报「缺少授权码」，
+            // 用户中心积分永远转圈（2026-09-30 真机实测），日志里却一条线索都没有。
+            Err(e) => {
+                let es = e.to_string();
+                // 「没找到条目」是正常的首次运行，不算异常
+                if es.contains("No matching entry") || es.contains("not found") {
+                    log::info!("Keychain: 尚未保存授权码（首次运行属正常）");
+                } else {
+                    log::warn!("Keychain: 读取授权码失败（本次会话将无授权码）: {}", es);
+                }
+                String::new()
+            }
+        },
+        Err(e) => {
+            log::warn!("Keychain: 不可用，无法读取授权码: {}", e);
+            String::new()
+        }
     }
 }
 
@@ -561,10 +620,16 @@ pub fn load_remote_asr_config_from_disk() {
 
     // license 从 OS keychain 读回（与 JSON 解耦）
     let license = load_license_from_keyring();
-    if !license.is_empty() {
+    if license.is_empty() {
+        log::warn!(
+            "启动时未取到授权码 —— 远程识别/翻译/积分都会失败。\
+             若用户确认已填过授权码，说明是 keychain 读取失败（见上一条 Keychain 日志）。"
+        );
+    } else {
         if let Ok(mut l) = REMOTE_LICENSE.lock() {
             *l = license;
         }
+        log::info!("授权码已从 keychain 载入（{} 字符）", get_remote_license().chars().count());
     }
 }
 

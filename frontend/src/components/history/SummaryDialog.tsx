@@ -348,6 +348,76 @@ export function SummaryDialog({
           ))}
         </div>
 
+        {/* 模型选择区：从滚动区提到 tabs 正下方。
+            用户 2026-09-30 反馈：原来它埋在「模板选择 + 输出偏好」之后，
+            弹窗一打开根本看不到，必须先往下滚。现在固定在顶部，切 tab 即换模型行。 */}
+        <div className="shrink-0 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+          {method === 'local' &&
+            (localModels === null ? (
+              <p className="text-xs text-muted-foreground">{t.comLoading}</p>
+            ) : installedLocalModels.length === 0 ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
+                <span className="text-sm">{t.sumLocalNotInstalled}</span>
+                <Button variant="outline" size="sm" className="shrink-0" asChild>
+                  <Link href="/settings">{t.sumDownloadInSettings}</Link>
+                </Button>
+              </div>
+            ) : installedLocalModels.length === 1 ? (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground truncate">
+                {t.sumLocalModel}
+                {` · ${modelDisplayName(installedLocalModels[0].id, t, installedLocalModels[0].displayName)}`}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-xs text-muted-foreground">{t.sumLocalModel}</span>
+                <Select value={localModelId} onValueChange={setLocalModelId}>
+                  <SelectTrigger className="h-8 flex-1 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {installedLocalModels.map((m) => (
+                      <SelectItem key={m.id} value={m.id} className="text-xs">
+                        {modelDisplayName(m.id, t, m.displayName)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+
+          {method === 'remote' && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">{t.sumRemoteHint}</p>
+              {remoteEnabled === null || (remoteEnabled && remoteChoice.loading) ? (
+                <p className="text-xs text-muted-foreground">{t.comLoading}</p>
+              ) : remoteEnabled && remoteChoice.value ? (
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 text-xs text-muted-foreground">{t.sumApiModel}</span>
+                  <Select value={remoteChoice.value !== 'doubao-mt' ? remoteChoice.value : ''} onValueChange={remoteChoice.set}>
+                    <SelectTrigger className="h-8 flex-1 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {summaryModels.map((m) => (
+                        <SelectItem key={m.id} value={m.id} className="text-xs">
+                          {remoteModelOptionLabel(m, t)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
+                  <span className="text-sm">{t.sumRemoteNeedConfig}</span>
+                  <Button variant="outline" size="sm" className="shrink-0" asChild>
+                    <Link href="/account">{t.navAccount}</Link>
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* 中间内容区（模板 + prompt 编辑器 + 输出设置 + 各方式内容）：超出时滚动，底部按钮固定 */}
         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1">
         {/* 模板选择 + 可折叠 prompt 编辑器（四种方式共用） */}
@@ -580,70 +650,6 @@ export function SummaryDialog({
             </div>
           )}
 
-          {method === 'local' &&
-            (localModels === null ? (
-              <p className="text-xs text-muted-foreground">{t.comLoading}</p>
-            ) : installedLocalModels.length === 0 ? (
-              <div className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
-                <span className="text-sm">{t.sumLocalNotInstalled}</span>
-                <Button variant="outline" size="sm" className="shrink-0" asChild>
-                  <Link href="/settings">{t.sumDownloadInSettings}</Link>
-                </Button>
-              </div>
-            ) : installedLocalModels.length === 1 ? (
-              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground truncate">
-                {t.sumLocalModel}
-                {` · ${modelDisplayName(installedLocalModels[0].id, t, installedLocalModels[0].displayName)}`}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-xs text-muted-foreground">{t.sumLocalModel}</span>
-                <Select value={localModelId} onValueChange={setLocalModelId}>
-                  <SelectTrigger className="h-8 flex-1 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {installedLocalModels.map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="text-xs">
-                        {modelDisplayName(m.id, t, m.displayName)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
-
-          {method === 'remote' && (
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-muted-foreground">{t.sumRemoteHint}</p>
-              {remoteEnabled === null || (remoteEnabled && remoteChoice.loading) ? (
-                <p className="text-xs text-muted-foreground">{t.comLoading}</p>
-              ) : remoteEnabled && remoteChoice.value ? (
-                <div className="flex items-center gap-2">
-                  <span className="shrink-0 text-xs text-muted-foreground">{t.sumApiModel}</span>
-                  <Select value={remoteChoice.value !== 'doubao-mt' ? remoteChoice.value : ''} onValueChange={remoteChoice.set}>
-                    <SelectTrigger className="h-8 flex-1 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {summaryModels.map((m) => (
-                        <SelectItem key={m.id} value={m.id} className="text-xs">
-                          {remoteModelOptionLabel(m, t)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
-                  <span className="text-sm">{t.sumRemoteNeedConfig}</span>
-                  <Button variant="outline" size="sm" className="shrink-0" asChild>
-                    <Link href="/account">{t.navAccount}</Link>
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* 超长截断提示 */}
