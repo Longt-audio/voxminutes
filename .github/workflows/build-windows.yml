@@ -233,7 +233,7 @@ jobs:
           CI: 'true'
           # ⚠️ 自动更新的签名密钥（2026-09-30 启用 updater 后**必须**有）：
           # tauri.conf.json 的 bundle.createUpdaterArtifacts = true 会让 Tauri CLI
-          # 在打包后**用私钥给更新包盖章**（生成 .nsis.zip.sig）。
+          # 在打包后**用私钥给安装包盖章**（生成 <name>.exe.sig）。
           # 没有这两个变量 → 构建直接失败。
           # 私钥的离线备份见用户移动硬盘 / 桌面「VoxMinutes签名密钥备份」文件夹，
           # 详细说明见 voxminutes/自动更新与签名密钥说明.md
@@ -262,7 +262,7 @@ jobs:
         with:
           name: voxminutes-windows-${{ env.BUILD_PROFILE }}
           # 仓库根是 cargo workspace，bundle 产物在 <repo>/target/<profile> 下
-          # .exe = 完整安装包；.nsis.zip = 自动更新的载荷；.sig = 签名
+          # .exe = 完整安装包，**同时就是自动更新的载荷**；.exe.sig = 配套签名
           path: |
             target/${{ env.TARGET_DIR }}/bundle/nsis/*.exe
             target/${{ env.TARGET_DIR }}/bundle/nsis/*.exe.sig
