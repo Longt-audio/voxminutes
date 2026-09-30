@@ -123,6 +123,33 @@ fn stage_windows_runtime_dlls() {
         }
     }
 
+    // ── 递归兜底（2026-09-30 加）────────────────────────────────────────────
+    // 上面只扫了 profile_dir 的**直接子项**。但 ort-sys / sherpa-onnx-sys 下载的
+    // 运行时 DLL 实际落在 `target/<profile>/build/<crate>-<hash>/out/` 里 ——
+    // 尤其是**缓存命中**时它们的 build script 不重跑、不会再把 DLL 复制到 profile_dir，
+    // 于是直接扫描一个都找不到，打包阶段报
+    //   "resource path `resources-dll\onnxruntime.dll` doesn't exist"
+    // （实测：缓存修好后 release 档 2.2 分钟即失败）。
+    // 这里对仍然缺失的必需 DLL 做一次递归搜索兜底，命中即复制。
+    for name in REQUIRED_WINDOWS_DLLS {
+        let dest = dest_dir.join(name);
+        if std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0) > 0 {
+            continue;
+        }
+        if let Some(found) = find_file_recursive(&profile_dir, name, 6) {
+            if let Ok(m) = std::fs::metadata(&found) {
+                if m.len() > 0 && std::fs::copy(&found, &dest).is_ok() {
+                    println!(
+                        "cargo:warning=已从构建缓存暂存运行时 DLL: {} ← {} ({} 字节)",
+                        dest.display(),
+                        found.display(),
+                        m.len()
+                    );
+                }
+            }
+        }
+    }
+
     for name in REQUIRED_WINDOWS_DLLS {
         let p = dest_dir.join(name);
         let len = std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
@@ -133,6 +160,45 @@ fn stage_windows_runtime_dlls() {
             );
         }
     }
+}
+
+/// 在 `root` 下**递归**查找名为 `name` 的非空文件，最多下钻 `max_depth` 层。
+/// 用于兜底找 ort-sys / sherpa-onnx-sys 下载到 `build/<crate>/out/` 里的运行时 DLL。
+fn find_file_recursive(
+    root: &std::path::Path,
+    name: &str,
+    max_depth: usize,
+) -> Option<std::path::PathBuf> {
+    fn walk(
+        dir: &std::path::Path,
+        name: &str,
+        depth: usize,
+        max_depth: usize,
+    ) -> Option<std::path::PathBuf> {
+        if depth > max_depth {
+            return None;
+        }
+        let entries = std::fs::read_dir(dir).ok()?;
+        let mut subdirs = Vec::new();
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                subdirs.push(path);
+            } else if path.file_name().and_then(|n| n.to_str()) == Some(name) {
+                // 跳过 0 字节占位文件
+                if std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) > 0 {
+                    return Some(path);
+                }
+            }
+        }
+        for sub in subdirs {
+            if let Some(found) = walk(&sub, name, depth + 1, max_depth) {
+                return Some(found);
+            }
+        }
+        None
+    }
+    walk(root, name, 0, max_depth)
 }
 
 /// Detects GPU acceleration capabilities and provides build guidance
