@@ -5,12 +5,34 @@ export interface SettingsMessages {
   setPageSubtitle: string
   setTabModels: string
   setTabAudioExport: string
+  setTabAbout: string
+  /** 设置页 tab：自定义 LLM（OpenAI 兼容 / Anthropic API） */
+  setTabCustomApi: string
+  /** 设置页 tab：意见反馈 */
+  setTabFeedback: string
+  /** 自定义 LLM tab 顶部说明 */
+  setCustomApiDesc: string
+  setAboutTitle: string
+  setAboutDesc: string
+  setAboutVersion: string
+  setAboutChangelogTitle: string
+  setAboutChangelogPlaceholder: string
+  setAboutCheckUpdate: string
+  /** 「关于我们」里的法律条款行标题 */
+  setAboutLegal: string
+  setAboutChecking: string
+  setAboutUpToDate: string
+  setAboutCheckFailed: string
+  setAboutNewVersion: string
+  setAboutDownload: string
+  setAboutWebsite: string
+  setAboutWebsiteSoon: string
   setTabApi: string
   setTabAdvanced: string
   setGeneralTitle: string
   setGeneralHint: string
-  setStartupNotice: string
-  setReshowStartupNotice: string
+  setWelcomeDialog: string
+  setReshowWelcome: string
   setAsrModels: string
   setGroupAsr: string
   setGroupTranslate: string
@@ -22,7 +44,13 @@ export interface SettingsMessages {
   setModelDirChangeFailed: string
   setClearMemory: string
   setClearMemoryHint: string
+  /** 顶栏清空内存按钮上的短文字标签 */
+  setClearMemoryShort: string
   setMemoryCleared: string
+  /** 顶栏清空（非录音时）：模型后台 + 页面文本都已清空 */
+  setClearAllDone: string
+  /** 顶栏清空（录音中）：只清了页面文本，模型后台保留 */
+  setClearTextDone: string
   setClearFailed: string
   setNoModels: string
   setInstalled: string
@@ -44,7 +72,6 @@ export interface SettingsMessages {
   setCopiedLinks: string
   setLinksHint: string
   setCopyFailed: string
-  setReopenOnboarding: string
   setDeleteConfirm: string
   setModelDeleted: string
   setDeleteFailed: string
@@ -65,6 +92,7 @@ export interface SettingsMessages {
   setModelNameQwen25: string
   setModelNameQwen3: string
   setModelNameGemma: string
+  mdLocalSuffix: string
   setAudio: string
   setMicrophone: string
   setNoDevice: string
@@ -73,6 +101,11 @@ export interface SettingsMessages {
   setDeviceHint: string
   setRecordingExport: string
   setRecordingsFolder: string
+  /** 流式分段停顿设置（仅流式 ASR 引擎） */
+  flowPauseLabel: string
+  flowPauseDesc: string
+  /** 停顿时长选项，{n} 为秒数 */
+  flowPauseSecsOption: string
   setChange: string
   setOpenFolder: string
   setExportDir: string
@@ -101,6 +134,14 @@ export interface SettingsMessages {
   setEnterLicense: string
   setRemoteModelsTitle: string
   setRemoteKindTranslate: string
+  /** 会议总结用的远程模型（2026-09-23 起与「翻译」分开持久化） */
+  setRemoteKindSummary: string
+  /** 设置页「自定义 LLM」tab 顶部的高级卡片：自定义远程服务器地址 */
+  setRemoteServerTitle: string
+  setRemoteServerDesc: string
+  setRemoteRestoreDefault: string
+  /** 高级卡片里显示当前生效地址「当前生效：{url}」 */
+  setRemoteServerCurrent: string
   setAdvancedTitle: string
   setPlanned: string
   setAdvTtsName: string
@@ -126,14 +167,32 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setPageSubtitle: "Model, audio and export preferences",
     setTabModels: "Local models",
     setTabAudioExport: "Audio & export",
+    setTabAbout: "About",
+    setTabCustomApi: "Custom LLM",
+    setTabFeedback: "Feedback",
+    setCustomApiDesc: "Configure your own OpenAI-compatible or Anthropic API for meeting summaries and real-time translation. Requests go through your own API and do not consume credits.",
+    setAboutTitle: "About VoxMinutes",
+    setAboutDesc: "Version info and updates",
+    setAboutVersion: "Current version",
+    setAboutChangelogTitle: "What's new in this version",
+    setAboutChangelogPlaceholder: "(Placeholder — to be finalized before release)",
+    setAboutCheckUpdate: "Check for updates",
+    setAboutLegal: "Legal",
+    setAboutChecking: "Checking…",
+    setAboutUpToDate: "You're on the latest version",
+    setAboutCheckFailed: "Check failed (remote service not configured or unreachable)",
+    setAboutNewVersion: "New version v{version} available",
+    setAboutDownload: "Download",
+    setAboutWebsite: "Visit website",
+    setAboutWebsiteSoon: "Website coming soon",
     setTabApi: "API",
     setTabAdvanced: "Advanced",
     setGeneralTitle: "General",
-    setGeneralHint: "Startup notice and other general options.",
-    setStartupNotice: "Show startup notices on app launch",
-    setReshowStartupNotice: "Show now",
+    setGeneralHint: "Welcome dialog and other general options.",
+    setWelcomeDialog: "Welcome dialog",
+    setReshowWelcome: "Open welcome dialog again",
     setAsrModels: "Models",
-    setGroupAsr: "ASR models",
+    setGroupAsr: "Speech recognition models",
     setGroupTranslate: "Translation models",
     setGroupSummary: "Summary models",
     setModelDir: "Model directory",
@@ -142,8 +201,11 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setModelDirChanged: "Model directory updated",
     setModelDirChangeFailed: "Failed to change directory: {error}",
     setClearMemory: "Clear model memory",
-    setClearMemoryHint: "Release all loaded AI models (ASR / translation / summary); they reload on next use.",
+    setClearMemoryHint: "Clear live transcript & translate page text, and release loaded AI models (they reload on next use). While recording, only the text is cleared.",
+    setClearMemoryShort: "Clear",
     setMemoryCleared: "Model memory cleared",
+    setClearAllDone: "Model backends and page text cleared",
+    setClearTextDone: "Page text cleared (models kept — recording in progress)",
     setClearFailed: "Failed to clear: {error}",
     setNoModels: "No models available for download",
     setInstalled: "Installed",
@@ -165,27 +227,27 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setCopiedLinks: "Copied {count} link(s) from {label}",
     setLinksHint: "Slow downloads? Copy the links to a download manager (e.g. IDM, aria2), then install via “Import”.",
     setCopyFailed: "Copy failed",
-    setReopenOnboarding: "Reopen setup guide",
     setDeleteConfirm: "Delete model \"{name}\"? You will need to download it again before using it.",
     setModelDeleted: "Model deleted",
     setDeleteFailed: "Failed to delete: {error}",
     setModelNote1: "Models are not bundled with the app, so download one before first use. Models are downloaded from official GitHub Releases and automatically switch to a mirror when the network is poor.",
     setModelNote2: "Translation models run on-device and are used by the Translate page and by translation during real-time transcription.",
-    setModelDescSenseVoice: "Multilingual ASR (zh/en/ja/ko/yue), VAD pseudo-streaming",
-    setModelDescXAsr: "Chinese–English fully-streaming ASR with lower latency",
+    setModelDescSenseVoice: "Multilingual speech recognition (zh/en/ja/ko/yue), VAD pseudo-streaming",
+    setModelDescXAsr: "Chinese–English fully-streaming speech recognition with lower latency",
     setModelDescOpusMt: "OPUS-MT Chinese–English translation, 113 MB, fast",
     setModelDescHymt2: "Tencent Hunyuan Hy-MT2, 1.1 GB, higher quality, 13 target languages",
     setModelDescQwen25: "Local meeting summary LLM (Qwen2.5-3B, 2.1 GB, smaller and faster)",
     setModelDescQwen3: "Local meeting summary LLM (Qwen3-4B-2507, better quality)",
     setModelDescGemma: "Local meeting summary LLM (Gemma-3-4B, stronger in English)",
-    setModelNameSenseVoice: "SenseVoice Multilingual ASR",
-    setModelNameXAsr: "X-ASR Streaming ASR (ZH/EN, 480 ms)",
+    setModelNameSenseVoice: "SenseVoice Multilingual",
+    setModelNameXAsr: "X-ASR Streaming (ZH/EN, 480 ms)",
     setModelNameOpusZhEn: "OPUS-MT Translation (ZH → EN)",
     setModelNameOpusEnZh: "OPUS-MT Translation (EN → ZH)",
     setModelNameHymt2: "Hy-MT2-1.8B (high-quality translation)",
     setModelNameQwen25: "Qwen2.5-3B-Instruct (meeting summary)",
     setModelNameQwen3: "Qwen3-4B-Instruct-2507 (meeting summary)",
     setModelNameGemma: "Gemma-3-4B-it (meeting summary)",
+    mdLocalSuffix: " (Local)",
     setAudio: "Audio",
     setMicrophone: "Microphone",
     setNoDevice: "Not detected",
@@ -194,6 +256,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setDeviceHint: "Recording devices are selected in the recording controls on the Transcribe page",
     setRecordingExport: "Recording & export",
     setRecordingsFolder: "Recording folder",
+    flowPauseLabel: "Streaming paragraph break",
+    flowPauseDesc: "Start a new paragraph after this much continuous silence (streaming engines only)",
+    flowPauseSecsOption: "{n} sec",
     setChange: "Change…",
     setOpenFolder: "Open folder",
     setExportDir: "Default export folder",
@@ -203,18 +268,18 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setOpenFolderFailed: "Failed to open folder: {error}",
     setExportDirUpdated: "Default export folder updated",
     setExportDirFailed: "Failed to set export folder: {error}",
-    setRemoteAsrTitle: "Remote ASR",
-    setRemoteAsrAddress: "Remote ASR endpoint",
+    setRemoteAsrTitle: "Remote service",
+    setRemoteAsrAddress: "Remote service endpoint",
     setSaving: "Saving…",
     setChecking: "Checking…",
     setTestConnection: "Test connection",
     setOnline: "Online",
     setOffline: "Offline",
     setModelLabel: "Model: {name}",
-    setEnterEndpoint: "Please enter the remote ASR endpoint",
-    setEndpointSaved: "Remote ASR endpoint saved",
+    setEnterEndpoint: "Please enter the remote service endpoint",
+    setEndpointSaved: "Remote service endpoint saved",
     setSaveFailed: "Save failed: {error}",
-    setRemoteNote: "Connect your server URL and license to route ASR / translation to the cloud gateway.",
+    setRemoteNote: "Connect your server URL and license to route speech recognition / translation to the cloud gateway.",
     setRemoteEnable: "Enable remote service",
     setRemoteEnabledOn: "Remote service enabled",
     setRemoteEnabledOff: "Remote service disabled",
@@ -222,6 +287,11 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setEnterLicense: "Please enter the license",
     setRemoteModelsTitle: "Remote models (published in the admin console)",
     setRemoteKindTranslate: "Translate",
+    setRemoteKindSummary: "Summary",
+    setRemoteServerTitle: "Remote server (advanced)",
+    setRemoteServerDesc: "Custom remote gateway address. You usually do not need to change this — leave it empty to use the default server.",
+    setRemoteRestoreDefault: "Restore default",
+    setRemoteServerCurrent: "Effective: {url}",
     setAdvancedTitle: "Coming soon",
     setPlanned: "Planned",
     setAdvTtsName: "TTS voice synthesis",
@@ -236,7 +306,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setAdvLiveSummaryDesc: "Rolling summary while recording",
     setAdvSpeakerIdName: "Speaker recognition",
     setAdvSpeakerIdDesc: "Distinguish who said what",
-    setAdvCloudAsrName: "Cloud high-accuracy ASR",
+    setAdvCloudAsrName: "Cloud high-accuracy speech recognition",
     setAdvCloudAsrDesc: "Higher accuracy via cloud models",
     setAdvHelpName: "In-app help",
     setAdvHelpDesc: "Built-in guides and FAQ",
@@ -245,14 +315,32 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setPageSubtitle: "模型、音频与导出偏好",
     setTabModels: "本地模型",
     setTabAudioExport: "音频与导出",
+    setTabAbout: "关于我们",
+    setTabCustomApi: "自定义 LLM",
+    setTabFeedback: "意见反馈",
+    setCustomApiDesc: "配置你自己的 OpenAI 兼容或 Anthropic API，用于会议总结和实时翻译。走你自己的 API，不消耗积分。",
+    setAboutTitle: "关于 VoxMinutes",
+    setAboutDesc: "版本信息与更新",
+    setAboutVersion: "当前版本",
+    setAboutChangelogTitle: "本版本新增功能",
+    setAboutChangelogPlaceholder: "（占位：发布前在此更新本版本的新功能列表）",
+    setAboutCheckUpdate: "检查更新",
+    setAboutLegal: "法律条款",
+    setAboutChecking: "检查中…",
+    setAboutUpToDate: "已是最新版本",
+    setAboutCheckFailed: "检查失败（未配置远程服务或网络不可达）",
+    setAboutNewVersion: "发现新版本 v{version}",
+    setAboutDownload: "下载",
+    setAboutWebsite: "访问官网",
+    setAboutWebsiteSoon: "官网即将上线",
     setTabApi: "API",
     setTabAdvanced: "高级",
     setGeneralTitle: "通用",
-    setGeneralHint: "启动提示弹窗等通用选项。",
-    setStartupNotice: "打开软件时显示启动提示弹窗",
-    setReshowStartupNotice: "再次弹出",
+    setGeneralHint: "欢迎弹窗等通用选项。",
+    setWelcomeDialog: "欢迎弹窗",
+    setReshowWelcome: "再次打开欢迎弹窗",
     setAsrModels: "模型",
-    setGroupAsr: "ASR 模型",
+    setGroupAsr: "语音识别模型",
     setGroupTranslate: "翻译模型",
     setGroupSummary: "总结模型",
     setModelDir: "模型目录",
@@ -261,8 +349,11 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setModelDirChanged: "模型目录已更新",
     setModelDirChangeFailed: "更改目录失败：{error}",
     setClearMemory: "清除模型内存",
-    setClearMemoryHint: "释放所有已加载的 AI 模型（ASR / 翻译 / 总结），下次使用会重新加载。",
+    setClearMemoryHint: "清空实时转录与翻译页的文本，并释放已加载的 AI 模型（下次使用会重新加载）；录音中仅清空文本。",
+    setClearMemoryShort: "清空",
     setMemoryCleared: "模型内存已清除",
+    setClearAllDone: "已清空模型后台和页面文本",
+    setClearTextDone: "已清空页面文本（录音中，模型后台保留）",
     setClearFailed: "清除失败：{error}",
     setNoModels: "暂无可下载的模型",
     setInstalled: "已安装",
@@ -284,14 +375,13 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setCopiedLinks: "已复制 {label} 的 {count} 个链接",
     setLinksHint: "下载慢时可把链接复制到迅雷 / IDM 等下载器，完成后用「导入」安装。",
     setCopyFailed: "复制失败",
-    setReopenOnboarding: "重新打开新手指引",
     setDeleteConfirm: "确定删除模型「{name}」吗？删除后需重新下载才能使用。",
     setModelDeleted: "模型已删除",
     setDeleteFailed: "删除失败：{error}",
     setModelNote1: "应用不内置模型文件，首次使用请先下载。模型从 GitHub 官方 Release 下载，网络不佳时自动切换镜像。",
     setModelNote2: "翻译模型在本地运行，用于翻译页与实时转录中的翻译功能。",
-    setModelDescSenseVoice: "多语言 ASR（中/英/日/韩/粤），VAD 伪流式",
-    setModelDescXAsr: "中英双语纯流式 ASR，延迟更低",
+    setModelDescSenseVoice: "多语言语音识别（中/英/日/韩/粤），VAD 伪流式",
+    setModelDescXAsr: "中英双语纯流式语音识别，延迟更低",
     setModelDescOpusMt: "OPUS-MT 中英互译模型，113MB，速度快",
     setModelDescHymt2: "腾讯混元 Hy-MT2，1.1GB，翻译质量更高，支持 13 种目标语言",
     setModelDescQwen25: "本地会议总结 LLM（Qwen2.5-3B，2.1GB，较小较快）",
@@ -305,6 +395,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setModelNameQwen25: "Qwen2.5-3B-Instruct（会议总结）",
     setModelNameQwen3: "Qwen3-4B-Instruct-2507（会议总结）",
     setModelNameGemma: "Gemma-3-4B-it（会议总结）",
+    mdLocalSuffix: "（本地）",
     setAudio: "音频",
     setMicrophone: "麦克风",
     setNoDevice: "未检测到",
@@ -313,6 +404,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setDeviceHint: "录音设备在「实时转录」页的录音控制面板中选择",
     setRecordingExport: "录音与导出",
     setRecordingsFolder: "录音保存目录",
+    flowPauseLabel: "流式分段停顿",
+    flowPauseDesc: "连续静音超过该时长后，转写文本另起一段（仅流式引擎）",
+    flowPauseSecsOption: "{n} 秒",
     setChange: "更改…",
     setOpenFolder: "打开文件夹",
     setExportDir: "默认导出目录",
@@ -322,18 +416,18 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setOpenFolderFailed: "打开文件夹失败：{error}",
     setExportDirUpdated: "默认导出目录已更新",
     setExportDirFailed: "设置导出目录失败：{error}",
-    setRemoteAsrTitle: "远程 ASR",
-    setRemoteAsrAddress: "远程 ASR 服务地址",
+    setRemoteAsrTitle: "远程服务",
+    setRemoteAsrAddress: "远程服务地址",
     setSaving: "保存中…",
     setChecking: "检测中…",
     setTestConnection: "测试连接",
     setOnline: "在线",
     setOffline: "离线",
     setModelLabel: "模型：{name}",
-    setEnterEndpoint: "请输入远程 ASR 服务地址",
-    setEndpointSaved: "远程 ASR 地址已保存",
+    setEnterEndpoint: "请输入远程服务地址",
+    setEndpointSaved: "远程服务地址已保存",
     setSaveFailed: "保存失败：{error}",
-    setRemoteNote: "填写服务器地址与授权码后，ASR / 翻译将切换到云端网关。",
+    setRemoteNote: "填写服务器地址与授权码后，语音识别 / 翻译将切换到云端网关。",
     setRemoteEnable: "启用远程服务",
     setRemoteEnabledOn: "远程服务已启用",
     setRemoteEnabledOff: "远程服务已停用",
@@ -341,6 +435,11 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setEnterLicense: "请输入授权码",
     setRemoteModelsTitle: "远程模型（后台已上架）",
     setRemoteKindTranslate: "翻译",
+    setRemoteKindSummary: "总结",
+    setRemoteServerTitle: "远程服务器（高级）",
+    setRemoteServerDesc: "自定义远程网关地址，一般无需修改。留空则使用默认服务器。",
+    setRemoteRestoreDefault: "恢复默认",
+    setRemoteServerCurrent: "当前生效：{url}",
     setAdvancedTitle: "即将上线",
     setPlanned: "规划中",
     setAdvTtsName: "TTS 语音合成",
@@ -355,7 +454,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setAdvLiveSummaryDesc: "录音过程中滚动生成摘要",
     setAdvSpeakerIdName: "说话人识别",
     setAdvSpeakerIdDesc: "区分不同说话人",
-    setAdvCloudAsrName: "云端高精度 ASR",
+    setAdvCloudAsrName: "云端高精度语音识别",
     setAdvCloudAsrDesc: "云端大模型，更高识别精度",
     setAdvHelpName: "应用内帮助",
     setAdvHelpDesc: "内置使用指南与常见问题",
@@ -364,14 +463,32 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setPageSubtitle: "모델, 오디오 및 내보내기 환경 설정",
     setTabModels: "로컬 모델",
     setTabAudioExport: "오디오 및 내보내기",
+    setTabAbout: "정보",
+    setTabCustomApi: "사용자 정의 LLM",
+    setTabFeedback: "의견 보내기",
+    setCustomApiDesc: "회의 요약과 실시간 번역에 사용할 OpenAI 호환 또는 Anthropic API를 직접 설정합니다. 사용자의 API를 통해 처리되며 크레딧이 소모되지 않습니다.",
+    setAboutTitle: "VoxMinutes 정보",
+    setAboutDesc: "버전 정보 및 업데이트",
+    setAboutVersion: "현재 버전",
+    setAboutChangelogTitle: "이 버전의 새 기능",
+    setAboutChangelogPlaceholder: "(플레이스홀더 — 출시 전 업데이트 예정)",
+    setAboutCheckUpdate: "업데이트 확인",
+    setAboutLegal: "법적 고지",
+    setAboutChecking: "확인 중…",
+    setAboutUpToDate: "최신 버전입니다",
+    setAboutCheckFailed: "확인 실패 (원격 서비스 미설정 또는 네트워크 불가)",
+    setAboutNewVersion: "새 버전 v{version} 사용 가능",
+    setAboutDownload: "다운로드",
+    setAboutWebsite: "웹사이트 방문",
+    setAboutWebsiteSoon: "웹사이트가 곧 오픈됩니다",
     setTabApi: "API",
     setTabAdvanced: "고급",
     setGeneralTitle: "일반",
-    setGeneralHint: "시작 알림 등 일반 옵션.",
-    setStartupNotice: "앱 시작 시 시작 알림 표시",
-    setReshowStartupNotice: "지금 다시 표시",
+    setGeneralHint: "환영 팝업 등 일반 옵션.",
+    setWelcomeDialog: "환영 팝업",
+    setReshowWelcome: "환영 팝업 다시 열기",
     setAsrModels: "모델",
-    setGroupAsr: "ASR 모델",
+    setGroupAsr: "음성 인식 모델",
     setGroupTranslate: "번역 모델",
     setGroupSummary: "요약 모델",
     setModelDir: "모델 디렉터리",
@@ -380,8 +497,11 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setModelDirChanged: "모델 디렉터리가 업데이트되었습니다",
     setModelDirChangeFailed: "디렉터리 변경 실패: {error}",
     setClearMemory: "모델 메모리 비우기",
-    setClearMemoryHint: "로드된 모든 AI 모델(ASR/번역/요약)을 해제하며, 다음 사용 시 다시 로드됩니다.",
+    setClearMemoryHint: "실시간 전사·번역 페이지 텍스트를 지우고 로드된 AI 모델을 해제합니다(다음 사용 시 다시 로드됩니다). 녹음 중에는 텍스트만 지워집니다.",
+    setClearMemoryShort: "비우기",
     setMemoryCleared: "모델 메모리가 비워졌습니다",
+    setClearAllDone: "모델 백엔드와 페이지 텍스트를 비웠습니다",
+    setClearTextDone: "페이지 텍스트를 비웠습니다(녹음 중이라 모델은 유지)",
     setClearFailed: "비우기 실패: {error}",
     setNoModels: "다운로드할 수 있는 모델이 없습니다",
     setInstalled: "설치됨",
@@ -403,14 +523,13 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setCopiedLinks: "{label} 링크 {count}개를 복사했습니다",
     setLinksHint: "다운로드가 느리면 링크를 다운로드 매니저(IDM, aria2 등)에 붙여넣고, 완료 후 「가져오기」로 설치하세요.",
     setCopyFailed: "복사 실패",
-    setReopenOnboarding: "시작 가이드 다시 열기",
     setDeleteConfirm: "모델 \"{name}\"을(를) 삭제하시겠습니까? 삭제 후 다시 사용하려면 재다운로드가 필요합니다.",
     setModelDeleted: "모델이 삭제되었습니다",
     setDeleteFailed: "삭제 실패: {error}",
     setModelNote1: "앱에 모델 파일이 포함되어 있지 않으므로 처음 사용 전에 다운로드하세요. 모델은 GitHub 공식 Release에서 다운로드되며, 네트워크 상태가 좋지 않으면 자동으로 미러로 전환됩니다.",
     setModelNote2: "번역 모델은 로컬에서 실행되며, 번역 페이지와 실시간 받아쓰기의 번역 기능에 사용됩니다.",
-    setModelDescSenseVoice: "다국어 ASR(중/영/일/한/광둥어), VAD 유사 스트리밍",
-    setModelDescXAsr: "중-영 이중언어 완전 스트리밍 ASR, 지연 시간이 더 짧습니다",
+    setModelDescSenseVoice: "다국어 음성 인식(중/영/일/한/광둥어), VAD 유사 스트리밍",
+    setModelDescXAsr: "중-영 이중언어 완전 스트리밍 음성 인식, 지연 시간이 더 짧습니다",
     setModelDescOpusMt: "OPUS-MT 중-영 번역 모델, 113MB, 빠른 속도",
     setModelDescHymt2: "Tencent Hunyuan Hy-MT2, 1.1GB, 더 높은 품질, 13개 대상 언어 지원",
     setModelDescQwen25: "로컬 회의 요약 LLM(Qwen2.5-3B, 2.1GB, 더 작고 빠름)",
@@ -424,6 +543,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setModelNameQwen25: "Qwen2.5-3B-Instruct(회의 요약)",
     setModelNameQwen3: "Qwen3-4B-Instruct-2507(회의 요약)",
     setModelNameGemma: "Gemma-3-4B-it(회의 요약)",
+    mdLocalSuffix: "（로컬）",
     setAudio: "오디오",
     setMicrophone: "마이크",
     setNoDevice: "감지되지 않음",
@@ -432,6 +552,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setDeviceHint: "녹음 기기는 \"받아쓰기\" 페이지의 녹음 컨트롤 패널에서 선택합니다",
     setRecordingExport: "녹음 및 내보내기",
     setRecordingsFolder: "녹음 저장 폴더",
+    flowPauseLabel: "스트리밍 단락 나누기",
+    flowPauseDesc: "연속 무음이 이 시간을 넘으면 새 단락을 시작합니다 (스트리밍 엔진 전용)",
+    flowPauseSecsOption: "{n}초",
     setChange: "변경…",
     setOpenFolder: "폴더 열기",
     setExportDir: "기본 내보내기 폴더",
@@ -441,18 +564,18 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setOpenFolderFailed: "폴더 열기 실패: {error}",
     setExportDirUpdated: "기본 내보내기 폴더가 업데이트되었습니다",
     setExportDirFailed: "내보내기 폴더 설정 실패: {error}",
-    setRemoteAsrTitle: "원격 ASR",
-    setRemoteAsrAddress: "원격 ASR 서비스 주소",
+    setRemoteAsrTitle: "원격 서비스",
+    setRemoteAsrAddress: "원격 서비스 주소",
     setSaving: "저장 중…",
     setChecking: "확인 중…",
     setTestConnection: "연결 테스트",
     setOnline: "온라인",
     setOffline: "오프라인",
     setModelLabel: "모델: {name}",
-    setEnterEndpoint: "원격 ASR 서비스 주소를 입력하세요",
-    setEndpointSaved: "원격 ASR 주소가 저장되었습니다",
+    setEnterEndpoint: "원격 서비스 주소를 입력하세요",
+    setEndpointSaved: "원격 서비스 주소가 저장되었습니다",
     setSaveFailed: "저장 실패: {error}",
-    setRemoteNote: "서버 주소와 라이선스를 입력하면 ASR / 번역이 클라우드 게이트웨이로 전환됩니다.",
+    setRemoteNote: "서버 주소와 라이선스를 입력하면 음성 인식 / 번역이 클라우드 게이트웨이로 전환됩니다.",
     setRemoteEnable: "원격 서비스 사용",
     setRemoteEnabledOn: "원격 서비스 사용됨",
     setRemoteEnabledOff: "원격 서비스 사용 안 함",
@@ -460,6 +583,11 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setEnterLicense: "라이선스를 입력하세요",
     setRemoteModelsTitle: "원격 모델(관리자 콘솔에 게시됨)",
     setRemoteKindTranslate: "번역",
+    setRemoteKindSummary: "요약",
+    setRemoteServerTitle: "원격 서버(고급)",
+    setRemoteServerDesc: "원격 게이트웨이 주소를 직접 지정합니다. 일반적으로 변경할 필요가 없으며, 비워 두면 기본 서버를 사용합니다.",
+    setRemoteRestoreDefault: "기본값 복원",
+    setRemoteServerCurrent: "현재 적용: {url}",
     setAdvancedTitle: "출시 예정",
     setPlanned: "계획 중",
     setAdvTtsName: "TTS 음성 합성",
@@ -474,7 +602,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setAdvLiveSummaryDesc: "녹음 중 요약을 계속 생성합니다",
     setAdvSpeakerIdName: "화자 인식",
     setAdvSpeakerIdDesc: "누가 말했는지 구분합니다",
-    setAdvCloudAsrName: "클라우드 고정밀 ASR",
+    setAdvCloudAsrName: "클라우드 고정밀 음성 인식",
     setAdvCloudAsrDesc: "클라우드 대형 모델로 더 높은 인식 정확도",
     setAdvHelpName: "앱 내 도움말",
     setAdvHelpDesc: "내장 사용 가이드와 FAQ",
@@ -483,14 +611,32 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setPageSubtitle: "モデル・オーディオ・エクスポートの設定",
     setTabModels: "ローカルモデル",
     setTabAudioExport: "オーディオとエクスポート",
+    setTabAbout: "概要",
+    setTabCustomApi: "カスタム LLM",
+    setTabFeedback: "ご意見",
+    setCustomApiDesc: "会議の要約とリアルタイム翻訳に使う OpenAI 互換または Anthropic API を自分で設定します。自分の API 経由のため、クレジットは消費されません。",
+    setAboutTitle: "VoxMinutes について",
+    setAboutDesc: "バージョン情報とアップデート",
+    setAboutVersion: "現在のバージョン",
+    setAboutChangelogTitle: "このバージョンの新機能",
+    setAboutChangelogPlaceholder: "（プレースホルダー — リリース前に更新）",
+    setAboutCheckUpdate: "アップデートを確認",
+    setAboutLegal: "法的情報",
+    setAboutChecking: "確認中…",
+    setAboutUpToDate: "最新バージョンです",
+    setAboutCheckFailed: "確認に失敗しました（リモートサービス未設定または接続不可）",
+    setAboutNewVersion: "新しいバージョン v{version} があります",
+    setAboutDownload: "ダウンロード",
+    setAboutWebsite: "公式サイトへ",
+    setAboutWebsiteSoon: "公式サイトは近日公開予定",
     setTabApi: "API",
     setTabAdvanced: "詳細",
     setGeneralTitle: "一般",
-    setGeneralHint: "起動時のお知らせなどの一般オプション。",
-    setStartupNotice: "アプリ起動時にお知らせを表示",
-    setReshowStartupNotice: "今すぐ表示",
+    setGeneralHint: "ようこそダイアログなどの一般オプション。",
+    setWelcomeDialog: "ようこそダイアログ",
+    setReshowWelcome: "ようこそダイアログを再度開く",
     setAsrModels: "モデル",
-    setGroupAsr: "ASR モデル",
+    setGroupAsr: "音声認識モデル",
     setGroupTranslate: "翻訳モデル",
     setGroupSummary: "要約モデル",
     setModelDir: "モデルディレクトリ",
@@ -499,8 +645,11 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setModelDirChanged: "モデルディレクトリを更新しました",
     setModelDirChangeFailed: "ディレクトリ変更に失敗: {error}",
     setClearMemory: "モデルメモリを解放",
-    setClearMemoryHint: "ロード中のすべての AI モデル（ASR/翻訳/要約）を解放します。次回利用時に再ロードされます。",
+    setClearMemoryHint: "リアルタイム転写・翻訳ページのテキストを消去し、読み込み済みのAIモデルを解放します（次回利用時に再ロード）。録音中はテキストのみ消去されます。",
+    setClearMemoryShort: "クリア",
     setMemoryCleared: "モデルメモリを解放しました",
+    setClearAllDone: "モデルバックエンドとページテキストを消去しました",
+    setClearTextDone: "ページテキストを消去しました（録音中のためモデルは保持）",
     setClearFailed: "解放に失敗: {error}",
     setNoModels: "ダウンロード可能なモデルはありません",
     setInstalled: "インストール済み",
@@ -522,14 +671,13 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setCopiedLinks: "{label} のリンクを {count} 件コピーしました",
     setLinksHint: "ダウンロードが遅い場合はリンクをダウンロードマネージャー（IDM、aria2 など）にコピーし、完了後「インポート」でインストールしてください。",
     setCopyFailed: "コピーに失敗しました",
-    setReopenOnboarding: "セットアップガイドを再表示",
     setDeleteConfirm: "モデル「{name}」を削除しますか？削除後は再度ダウンロードしないと使用できません。",
     setModelDeleted: "モデルを削除しました",
     setDeleteFailed: "削除に失敗しました: {error}",
     setModelNote1: "アプリにモデルファイルは同梱されていません。初回利用前にダウンロードしてください。モデルは GitHub 公式 Release からダウンロードされ、接続状況が悪い場合は自動でミラーに切り替わります。",
     setModelNote2: "翻訳モデルはローカルで動作し、翻訳ページとリアルタイム文字起こしの翻訳機能で使用されます。",
-    setModelDescSenseVoice: "多言語 ASR（中/英/日/韓/広東語）、VAD 疑似ストリーミング",
-    setModelDescXAsr: "中英バイリンガルの完全ストリーミング ASR、低遅延",
+    setModelDescSenseVoice: "多言語音声認識（中/英/日/韓/広東語）、VAD 疑似ストリーミング",
+    setModelDescXAsr: "中英バイリンガルの完全ストリーミング音声認識、低遅延",
     setModelDescOpusMt: "OPUS-MT 中英翻訳モデル、113MB、高速",
     setModelDescHymt2: "Tencent Hunyuan Hy-MT2、1.1GB、より高品質、13 言語に対応",
     setModelDescQwen25: "ローカル会議要約 LLM（Qwen2.5-3B、2.1GB、小型で高速）",
@@ -543,6 +691,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setModelNameQwen25: "Qwen2.5-3B-Instruct（会議要約）",
     setModelNameQwen3: "Qwen3-4B-Instruct-2507（会議要約）",
     setModelNameGemma: "Gemma-3-4B-it（会議要約）",
+    mdLocalSuffix: "（ローカル）",
     setAudio: "オーディオ",
     setMicrophone: "マイク",
     setNoDevice: "検出されません",
@@ -551,6 +700,9 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setDeviceHint: "録音デバイスは「文字起こし」ページの録音コントロールパネルで選択します",
     setRecordingExport: "録音とエクスポート",
     setRecordingsFolder: "録音の保存先",
+    flowPauseLabel: "ストリーミング段落分割",
+    flowPauseDesc: "連続した無音がこの時間を超えると、文字起こしを新しい段落に分けます（ストリーミングエンジンのみ）",
+    flowPauseSecsOption: "{n} 秒",
     setChange: "変更…",
     setOpenFolder: "フォルダーを開く",
     setExportDir: "デフォルトのエクスポート先",
@@ -560,18 +712,18 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setOpenFolderFailed: "フォルダーを開けませんでした: {error}",
     setExportDirUpdated: "デフォルトのエクスポート先を更新しました",
     setExportDirFailed: "エクスポート先の設定に失敗しました: {error}",
-    setRemoteAsrTitle: "リモート ASR",
-    setRemoteAsrAddress: "リモート ASR サービスアドレス",
+    setRemoteAsrTitle: "リモートサービス",
+    setRemoteAsrAddress: "リモートサービスアドレス",
     setSaving: "保存中…",
     setChecking: "確認中…",
     setTestConnection: "接続をテスト",
     setOnline: "オンライン",
     setOffline: "オフライン",
     setModelLabel: "モデル: {name}",
-    setEnterEndpoint: "リモート ASR サービスアドレスを入力してください",
-    setEndpointSaved: "リモート ASR アドレスを保存しました",
+    setEnterEndpoint: "リモートサービスアドレスを入力してください",
+    setEndpointSaved: "リモートサービスアドレスを保存しました",
     setSaveFailed: "保存に失敗しました: {error}",
-    setRemoteNote: "サーバーアドレスとライセンスを入力すると、ASR / 翻訳がクラウドゲートウェイに切り替わります。",
+    setRemoteNote: "サーバーアドレスとライセンスを入力すると、音声認識 / 翻訳がクラウドゲートウェイに切り替わります。",
     setRemoteEnable: "リモートサービスを有効化",
     setRemoteEnabledOn: "リモートサービス有効",
     setRemoteEnabledOff: "リモートサービス無効",
@@ -579,6 +731,11 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setEnterLicense: "ライセンスを入力してください",
     setRemoteModelsTitle: "リモートモデル(管理コンソールに公開済み)",
     setRemoteKindTranslate: "翻訳",
+    setRemoteKindSummary: "要約",
+    setRemoteServerTitle: "リモートサーバー（詳細）",
+    setRemoteServerDesc: "リモートゲートウェイのアドレスをカスタマイズします。通常は変更不要です。空欄ならデフォルトサーバーを使用します。",
+    setRemoteRestoreDefault: "デフォルトに戻す",
+    setRemoteServerCurrent: "現在有効：{url}",
     setAdvancedTitle: "近日公開",
     setPlanned: "計画中",
     setAdvTtsName: "TTS 音声合成",
@@ -593,7 +750,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setAdvLiveSummaryDesc: "録音中に要約を継続的に生成",
     setAdvSpeakerIdName: "話者認識",
     setAdvSpeakerIdDesc: "誰が話したかを区別します",
-    setAdvCloudAsrName: "クラウド高精度 ASR",
+    setAdvCloudAsrName: "クラウド高精度音声認識",
     setAdvCloudAsrDesc: "クラウドの大規模モデルでより高い認識精度",
     setAdvHelpName: "アプリ内ヘルプ",
     setAdvHelpDesc: "使い方ガイドとよくある質問を内蔵",
