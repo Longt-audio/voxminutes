@@ -1,6 +1,6 @@
 [package]
 name = "voxminutes"
-version = "0.1.0"
+version = "0.2.0"
 description = "A local-first AI transcription and meeting notes app"
 authors = ["VoxMinutes Contributors"]
 license = "AGPL-3.0"
@@ -69,7 +69,11 @@ base64 = "0.22"
 # Async
 tokio = { version = "1.32.0", features = ["full", "tracing"] }
 tokio-util = "0.7"
-tokio-tungstenite = "0.24"
+# native-tls：远程流式 ASR 走 wss://（生产 https://api.voxmin.top）。
+# 默认 feature 只有 connect/handshake，不含 TLS → 连 wss:// 会报
+# "TLS support not compiled in"（2026-09-22 实测：经 ssh 隧道 ws://127.0.0.1:8788
+# 一直正常，所以此前被掩盖；改成直连远程后才暴露）。与 reqwest 的 default-tls 同栈。
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 async-trait = "0.1"
 
 reqwest = { version = "0.11", features = ["blocking", "multipart", "json", "stream"] }
