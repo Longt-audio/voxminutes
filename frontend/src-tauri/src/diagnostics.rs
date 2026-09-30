@@ -9,7 +9,7 @@
 //!
 //! 三条设计约束：
 //!   ① **脱敏**：授权码、API key、Bearer token、系统用户名一律抹掉；
-//!   ② **有界**：按文件数模式每文件 ≤160KB，按时间窗（最近一天）模式每文件 ≤80KB
+//!   ② **有界**：按文件数模式每文件 ≤320KB，按时间窗（最近一天）模式每文件 ≤160KB
 //!      （文件多，总量要收住），不因为用户日志写了几个月就传一个 G；
 //!   ③ **不失败**：日志收集失败绝不能挡住反馈提交（返回说明文本，调用方照发文字）。
 
@@ -17,9 +17,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// 按文件数模式：每个文件最多取尾部多少字节
-const MAX_TAIL_BYTES: usize = 160_000;
+const MAX_TAIL_BYTES: usize = 320 * 1024;
 /// 按时间窗模式（最近一天）：单文件上限收紧，防止一天内多次重启把总量撑爆
-const MAX_TAIL_BYTES_TIME_WINDOW: usize = 80_000;
+const MAX_TAIL_BYTES_TIME_WINDOW: usize = 160 * 1024;
 /// 默认回溯几个日志文件（跨重启的上下文：上一个文件尾部 + 当前文件）
 const DEFAULT_MAX_FILES: usize = 2;
 /// 按时间窗模式下的文件数硬上限（日志目录最多保留 30 个文件，见 main.rs cleanup_old_logs）
@@ -28,9 +28,9 @@ const MAX_FILES_TIME_WINDOW: usize = 20;
 /// 用户选择的附加范围（反馈表单下拉框）。按文件数（最近 N 次运行）或按时间窗（最近 N 小时）。
 #[derive(Debug, Clone, Copy)]
 pub enum DiagRange {
-    /// 最近 N 个日志文件（≈ 最近 N 次运行）；每文件 ≤160KB
+    /// 最近 N 个日志文件（≈ 最近 N 次运行）；每文件 ≤320KB
     LastFiles(usize),
-    /// 最近 N 小时内修改过的日志文件；每文件 ≤80KB，总数 ≤20
+    /// 最近 N 小时内修改过的日志文件；每文件 ≤160KB，总数 ≤20
     LastHours(u32),
 }
 
@@ -38,8 +38,8 @@ impl DiagRange {
     /// 头部「范围」行的中文描述（网关后台同学直接读这段判断上下文跨度）
     fn describe(&self) -> String {
         match self {
-            DiagRange::LastFiles(n) => format!("最近 {} 次运行（按文件数，每文件 ≤160KB）", n),
-            DiagRange::LastHours(h) => format!("最近 {} 小时（按时间窗，每文件 ≤80KB）", h),
+            DiagRange::LastFiles(n) => format!("最近 {} 次运行（按文件数，每文件 ≤320KB）", n),
+            DiagRange::LastHours(h) => format!("最近 {} 小时（按时间窗，每文件 ≤160KB）", h),
         }
     }
 }
