@@ -3,6 +3,23 @@
 #
 # 本地等价流程见 frontend/scripts/prepare-windows-sidecars.ps1（装 ffmpeg.exe + llama-helper.exe）。
 #
+# ── 构建耗时说明（2026-09-30 实测）────────────────────────────────────────────
+#   一次完整 release 构建 = 52.7 分钟，其中：
+#       Rust release 构建        29.3 分  ← 依赖编译（~800 个 crate）
+#       Tauri 打包（含再编译）    12.1 分
+#       llama-helper 编译         9.5 分
+#       其余 15 个步骤合计        1.8 分
+#   也就是说 97% 的时间在编译依赖，跟改动量无关 —— 所以**缓存能不能命中是唯一关键**。
+#
+#   而此前缓存是坏的：rust-cache 只存了 0.19 GB（正常的 target 应该 3~6 GB），
+#   原因是**早期一次失败的运行**存下了一个不含 target 的缓存，之后 key 一直没变，
+#   rust-cache 就永远「命中」它、**跳过保存**，于是每次都是冷构建。
+#   → 下面用 prefix-key 换代强制重建；RUSTFLAGS / Cargo.lock 变化也会自动换 key。
+#
+#   两种档位（workflow_dispatch 的 profile 输入）：
+#       release（默认）52 分 → 缓存生效后约 10 分，发布用
+#       dev             约 15 分，UI 验证用（程序跑得慢些，界面完全一样）
+#
 # 关键约束（都踩过，别再改回去）：
 #   1) `pnpm install` 必须带 `--ignore-workspace`：仓库根有 pnpm-workspace.yaml，
 #      不加的话 pnpm 会按 workspace 根安装，frontend/node_modules 根本不会生成。
@@ -11,7 +28,7 @@
 #      所以构建产物在 **<repo>/target/** 下，不是 llama-helper/target/ 也不是
 #      frontend/src-tauri/target/。以前 CI 去 llama-helper/target 拷 exe 是错的。
 #   3) 运行时 DLL（sherpa-onnx-c-api/cxx-api、onnxruntime、onnxruntime_providers_shared）
-#      由 src-tauri/build.rs 在 Windows 构建时自动从 target/release 暂存到
+#      由 src-tauri/build.rs 在 Windows 构建时自动从 target/<profile> 暂存到
 #      src-tauri/resources-dll/，再由 tauri.windows.conf.json 的 bundle.resources 打进包。
 #      下面「Verify runtime DLLs」会硬性拦住 0 字节/缺失的情况 —— 不要删。
 #   4) 先单独跑一次 `cargo build -p voxminutes` 让 build.rs 完成暂存与校验，
@@ -22,6 +39,17 @@ name: Build Windows (nsis)
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: '构建档位：release=发布用（慢）｜dev=UI 验证用（快，程序慢一些）'
+        type: choice
+        options: [release, dev]
+        default: release
+        required: true
+      use_lld:
+        description: '用 lld 链接器加速（若链接失败可关掉重跑）'
+        type: boolean
+        default: true
   push:
     tags:
       - 'v*'
@@ -34,6 +62,25 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
+      # ── 解析构建档位 ────────────────────────────────────────────────────
+      # 统一用 `cargo build --profile <x>`：release 走 target/release，
+      # dev 走 target/debug。tauri build 对 dev 档要额外加 --debug。
+      - name: Resolve build profile
+        shell: pwsh
+        run: |
+          $p = "${{ github.event.inputs.profile }}"
+          if ($p -ne "dev") { $p = "release" }
+          if ($p -eq "dev") {
+            $dir = "debug"; $flag = "--debug"; $tag = "windows-latest-dev"
+          } else {
+            $dir = "release"; $flag = ""; $tag = "windows-latest"
+          }
+          "BUILD_PROFILE=$p"  >> $env:GITHUB_ENV
+          "TARGET_DIR=$dir"   >> $env:GITHUB_ENV
+          "TAURI_FLAG=$flag"  >> $env:GITHUB_ENV
+          "RELEASE_TAG=$tag"  >> $env:GITHUB_ENV
+          Write-Host "档位=$p  产物目录=target/$dir  Release tag=$tag"
 
       - uses: actions/setup-node@v4
         with:
@@ -56,11 +103,34 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
+      # ── lld 链接器 ──────────────────────────────────────────────────────
+      # MSVC 自带的 link.exe 链接这个含 sherpa-onnx + onnxruntime 的大二进制很慢，
+      # lld 通常快 2~4 倍。windows-latest 镜像自带 LLVM。
+      # 注意：改 RUSTFLAGS 会使 rust-cache 的 key 变化（首次会全量重编，属预期）。
+      - name: Use lld linker (faster linking)
+        if: ${{ github.event.inputs.use_lld != 'false' }}
+        shell: pwsh
+        run: |
+          $llvm = "C:\Program Files\LLVM\bin"
+          if (Test-Path "$llvm\lld-link.exe") {
+            "$llvm" >> $env:GITHUB_PATH
+            "RUSTFLAGS=-C linker=lld-link" >> $env:GITHUB_ENV
+            Write-Host "✅ 启用 lld-link：$llvm"
+            & "$llvm\lld-link.exe" --version
+          } else {
+            Write-Host "::warning::没找到 lld-link.exe，退回 MSVC link.exe（会慢一些）"
+          }
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: '. -> target'
+          # ⚠️ 换代前缀（2026-09-30）：旧缓存只含 cargo registry（0.19 GB）、不含 target，
+          # 且因为 key 没变，rust-cache 每次都「命中」它并**跳过保存** →
+          # 52 分钟里 51 分钟都在重编依赖。改这个前缀会强制重新保存一份完整缓存。
+          # 以后再遇到「缓存看着命中但构建依然很慢」，就把 v1 改成 v2、v3… 再跑一次。
+          prefix-key: v1-rust
           # 失败也要存缓存：首次失败在最后一步（打包），若不留缓存，
-          # 下一次重跑要白白再编译 32 分钟。
+          # 下一次重跑要白白再编译 30 多分钟。
           cache-on-failure: true
 
       - name: Install frontend deps
@@ -71,7 +141,7 @@ jobs:
       # Tauri 按 target triple 找 binaries/<name>-<triple>[.exe]，
       # 少一个都会在 `tauri build` 阶段直接报错。
       - name: Build llama-helper sidecar
-        run: cargo build --release -p llama-helper
+        run: cargo build --profile ${{ env.BUILD_PROFILE }} -p llama-helper
 
       - name: Download ffmpeg.exe
         shell: pwsh
@@ -87,13 +157,13 @@ jobs:
         shell: pwsh
         run: |
           $dst = "frontend/src-tauri/binaries"
-          Copy-Item "target/release/llama-helper.exe" `
+          Copy-Item "target/${{ env.TARGET_DIR }}/llama-helper.exe" `
             "$dst/llama-helper-x86_64-pc-windows-msvc.exe" -Force
           Get-ChildItem $dst | Format-Table Name, Length
 
       # ── 主程序：先 build 一次，让 build.rs 把运行时 DLL 暂存到 resources-dll/ ──
       - name: Build app (stages runtime DLLs via build.rs)
-        run: cargo build --release -p voxminutes
+        run: cargo build --profile ${{ env.BUILD_PROFILE }} -p voxminutes
 
       - name: Verify runtime DLLs
         shell: pwsh
@@ -122,7 +192,8 @@ jobs:
       - name: Build Tauri app (nsis)
         working-directory: frontend
         # 这步会顺带跑 tauri.conf.json 的 beforeBuildCommand（`pnpm build` = next build）。
-        run: pnpm tauri build
+        # TAURI_FLAG 在 dev 档是 --debug（产物进 target/debug/bundle）。
+        run: pnpm tauri build ${{ env.TAURI_FLAG }}
         env:
           # 让 Tauri CLI 不要在 CI 上尝试彩色/交互输出（日志更干净）
           CI: 'true'
@@ -130,30 +201,33 @@ jobs:
       - name: Upload nsis installer
         uses: actions/upload-artifact@v4
         with:
-          name: voxminutes-windows
-          # 仓库根是 cargo workspace，bundle 产物在 <repo>/target 下
-          path: target/release/bundle/nsis/*.exe
+          name: voxminutes-windows-${{ env.BUILD_PROFILE }}
+          # 仓库根是 cargo workspace，bundle 产物在 <repo>/target/<profile> 下
+          path: target/${{ env.TARGET_DIR }}/bundle/nsis/*.exe
           if-no-files-found: error
 
       # ── 固定入口：每次构建都更新同一个 Release ────────────────────────────
       # 为什么要这一步：Actions 的 Artifacts 藏在每次运行页面里，找起来很麻烦；
-      # 而且 90 天就过期。这里把安装包同时挂到固定的 tag `windows-latest` 上，
-      # 于是永远有一个稳定的下载页：
-      #   https://github.com/Long-t-audio/voxminutes-build/releases/tag/windows-latest
-      # 同一个 tag 会被反复更新（资产替换），所以「最新安装包永远在这里」。
+      # 而且 90 天就过期。这里把安装包同时挂到固定 tag 上，于是永远有稳定下载页：
+      #   release 档 → /releases/tag/windows-latest       （正式测试包）
+      #   dev     档 → /releases/tag/windows-latest-dev   （UI 验证包，单独放，
+      #                避免 debug 包覆盖掉正式测试包）
       - name: Publish to Releases (always-latest)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: windows-latest
-          name: VoxMinutes · Windows 最新构建（自动更新）
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: VoxMinutes · Windows 最新构建（${{ env.BUILD_PROFILE }}）
           prerelease: false
           # 同名资产会被替换，保证这个页面永远是最新的
-          files: target/release/bundle/nsis/*.exe
+          files: target/${{ env.TARGET_DIR }}/bundle/nsis/*.exe
           body: |
-            **这是自动发布的最新 Windows 测试构建**，每次 CI 构建成功后覆盖更新。
+            **这是自动发布的最新 Windows 构建**（档位：`${{ env.BUILD_PROFILE }}`），每次 CI 构建成功后覆盖更新。
 
             - 提交：`${{ github.sha }}`
             - 运行：[#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            > `dev` 档是为**界面验证**准备的快速构建（约 15 分钟），程序本身比 release 慢，
+            > 请勿用于正式测试。
 
             安装说明：双击安装包 → 出现「Windows 已保护你的电脑」时点
             **「更多信息」→「仍要运行」**（未做代码签名，属预期现象）。
