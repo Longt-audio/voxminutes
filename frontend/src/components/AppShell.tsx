@@ -175,7 +175,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    // 窗口是 decorations:false（自绘标题栏）：Windows 上还关掉了系统阴影（shadow:false），
+    // 于是窗口四周**没有任何边界**，桌面上是白底时整个窗口糊成一片（2026-09-30 真机反馈）。
+    // 加一圈 1px 描边把窗口轮廓勾出来。box-sizing 是 border-box，不会撑出滚动条。
+    <div className="flex flex-col h-screen bg-background border border-border">
       <header
         data-tauri-drag-region
         className="flex items-center justify-between pl-4 h-12 border-b border-border/60 shrink-0 bg-card/50 backdrop-blur-sm select-none"

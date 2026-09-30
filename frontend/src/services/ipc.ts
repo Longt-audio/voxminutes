@@ -1255,6 +1255,12 @@ export async function getLogDir(): Promise<string | null> {
   return invoke('get_log_dir')
 }
 
+/** 直接用系统文件管理器打开应用日志目录；返回打开后的绝对路径。
+ *  反馈卡「打开日志文件夹」按钮用 —— 免得用户自己去找 %LOCALAPPDATA%\VoxMinutes\logs。 */
+export async function openLogFolder(): Promise<string> {
+  return invoke<string>('open_log_folder')
+}
+
 /** 读取用户手动挑选的日志文件（同样脱敏 + 单文件 ≤160KB），头部标注「用户手动附加」。 */
 export async function collectManualLogs(paths: string[]): Promise<string> {
   return invoke('collect_manual_logs', { paths })

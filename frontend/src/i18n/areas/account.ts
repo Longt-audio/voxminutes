@@ -12,6 +12,12 @@ export interface AccountMessages {
   accScreenshotAttach: string
   /** 「附加日志文件…」按钮：打开定位到日志目录的文件对话框，多选 .log */
   accAttachLogs: string
+  /** 反馈卡：一键打开日志所在文件夹 */
+  accOpenLogFolder: string
+  /** 用户中心顶部客服提示（后面跟可点击的邮箱） */
+  accSupportHint: string
+  /** 邮箱已复制到剪贴板的提示，{email} 会被替换 */
+  accSupportCopied: string
   accDiagAttach: string
   /** 日志附加范围下拉：最近 1 次运行 */
   accDiagRange1: string
@@ -130,6 +136,9 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accScreenshotAttached: 'Screenshot attached',
     accScreenshotAttach: 'Attach screenshot',
     accAttachLogs: 'Attach log files…',
+    accOpenLogFolder: 'Open log folder',
+    accSupportHint: 'Need help? Contact us at',
+    accSupportCopied: 'Copied {email} — send us an email any time',
     accDiagAttach: 'Recent run logs are attached automatically (sanitized)',
     accDiagRange1: 'Last run',
     accDiagRange2: 'Last 2 runs (default)',
@@ -220,6 +229,9 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accScreenshotAttached: '已附加截图',
     accScreenshotAttach: '附加截图',
     accAttachLogs: '附加日志文件…',
+    accOpenLogFolder: '打开日志文件夹',
+    accSupportHint: '遇到问题请联系',
+    accSupportCopied: '已复制 {email}，欢迎随时邮件联系',
     accDiagAttach: '已自动附加最近运行日志（脱敏）',
     accDiagRange1: '最近 1 次运行',
     accDiagRange2: '最近 2 次运行（默认）',
@@ -309,6 +321,9 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accScreenshotAttached: '스크린샷 첨부됨',
     accScreenshotAttach: '스크린샷 첨부',
     accAttachLogs: '로그 파일 첨부…',
+    accOpenLogFolder: '로그 폴더 열기',
+    accSupportHint: '문제가 있으면 연락해 주세요',
+    accSupportCopied: '{email} 복사됨 — 언제든 메일 주세요',
     accDiagAttach: '최근 실행 로그가 자동으로 첨부됩니다(마스킹됨)',
     accDiagRange1: '최근 1회 실행',
     accDiagRange2: '최근 2회 실행(기본)',
@@ -397,6 +412,9 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accScreenshotAttached: 'スクリーンショット添付済み',
     accScreenshotAttach: 'スクリーンショットを添付',
     accAttachLogs: 'ログファイルを添付…',
+    accOpenLogFolder: 'ログフォルダを開く',
+    accSupportHint: 'お困りごとはこちらまで',
+    accSupportCopied: '{email} をコピーしました — お気軽にメールください',
     accDiagAttach: '直近の実行ログを自動添付します（マスク済み）',
     accDiagRange1: '前回の実行',
     accDiagRange2: '直近 2 回の実行（デフォルト）',

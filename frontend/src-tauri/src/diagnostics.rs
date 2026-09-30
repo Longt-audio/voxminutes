@@ -245,6 +245,33 @@ pub fn redact(text: &str) -> String {
     s
 }
 
+/// 打开应用日志目录（反馈卡「打开日志文件夹」按钮用）。
+///
+/// 为什么需要：用户报障时我们总要问「日志在哪」，而 Windows 上日志在
+/// `%LOCALAPPDATA%\VoxMinutes\logs`（或安装目录的 logs\），让普通用户自己找很痛苦。
+/// 返回打开的绝对路径，前端可以顺手显示出来。
+#[tauri::command]
+pub async fn open_log_folder() -> Result<String, String> {
+    let dir = log_dir().ok_or_else(|| "未找到应用日志目录".to_string())?;
+    if !dir.exists() {
+        return Err(format!("日志目录不存在：{}", dir.display()));
+    }
+    let path = dir.to_string_lossy().to_string();
+
+    #[cfg(target_os = "windows")]
+    let spawned = std::process::Command::new("explorer").arg(&path).spawn();
+
+    #[cfg(target_os = "macos")]
+    let spawned = std::process::Command::new("open").arg(&path).spawn();
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    let spawned = std::process::Command::new("xdg-open").arg(&path).spawn();
+
+    spawned.map_err(|e| format!("打开日志目录失败：{e}"))?;
+    log::info!("Opened log folder: {}", path);
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
