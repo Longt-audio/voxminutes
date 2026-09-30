@@ -46,8 +46,14 @@
   }
 
   #dragbar {
+    /* min-height + flex-shrink:0 —— 窗口很窄/行数很少时，标题栏不能被压扁，
+       否则里面两个按钮会挤在一起（Windows 上表现为「设置按钮跑到关闭按钮上方」）。
+       nowrap 显式声明，杜绝任何情况下的折行。 */
     height: 24px;
+    min-height: 24px;
+    flex: 0 0 auto;
     display: flex;
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: space-between;
     padding: 0 8px 0 12px;
@@ -56,11 +62,28 @@
     opacity: 0;
     transition: opacity 0.2s ease;
   }
+  /* 标题让位：空间不足时优先压缩标题（省略号），保证右侧两个按钮完整可见 */
+  #dragbar .title {
+    min-width: 0;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 按钮组：固定不收缩、横向不换行 —— 系统音频/麦克风那种挤压不会再发生 */
+  .dragbar-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 2px;
+  }
   #dragbar:active { cursor: grabbing; }
   #container:hover #dragbar, #container.settings-open #dragbar { opacity: 1; }
 
   /* 字幕设置面板（齿轮开关，覆盖在内容区上） */
   #settings-btn {
+    flex: 0 0 auto;
     width: 18px; height: 18px;
     border-radius: 4px;
     display: flex;
@@ -69,7 +92,6 @@
     cursor: pointer;
     color: rgba(255, 255, 255, 0.65);
     transition: background 0.15s, color 0.15s;
-    margin-right: 4px;
   }
   #settings-btn:hover, #settings-btn.active {
     background: rgba(255, 255, 255, 0.15);
@@ -156,6 +178,7 @@
   }
 
   #close-btn {
+    flex: 0 0 auto;
     width: 18px; height: 18px;
     border-radius: 4px;
     display: flex;
@@ -251,7 +274,7 @@
           <span id="status-dot" class="dot idle"></span>
           <span>桌面字幕</span>
         </div>
-        <div style="display:flex;align-items:center">
+        <div class="dragbar-actions">
           <div id="settings-btn" title="字幕设置">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>

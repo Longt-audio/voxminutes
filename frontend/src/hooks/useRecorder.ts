@@ -27,6 +27,10 @@ import { toast } from 'sonner'
 
 export const DEFAULT_ASR_MODEL = 'x-asr-480ms'
 
+/** 「远程模型」在前端的占位名。真实远程模型 id 由 useRemoteModelChoice 解析，
+ *  这里只是让 UI 有一个稳定的「走远程」标记（后端识别 qwen3-asr-remote 前缀）。 */
+export const REMOTE_ASR_PLACEHOLDER = 'qwen3-asr-remote'
+
 function generateRecordingTitle(base: string): string {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')

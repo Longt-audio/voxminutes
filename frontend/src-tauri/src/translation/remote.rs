@@ -86,6 +86,19 @@ pub async fn translate_remote(
         return Err("远程服务未配置（缺少授权码）".to_string());
     }
 
+    // ── 诊断埋点（2026-09-30 加）──────────────────────────────────────────
+    // 此前这条链路**从发起到返回一行日志都没有**：用户报「开了远程翻译但没有译文」，
+    // 拿着 4 份日志既不能确认请求有没有发出去，也不能确认上游返回了什么。
+    // 现在入口先落一条（方向 + 原文长度），返回/失败再各落一条。
+    // 只记长度与方向，不记正文（日志可能被用户上传）。
+    log::info!(
+        "🌐 远程翻译请求：{} → {}（{} 字，asr_mode={}，原文语言自动识别）",
+        src,
+        tgt,
+        text.chars().count(),
+        asr_mode
+    );
+    let __tr_started = std::time::Instant::now();
     let prompt = super::llm::build_prompt(text, src, tgt, asr_mode, context);
     let translate_model = crate::audio::transcription::get_remote_translate_model();
     let model_name = if translate_model.is_empty() {
@@ -142,6 +155,7 @@ pub async fn translate_remote(
             Ok(raw) => {
                 let cleaned = super::llm::postprocess(&raw, src, tgt);
                 if !cleaned.trim().is_empty() {
+                    log::info!("✅ 远程翻译完成：耗时 {:.2}s", __tr_started.elapsed().as_secs_f32());
                     return Ok(RemoteTranslation {
                         text: cleaned,
                         emptied_by_cleanup: false,
@@ -170,6 +184,7 @@ pub async fn translate_remote(
                     tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
                     continue;
                 }
+                log::info!("✅ 远程翻译完成：耗时 {:.2}s", __tr_started.elapsed().as_secs_f32());
                 return Ok(RemoteTranslation {
                     text: String::new(),
                     emptied_by_cleanup: !raw.trim().is_empty(),
@@ -212,6 +227,8 @@ async fn translate_remote_once<F: FnMut(&str) + Send + ?Sized>(
     body: &serde_json::Value,
     mut on_token: Option<&mut F>,
 ) -> Result<String, String> {
+    // 单次请求计时（HTTP 错误日志用）
+    let __t0 = std::time::Instant::now();
     let resp = client
         .post(format!("{}/chat/completions", api_base))
         .bearer_auth(license)
@@ -227,6 +244,12 @@ async fn translate_remote_once<F: FnMut(&str) + Send + ?Sized>(
     let status = resp.status();
     if !status.is_success() {
         let detail = resp.text().await.unwrap_or_default();
+        log::warn!(
+            "⚠️ 远程翻译失败：HTTP {}，耗时 {:.2}s，响应前 200 字: {}",
+            status,
+            __t0.elapsed().as_secs_f32(),
+            detail.chars().take(200).collect::<String>()
+        );
         return Err(format!("远程翻译错误 (HTTP {}): {}", status, detail));
     }
 

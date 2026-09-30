@@ -1158,6 +1158,24 @@ pub fn run() {
     log::set_max_level(log::LevelFilter::Info);
 
     tauri::Builder::default()
+        // ⚠️ 单实例锁必须是**第一个**注册的插件（官方要求）。
+        //
+        // 为什么必须有（2026-09-30 真机日志实证）：用户双击了两次 → 两个进程同时活着
+        // 12 分 32 秒、两个悬浮球、两个托盘图标、**两个进程打开同一个 SQLite 库**；
+        // 而且 B 实例在录音中途退出，那段真实录音（Rec_2026-09-30_15-56）没有 stop、
+        // 没有合并、没有写库，直接丢失。
+        // 有了它之后，第二次启动只会在已有实例里把主窗口唤到前台。
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            log::info!("检测到第二个实例启动 —— 激活已有窗口并退出新进程");
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            } else {
+                // 主窗口已被关闭（本项目关闭主窗口即退出，一般到不了这里）
+                log::warn!("单实例回调：找不到主窗口");
+            }
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
