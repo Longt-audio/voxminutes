@@ -132,7 +132,11 @@ jobs:
           #   「运行时 DLL 不在 cargo 缓存里」→ 打包必失败（见下面 Force re-stage 的注释）。
           #   改用 v2 走一次冷构建，把 DLL 重新产出并写进下面的 resources-dll 专用缓存；
           #   之后 v2 缓存 + resources-dll 缓存都在，才既快又能出包。
-          prefix-key: v2-rust
+          # v2 → v3（2026-09-30）：v2 那份缓存只覆盖了 cargo 自己的产物，
+          # 恢复了 ort-sys / sherpa-onnx-sys 的**指纹**却没恢复它们的构建脚本产物
+          # （.lib/.dll）→ 链接必失败。改用 v3 走一次干净冷构建，
+          # 把 build-script-out 缓存填上；之后两者一致才稳。
+          prefix-key: v3-rust
           # 失败也要存缓存：首次失败在最后一步（打包），若不留缓存，
           # 下一次重跑要白白再编译 30 多分钟。
           cache-on-failure: true
@@ -175,11 +179,21 @@ jobs:
       #   别处，甚至不重新下载）；② src-tauri/build.rs 递归搜索（target/ 里根本没有）。
       # 所以干脆把 build.rs **已经暂存好的** resources-dll/ 直接缓存起来 ——
       # 只要成功构建过一次，之后每次都能命中。
-      - name: Cache runtime DLLs
+      - name: Cache build-script outputs
         uses: actions/cache@v4
         with:
-          path: frontend/src-tauri/resources-dll
-          key: runtime-dll-${{ env.TARGET_DIR }}-${{ hashFiles('Cargo.lock') }}
+          # ⚠️ 两个都要缓存，缺一不可（2026-09-30 血泪）：
+          #   ① target/<profile>/build —— ort-sys / sherpa-onnx-sys 的构建脚本产物：
+          #      **链接期必需的 import 库** sherpa-onnx-c-api.lib 就在这里。
+          #      只缓存 resources-dll（只有 .dll）不够：rust-cache 会恢复**指纹**
+          #      让 cargo 以为这个 crate 已经构建好了，从而跳过构建脚本 ——
+          #      但产物 `.lib` 不在 cargo 的缓存范围内 → 链接报
+          #        lld-link: error: could not open 'sherpa-onnx-c-api.lib'
+          #   ② frontend/src-tauri/resources-dll —— build.rs 暂存好的运行时 DLL
+          path: |
+            frontend/src-tauri/resources-dll
+            target/${{ env.TARGET_DIR }}/build
+          key: build-script-out-${{ env.TARGET_DIR }}-${{ hashFiles('Cargo.lock') }}
 
       # ── 主程序：先 build 一次，让 build.rs 把运行时 DLL 暂存到 resources-dll/ ──
       - name: Build app (stages runtime DLLs via build.rs)
