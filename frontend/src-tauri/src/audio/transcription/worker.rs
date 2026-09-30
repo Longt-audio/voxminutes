@@ -20,7 +20,10 @@ static SPEECH_DETECTED_EMITTED: AtomicBool = AtomicBool::new(false);
 /// Reset the speech detected flag for a new recording session
 pub fn reset_speech_detected_flag() {
     SPEECH_DETECTED_EMITTED.store(false, Ordering::SeqCst);
-    info!("🔍 SPEECH_DETECTED_EMITTED reset to: {}", SPEECH_DETECTED_EMITTED.load(Ordering::SeqCst));
+    info!(
+        "🔍 SPEECH_DETECTED_EMITTED reset to: {}",
+        SPEECH_DETECTED_EMITTED.load(Ordering::SeqCst)
+    );
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -35,6 +38,9 @@ pub struct TranscriptUpdate {
     pub audio_start_time: f64,
     pub audio_end_time: f64,
     pub duration: f64,
+    /// 流式管线（flow.rs）所属段落 id：停顿分段。VAD 分段路径（SenseVoice 等）为 None。
+    #[serde(default)]
+    pub paragraph_id: Option<u64>,
 }
 
 /// Transcription task ensuring ZERO chunk loss
@@ -42,24 +48,89 @@ pub fn start_transcription_task<R: Runtime>(
     app: AppHandle<R>,
     transcription_receiver: tokio::sync::mpsc::UnboundedReceiver<AudioChunk>,
 ) -> tokio::task::JoinHandle<()> {
+    start_transcription_task_impl(app, transcription_receiver, None, true)
+}
+
+/// 录音中热切换流式引擎：复用已建好的引擎重启转写任务。
+/// 不重置翻译会话（在译队列继续）；各流式序列号计数器先对齐到较大值，
+/// 避免新引擎输出与旧引擎撞 sequence_id（前端按 sequence_id 替换/排序）。
+pub fn start_transcription_task_with_engine<R: Runtime>(
+    app: AppHandle<R>,
+    transcription_receiver: tokio::sync::mpsc::UnboundedReceiver<AudioChunk>,
+    engine: TranscriptionEngine,
+) -> tokio::task::JoinHandle<()> {
+    let m = super::x_asr_provider::current_xasr_sequence()
+        .max(super::remote_asr_streaming_provider::current_remote_stream_sequence())
+        .max(super::flow::current_flow_sequence());
+    super::x_asr_provider::set_xasr_sequence(m);
+    super::remote_asr_streaming_provider::set_remote_stream_sequence(m);
+    super::flow::set_flow_sequence(m);
+    start_transcription_task_impl(app, transcription_receiver, Some(engine), false)
+}
+
+fn start_transcription_task_impl<R: Runtime>(
+    app: AppHandle<R>,
+    transcription_receiver: tokio::sync::mpsc::UnboundedReceiver<AudioChunk>,
+    prebuilt_engine: Option<TranscriptionEngine>,
+    reset_session: bool,
+) -> tokio::task::JoinHandle<()> {
+    // 外层只做「监督」：把真正的转写主体再 spawn 一层，这样**任务 panic 会被立刻
+    // 观察到**并上报前端，而不是等到停止录音时才在 JoinHandle 上发现。
+    // 2026-09-22 事故：flow.rs 的越界 panic 让转写任务静默死掉 13 秒（管线随后
+    // 「consumer gone」不再喂音频），用户只看到「说到一半就再不出字」，日志里也只有
+    // 停止录音时才打的一条 WARN —— 完全不知道识别已经挂了。
+    let watch_app = app.clone();
     tokio::spawn(async move {
+        let inner = tokio::spawn(transcription_body(
+            app,
+            transcription_receiver,
+            prebuilt_engine,
+            reset_session,
+        ));
+        if let Err(e) = inner.await {
+            error!("❌ 转写任务异常退出（panic/取消）: {:?}", e);
+            let _ = watch_app.emit(
+                "transcription-error",
+                serde_json::json!({
+                    "error": e.to_string(),
+                    "userMessage": "语音识别已异常停止（录音仍在继续）。请停止录音后重新开始，或切换识别模型。",
+                    "actionable": true
+                }),
+            );
+        }
+    })
+}
+
+async fn transcription_body<R: Runtime>(
+    app: AppHandle<R>,
+    transcription_receiver: tokio::sync::mpsc::UnboundedReceiver<AudioChunk>,
+    prebuilt_engine: Option<TranscriptionEngine>,
+    reset_session: bool,
+) {
+    {
         info!("🚀 Starting transcription task with Sherpa-ONNX");
 
-        // 新录音开始：sequence 重新计数，清空待译队列与已见集合
-        crate::translation::reset_translation_session();
+        // 新录音开始：sequence 重新计数，清空待译队列与已见集合（热切换重启时跳过）
+        if reset_session {
+            crate::translation::reset_translation_session();
+            super::flow::reset_flow_sequence();
+        }
 
         // Initialize transcription engine
-        let transcription_engine = match super::engine::get_or_init_transcription_engine(&app).await {
-            Ok(engine) => engine,
-            Err(e) => {
-                error!("Failed to initialize transcription engine: {}", e);
-                let _ = app.emit("transcription-error", serde_json::json!({
-                    "error": e,
-                    "userMessage": "Recording failed: Unable to initialize speech recognition. Please check your model settings.",
-                    "actionable": true
-                }));
-                return;
-            }
+        let transcription_engine = match prebuilt_engine {
+            Some(engine) => engine,
+            None => match super::engine::get_or_init_transcription_engine(&app).await {
+                Ok(engine) => engine,
+                Err(e) => {
+                    error!("Failed to initialize transcription engine: {}", e);
+                    let _ = app.emit("transcription-error", serde_json::json!({
+                        "error": e,
+                        "userMessage": "Recording failed: Unable to initialize speech recognition. Please check your model settings.",
+                        "actionable": true
+                    }));
+                    return;
+                }
+            },
         };
 
         let engine_name = transcription_engine.provider_name();
@@ -68,9 +139,14 @@ pub fn start_transcription_task<R: Runtime>(
         // ── X-ASR streaming branch (bypasses chunk worker) ──
         if engine_name == "x-asr" {
             info!("🎙️ X-ASR detected — entering streaming mode");
-            super::x_asr_provider::reset_xasr_sequence_counter();
+            if reset_session {
+                super::x_asr_provider::reset_xasr_sequence_counter();
+            }
             if let TranscriptionEngine::Provider(provider_arc) = &transcription_engine {
-                if let Some(xasr) = provider_arc.as_any().downcast_ref::<super::x_asr_provider::XAsrProvider>() {
+                if let Some(xasr) = provider_arc
+                    .as_any()
+                    .downcast_ref::<super::x_asr_provider::XAsrProvider>()
+                {
                     xasr.run_streaming(transcription_receiver, app).await;
                     info!("🎙️ X-ASR streaming task completed");
                     return;
@@ -82,7 +158,9 @@ pub fn start_transcription_task<R: Runtime>(
         // ── 远程流式 ASR branch（真·实时，走网关 WebSocket） ──
         if engine_name == "Remote ASR Streaming" {
             info!("🌐 远程流式 ASR detected — entering streaming mode");
-            super::remote_asr_streaming_provider::reset_remote_stream_sequence();
+            if reset_session {
+                super::remote_asr_streaming_provider::reset_remote_stream_sequence();
+            }
             if let TranscriptionEngine::Provider(provider_arc) = &transcription_engine {
                 if let Some(remote_stream) = provider_arc.as_any().downcast_ref::<super::remote_asr_streaming_provider::RemoteAsrStreamingProvider>() {
                     remote_stream.run_streaming(transcription_receiver, app).await;
@@ -90,7 +168,9 @@ pub fn start_transcription_task<R: Runtime>(
                     return;
                 }
             }
-            error!("远程流式 ASR provider downcast failed — falling back to chunk mode (will fail)");
+            error!(
+                "远程流式 ASR provider downcast failed — falling back to chunk mode (will fail)"
+            );
         }
 
         // Single worker mode for ordered emission
@@ -102,7 +182,10 @@ pub fn start_transcription_task<R: Runtime>(
         let chunks_completed = Arc::new(AtomicU64::new(0));
         let input_finished = Arc::new(AtomicBool::new(false));
 
-        info!("📊 Starting {} transcription worker (serial mode)", NUM_WORKERS);
+        info!(
+            "📊 Starting {} transcription worker (serial mode)",
+            NUM_WORKERS
+        );
 
         // Spawn worker tasks
         let mut worker_handles = Vec::new();
@@ -131,7 +214,10 @@ pub fn start_transcription_task<R: Runtime>(
                         worker_id, current_model
                     );
                 } else {
-                    warn!("⚠️ Worker {}: model not loaded - chunks may be skipped", worker_id);
+                    warn!(
+                        "⚠️ Worker {}: model not loaded - chunks may be skipped",
+                        worker_id
+                    );
                 }
 
                 loop {
@@ -178,7 +264,9 @@ pub fn start_transcription_task<R: Runtime>(
                                 chunk_duration,
                             );
 
-                            match transcribe_chunk_with_provider(&engine_clone, chunk, &app_clone).await {
+                            match transcribe_chunk_with_provider(&engine_clone, chunk, &app_clone)
+                                .await
+                            {
                                 Ok((transcript, confidence_opt, is_partial)) => {
                                     if !transcript.trim().is_empty() {
                                         info!("✅ Worker {} transcribed: {} (confidence: {:?}, partial: {})",
@@ -187,9 +275,12 @@ pub fn start_transcription_task<R: Runtime>(
                                         // Emit speech-detected event
                                         if !SPEECH_DETECTED_EMITTED.load(Ordering::SeqCst) {
                                             SPEECH_DETECTED_EMITTED.store(true, Ordering::SeqCst);
-                                            let _ = app_clone.emit("speech-detected", serde_json::json!({
-                                                "message": "Speech activity detected"
-                                            }));
+                                            let _ = app_clone.emit(
+                                                "speech-detected",
+                                                serde_json::json!({
+                                                    "message": "Speech activity detected"
+                                                }),
+                                            );
                                         }
 
                                         let update = TranscriptUpdate {
@@ -203,6 +294,7 @@ pub fn start_transcription_task<R: Runtime>(
                                             audio_start_time,
                                             audio_end_time,
                                             duration: chunk_duration,
+                                            paragraph_id: None,
                                         };
 
                                         match app_clone.emit("transcript-update", &update) {
@@ -226,27 +318,30 @@ pub fn start_transcription_task<R: Runtime>(
                                         }
                                     }
                                 }
-                                Err(e) => {
-                                    match e {
-                                        TranscriptionError::AudioTooShort { .. } => {
-                                            info!("Worker {}: {}", worker_id, e);
-                                            chunks_completed_clone.fetch_add(1, Ordering::SeqCst);
-                                            continue;
-                                        }
-                                        TranscriptionError::ModelNotLoaded => {
-                                            warn!("Worker {}: Model unloaded during transcription", worker_id);
-                                            chunks_completed_clone.fetch_add(1, Ordering::SeqCst);
-                                            continue;
-                                        }
-                                        _ => {
-                                            warn!("Worker {}: Transcription failed: {}", worker_id, e);
-                                            let _ = app_clone.emit("transcription-warning", e.to_string());
-                                        }
+                                Err(e) => match e {
+                                    TranscriptionError::AudioTooShort { .. } => {
+                                        info!("Worker {}: {}", worker_id, e);
+                                        chunks_completed_clone.fetch_add(1, Ordering::SeqCst);
+                                        continue;
                                     }
-                                }
+                                    TranscriptionError::ModelNotLoaded => {
+                                        warn!(
+                                            "Worker {}: Model unloaded during transcription",
+                                            worker_id
+                                        );
+                                        chunks_completed_clone.fetch_add(1, Ordering::SeqCst);
+                                        continue;
+                                    }
+                                    _ => {
+                                        warn!("Worker {}: Transcription failed: {}", worker_id, e);
+                                        let _ =
+                                            app_clone.emit("transcription-warning", e.to_string());
+                                    }
+                                },
                             }
 
-                            let completed = chunks_completed_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                            let completed =
+                                chunks_completed_clone.fetch_add(1, Ordering::SeqCst) + 1;
                             let queued = chunks_queued_clone.load(Ordering::SeqCst);
 
                             if completed % 5 == 0 || should_log_this_chunk {
@@ -325,7 +420,10 @@ pub fn start_transcription_task<R: Runtime>(
         drop(work_sender);
 
         let total_chunks_queued = chunks_queued.load(Ordering::SeqCst);
-        info!("📭 Input finished with {} total chunks queued.", total_chunks_queued);
+        info!(
+            "📭 Input finished with {} total chunks queued.",
+            total_chunks_queued
+        );
 
         let _ = app.emit("transcription-queue-complete", serde_json::json!({
             "total_chunks": total_chunks_queued,
@@ -355,16 +453,19 @@ pub fn start_transcription_task<R: Runtime>(
                 "❌ Chunk loss detected: {} queued, {} completed",
                 final_queued, final_completed
             );
-            let _ = app.emit("transcript-chunk-loss-detected", serde_json::json!({
-                "chunks_queued": final_queued,
-                "chunks_completed": final_completed,
-                "chunks_lost": final_queued - final_completed,
-                "message": "Some transcript chunks may have been lost during shutdown"
-            }));
+            let _ = app.emit(
+                "transcript-chunk-loss-detected",
+                serde_json::json!({
+                    "chunks_queued": final_queued,
+                    "chunks_completed": final_completed,
+                    "chunks_lost": final_queued - final_completed,
+                    "message": "Some transcript chunks may have been lost during shutdown"
+                }),
+            );
         }
 
         info!("✅ Transcription task completed");
-    })
+    }
 }
 
 /// Maximum length of a VAD segment sent to transcription in one shot.
@@ -436,7 +537,10 @@ async fn transcribe_chunk_with_provider<R: Runtime>(
     let speech_samples = transcription_data;
 
     if speech_samples.is_empty() {
-        warn!("Audio chunk {} is empty, skipping transcription", chunk.chunk_id);
+        warn!(
+            "Audio chunk {} is empty, skipping transcription",
+            chunk.chunk_id
+        );
         return Err(TranscriptionError::AudioTooShort {
             samples: 0,
             minimum: 1600,
@@ -474,11 +578,14 @@ async fn transcribe_chunk_with_provider<R: Runtime>(
                 }
                 Err(e) => {
                     error!("Transcription failed for chunk {}: {}", chunk.chunk_id, e);
-                    let _ = app.emit("transcription-error", &serde_json::json!({
-                        "error": e.to_string(),
-                        "userMessage": format!("Transcription failed: {}", e),
-                        "actionable": false
-                    }));
+                    let _ = app.emit(
+                        "transcription-error",
+                        &serde_json::json!({
+                            "error": e.to_string(),
+                            "userMessage": format!("Transcription failed: {}", e),
+                            "actionable": false
+                        }),
+                    );
                     Err(e)
                 }
             }

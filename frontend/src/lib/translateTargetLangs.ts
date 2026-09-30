@@ -20,9 +20,13 @@ export const HYMT2_TARGET_LANGS = [
   'vi',
 ] as const
 
-/** 按引擎返回可选目标语言代码列表（全量，不排除 home） */
+/** 按引擎返回可选目标语言代码列表（全量，不排除 home）。
+ *  LLM 类引擎（Hy-MT2 / 远程网关 / 自定义 API）支持 13 种语言互译（与后端
+ *  translation/llm.rs 的 SUPPORTED_TARGET_LANGS 对齐）；本地 OPUS-MT 只有中英。 */
 export function getTranslateTargetLangs(engine: TranslationEngine): string[] {
-  return engine === 'hymt2' ? [...HYMT2_TARGET_LANGS] : [...OPUS_TARGET_LANGS]
+  return engine === 'hymt2' || engine === 'remote' || engine === 'custom-api'
+    ? [...HYMT2_TARGET_LANGS]
+    : [...OPUS_TARGET_LANGS]
 }
 
 /** home 对应的默认目标语言（仅用于初始值/非法值回退）：home 非英语 → 英语；home 是英语 → 中文 */

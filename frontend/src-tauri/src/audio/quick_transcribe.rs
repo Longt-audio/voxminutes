@@ -1,6 +1,6 @@
 // Quick audio transcription for live-translate feature
 // Short audio files (<20s) are decoded and transcribed directly without VAD.
-// Supports both local Sherpa-ONNX and remote Qwen3-ASR models.
+// Supports both local Sherpa-ONNX and remote ASR models.
 
 use anyhow::{anyhow, Result};
 use log::{info, warn};
@@ -40,11 +40,12 @@ pub async fn quick_transcribe<R: Runtime>(
     let canonical = resolved_path
         .canonicalize()
         .map_err(|_| format!("Audio file not found or inaccessible: {}", audio_path))?;
-    let canonical_app_data = app_data
-        .canonicalize()
-        .unwrap_or_else(|_| app_data.clone());
+    let canonical_app_data = app_data.canonicalize().unwrap_or_else(|_| app_data.clone());
     if !canonical.starts_with(&canonical_app_data) {
-        return Err(format!("Audio file path is outside allowed directory: {}", audio_path));
+        return Err(format!(
+            "Audio file path is outside allowed directory: {}",
+            audio_path
+        ));
     }
 
     if !canonical.exists() {
@@ -110,12 +111,9 @@ pub async fn quick_transcribe<R: Runtime>(
 }
 
 /// Get or initialize the appropriate transcription provider (local or remote).
-async fn get_or_init_provider(
-    model_name: &str,
-) -> Result<Arc<dyn TranscriptionProvider>> {
+async fn get_or_init_provider(model_name: &str) -> Result<Arc<dyn TranscriptionProvider>> {
     let is_xasr = model_name.starts_with("x-asr-");
-    let is_remote = model_name == "qwen3-asr-remote"
-        || model_name.starts_with("qwen3-asr-remote");
+    let is_remote = model_name == "qwen3-asr-remote" || model_name.starts_with("qwen3-asr-remote");
 
     if is_xasr {
         info!("Using X-ASR for quick transcribe: {}", model_name);
@@ -126,7 +124,10 @@ async fn get_or_init_provider(
         }
         let engine = crate::sherpa_onnx_engine::commands::get_or_init_xasr_engine()
             .map_err(|e| anyhow!("X-ASR engine not ready: {}", e))?;
-        Ok(Arc::new(XAsrProvider::new_with_engine(model_name.to_string(), engine)))
+        Ok(Arc::new(XAsrProvider::new_with_engine(
+            model_name.to_string(),
+            engine,
+        )))
     } else if is_remote {
         get_or_init_remote_asr().await
     } else {
@@ -134,31 +135,45 @@ async fn get_or_init_provider(
     }
 }
 
-/// Get or initialize the remote Qwen3-ASR transcription provider.
+/// Get or initialize the remote ASR transcription provider.
 async fn get_or_init_remote_asr() -> Result<Arc<dyn TranscriptionProvider>> {
-    let endpoint = crate::audio::transcription::get_remote_asr_endpoint();
-    let model_name = crate::audio::transcription::get_remote_asr_model();
+    let endpoint = crate::audio::transcription::effective_remote_endpoint();
+    // 导入音频属于离线转写：用独立的「离线远程模型」选择（非流式）
+    let model_name = crate::audio::transcription::get_remote_asr_offline_model();
 
     if endpoint.is_empty() {
+        // 内置默认地址兜底下实际不可达，保留作防御
         return Err(anyhow!(
             "Remote ASR endpoint not configured. Please set the remote ASR URL in Settings."
         ));
     }
+    if model_name.is_empty() {
+        return Err(anyhow!(
+            "离线转写未选择远程模型：请先选择非流式的远程语音识别模型（流式模型不能用于离线转写）"
+        ));
+    }
+    if crate::audio::transcription::is_remote_asr_streaming_model(&model_name) {
+        return Err(anyhow!(
+            "离线转写不能使用流式模型「{}」：请选择非流式模型",
+            model_name
+        ));
+    }
 
-    info!("Using remote Qwen3-ASR for quick transcribe: {} (model: {})", endpoint, model_name);
+    info!(
+        "Using remote ASR for quick transcribe: {} (model: {})",
+        endpoint, model_name
+    );
 
     let provider = RemoteAsrProvider::create_with_model_detection(&endpoint, &model_name, false)
         .await
         .map_err(|e| anyhow!("Failed to initialize remote ASR: {}", e))?;
 
-    info!("Remote Qwen3-ASR health check passed");
+    info!("Remote ASR health check passed");
     Ok(Arc::new(provider))
 }
 
 /// Get or initialize the Sherpa-ONNX transcription engine.
-async fn get_or_init_sherpa_onnx(
-    model_name: &str,
-) -> Result<Arc<dyn TranscriptionProvider>> {
+async fn get_or_init_sherpa_onnx(model_name: &str) -> Result<Arc<dyn TranscriptionProvider>> {
     let model_to_load = if model_name == "sense-voice" || model_name.starts_with("sense") {
         "sense-voice"
     } else {
@@ -169,10 +184,19 @@ async fn get_or_init_sherpa_onnx(
         .await
         .unwrap_or(false)
     {
-        info!("Auto-loading Sherpa-ONNX model for quick transcribe: {}", model_to_load);
+        info!(
+            "Auto-loading Sherpa-ONNX model for quick transcribe: {}",
+            model_to_load
+        );
         crate::sherpa_onnx_engine::commands::sherpa_onnx_load_model(model_to_load.to_string())
             .await
-            .map_err(|e| anyhow!("Failed to load Sherpa-ONNX model '{}': {}", model_to_load, e))?;
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to load Sherpa-ONNX model '{}': {}",
+                    model_to_load,
+                    e
+                )
+            })?;
     }
 
     let engine = crate::sherpa_onnx_engine::commands::get_or_init_engine()
@@ -233,8 +257,13 @@ pub async fn benchmark_asr<R: Runtime>(
     // Time the actual transcription only (model loading is already done above).
     let start = Instant::now();
     if model_name.starts_with("x-asr-") {
-        if let Some(xasr) = transcription_provider.as_any().downcast_ref::<XAsrProvider>() {
-            xasr.transcribe_file(&audio_path).await.map_err(|e| e.to_string())?;
+        if let Some(xasr) = transcription_provider
+            .as_any()
+            .downcast_ref::<XAsrProvider>()
+        {
+            xasr.transcribe_file(&audio_path)
+                .await
+                .map_err(|e| e.to_string())?;
         } else {
             return Err("X-ASR provider downcast failed".to_string());
         }
@@ -315,8 +344,7 @@ pub async fn prepare_auto_test_audio<R: Runtime>(app: AppHandle<R>) -> Result<St
             .map_err(|e| format!("Failed to create app data dir: {}", e))?;
     }
 
-    std::fs::copy(&src, &dest)
-        .map_err(|e| format!("Failed to copy example audio: {}", e))?;
+    std::fs::copy(&src, &dest).map_err(|e| format!("Failed to copy example audio: {}", e))?;
 
     Ok("example_audio.wav".to_string())
 }

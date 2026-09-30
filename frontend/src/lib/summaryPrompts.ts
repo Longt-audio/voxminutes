@@ -15,7 +15,8 @@ interface PromptStorage {
   overrides: Record<string, { name?: string; content?: string }>
 }
 
-// 8 个内置会议纪要模板 × 4 种 UI 语言（en/zh/ko/ja）
+// 7 个内置会议纪要模板 × 4 种 UI 语言（en/zh/ko/ja）
+// 模板内容本身不含输出语言限制；输出语言由「输出语言附加提示词」（见文件底部）统一控制。
 const BUILTIN_PROMPTS: Record<string, Record<Language, { name: string; content: string }>> = {
   default: {
     en: {
@@ -199,288 +200,130 @@ You are a rigorous, efficient professional meeting-minutes expert. Transform the
 - **今後の進め方**: [会議終了後にチーム全体ですぐに着手すべき次のアクションを簡潔に記述]`,
     },
   },
-  bilingual: {
-    en: {
-      name: 'Meeting Minutes (Bilingual)',
-      content: `# Role and Task
-You are a rigorous, efficient professional meeting-minutes expert. Transform the following raw ASR (automatic speech recognition) transcript into clearly structured, well-focused meeting minutes in Markdown format.
-
-# Transcript Preprocessing (ASR-specific)
-1. Filter out filler: remove verbal tics and filler words (e.g. "um", "uh", "you know"), meaningless repetitions, and small talk.
-2. Fix recognition errors: use context to intelligently correct homophone mistakes, typos, and misrecognized proper nouns.
-3. Consolidate: merge discussion of the same topic scattered across different parts of the meeting into one coherent section, removing redundancy and disordered narration.
-
-# Minutes Writing Principles
-- Be concise: no sentence-by-sentence restatement or long-winded prose; prefer short sentences and verb-first phrasing.
-- Prioritize what matters: heavily compress digressions and back-and-forth debate; keep only the core arguments.
-- No speculation: if basic information is missing from the transcript (e.g. no deadline was mentioned), leave it blank or write "Not specified" — never fabricate.
-
-# Output Format (follow this Markdown structure exactly)
-
-## 📅 Meeting Overview
-- **Topic**: [meeting topic]
-- **Date/Time**: [fill in; write "Not specified" if unknown]
-- **Participants**: [list the key speakers/attendees]
-
-## 🎯 Key Topics and Decisions
-*(Give each major topic its own subheading, in discussion order or grouped by business area. Keep the wording tight and focused.)*
-
-### 1. [Topic One]
-- **Discussion points**: [summarize each side's core viewpoints/disagreements in 1-2 short sentences]
-- **Decision**: [the final solution or conclusion reached]
-
-### 2. [Topic Two]
-- **Discussion points**: [brief summary]
-- **Decision**: [the final solution or conclusion reached]
-
-## 📋 Action Items
-*(Must be presented as a Markdown table. If the transcript mentions no owner or deadline, fill in "TBD" — do not leave cells empty.)*
-
-| Action Item | Owner | Deadline |
-| :--- | :--- | :--- |
-| Example: Revise the Project A business plan deck | John | Before next Wednesday EOD |
-| | | |
-
-## 🚀 Summary and Next Steps
-- **Overall progress**: [one sentence capturing the core milestone this meeting achieved]
-- **Next steps**: [briefly describe the immediate actions the team should start after the meeting]
-
-# Language Requirement
-Provide the meeting summary in both English and 中文 (Chinese).`,
-    },
-    zh: {
-      name: '会议记录（双语）',
-      content: `# 角色与任务
-你是一个严谨、高效的专业会议纪要专家。请将以下由 ASR（语音识别）生成的原始转写文本，提炼转化为一份结构清晰、重点突出的 Markdown 格式会议纪要。
-
-# 文本预处理要求（针对 ASR 特性）
-1. 过滤废话：自动剔除口头禅、语气词（如"啊""吧""然后"）、无意义的重复以及寒暄。
-2. 纠正错别字：结合上下文语境，智能修正音近字、错别字或专有名词识别错误。
-3. 归纳合并：将参会人员在不同时间段分散讨论的同一议题进行跨文本整合，消除内容上的因果倒置或啰嗦反复。
-
-# 会议纪要生成原则
-- 极简高效：拒绝逐句翻译或长篇大论，多用短句和动词开头的祈使句。
-- 详略得当：大幅压缩讨论过程中的扯皮、发散内容，只保留核心论点。
-- 拒绝推测：若文本中缺乏某项基本信息（如未明确提及截止时间），直接留空或写"未明确"，绝不胡乱编造。
-
-# 输出格式（请严格按以下 Markdown 结构输出）
-
-## 📅 会议基本信息
-- **会议主题**：[填写主题]
-- **会议时间**：[填写时间，若无则写"未明确"]
-- **参会人员**：[列出核心发言人/参会人]
-
-## 🎯 核心议题与决策方案
-*(注：请按讨论的先后顺序或业务板块划分，每一个核心议题单独列出一个子标题。文字要精炼，重点突出。)*
-
-### 1. [议题名称一]
-- **讨论要点**：[用1-2句极简的话概括各方核心观点/分歧点]
-- **达成决策**：[明确最终敲定的解决方案或结论]
-
-### 2. [议题名称二]
-- **讨论要点**：[简明扼要概括]
-- **达成决策**：[明确最终敲定的解决方案或结论]
-
-## 📋 待办事项清单
-*(注：必须使用 Markdown 表格呈现。若转写文本中未提及具体责任人或截止时间，请填写"待明确"，切勿使其留空。)*
-
-| 待办任务说明 | 责任人 | 截止时间 |
-| :--- | :--- | :--- |
-| 示例：修改A项目商业计划书PPT | 张三 | 下周三下班前 |
-| | | |
-
-## 🚀 总结与下一步计划
-- **整体进展评估**：[用一句话概括本次会议达成的核心里程碑]
-- **后续推进方向**：[简述会议结束后，团队整体需要立即启动的下一步动作]
-
-# 语言要求
-请同时输出中文和英文双语会议总结。`,
-    },
-    ko: {
-      name: '회의록 (이중 언어)',
-      content: `# 역할 및 작업
-당신은 꼼꼼하고 효율적인 전문 회의록 작성자입니다. 다음 ASR(음성 인식)로 생성된 원본 전사 텍스트를 구조가 명확하고 핵심이 돋보이는 Markdown 형식의 회의록으로 정리해 주세요.
-
-# 텍스트 전처리 요구 사항 (ASR 특성 대응)
-1. 불필요한 표현 제거: 군말과 추임새(예: "음", "어", "그러니까"), 의미 없는 반복, 인사말 등은 자동으로 걸러 주세요.
-2. 인식 오류 교정: 문맥을 바탕으로 발음이 비슷한 단어의 오기, 오탈자, 고유명사 인식 오류를 지능적으로 수정해 주세요.
-3. 내용 통합: 여러 시간대에 흩어져 논의된 동일 안건을 하나로 통합하고, 중복되거나 앞뒤가 뒤집힌 서술을 정리해 주세요.
-
-# 회의록 작성 원칙
-- 간결하게: 문장 단위 나열이나 장황한 서술을 피하고, 짧은 문장과 동사로 시작하는 표현을 사용하세요.
-- 중요도에 따라: 논쟁이나 발산적인 논의는 대폭 압축하고 핵심 논점만 남기세요.
-- 추측 금지: 전사 텍스트에 기본 정보(예: 마감 기한)가 명시되어 있지 않으면 비워 두거나 "미확정"이라고 적고, 절대 지어내지 마세요.
-
-# 출력 형식 (아래 Markdown 구조를 엄격히 따르세요)
-
-## 📅 회의 기본 정보
-- **회의 주제**: [주제 입력]
-- **회의 시간**: [시간 입력, 없으면 "미확정"]
-- **참석자**: [핵심 발언자/참석자 나열]
-
-## 🎯 핵심 안건 및 결정 사항
-*(논의 순서 또는 업무 영역별로 구분하여 핵심 안걸마다 별도의 소제목을 달아 주세요. 문장은 간결하고 핵심이 드러나게 작성하세요.)*
-
-### 1. [안건 1]
-- **논의 요점**: [각 측의 핵심 의견/의견 차이를 1~2문장으로 간결하게 요약]
-- **결정 사항**: [최종적으로 확정된 해결책이나 결론]
-
-### 2. [안건 2]
-- **논의 요점**: [간결하게 요약]
-- **결정 사항**: [최종적으로 확정된 해결책이나 결론]
-
-## 📋 할 일 목록
-*(반드시 Markdown 표로 작성하세요. 전사 텍스트에 담당자나 마감 기한이 언급되지 않은 경우 "미확정"으로 채우고, 비워 두지 마세요.)*
-
-| 할 일 | 담당자 | 마감 기한 |
-| :--- | :--- | :--- |
-| 예시: A 프로젝트 사업계획서 PPT 수정 | 홍길동 | 다음 주 수요일 퇴근 전 |
-| | | |
-
-## 🚀 요약 및 다음 단계
-- **전체 진행 평가**: [이번 회의에서 달성한 핵심 마일스톤을 한 문장으로 요약]
-- **향후 추진 방향**: [회의 후 팀 전체가 즉시 시작해야 할 다음 행동을 간략히 서술]
-
-# 언어 요구 사항
-회의 요약을 한국어와 영어 두 언어로 함께 출력해 주세요.`,
-    },
-    ja: {
-      name: '議事録（バイリンガル）',
-      content: `# 役割とタスク
-あなたは厳密で効率的なプロの議事録作成者です。以下の ASR（音声認識）で生成された生の書き起こしテキストを、構造が明確で要点が際立つ Markdown 形式の議事録にまとめてください。
-
-# テキストの前処理（ASR 特有の問題への対応）
-1. 不要な言葉の除去: 口癖やフィラー（「えー」「あのー」など）、意味のない繰り返し、雑談を自動的に取り除いてください。
-2. 認識誤りの修正: 文脈に基づき、同音異義語の誤変換、誤字、固有名詞の認識ミスを的確に修正してください。
-3. 内容の統合: 時間をまたいで断片的に議論された同一の議題を一つに統合し、重複や前後関係の乱れを解消してください。
-
-# 議事録作成の原則
-- 簡潔に: 逐語的な書き写しや長文は避け、短い文と動詞で始まる表現を多用してください。
-- メリハリをつける: 議論の紛糾や脱線した内容は大幅に圧縮し、核心となる論点のみを残してください。
-- 推測しない: テキストに基本情報（例: 締め切り）が明示されていない場合は、空欄または「未定」と記載し、決して捏造しないでください。
-
-# 出力形式（以下の Markdown 構造に厳密に従ってください）
-
-## 📅 会議の基本情報
-- **会議のテーマ**: [テーマを記入]
-- **日時**: [日時を記入。不明な場合は「未定」]
-- **参加者**: [主な発言者/参加者を列挙]
-
-## 🎯 主要議題と決定事項
-*(議論の順序または業務分野ごとに区切り、主要な議題それぞれに個別の小見出しを付けてください。文章は簡潔に、要点を明確に。)*
-
-### 1. [議題 1]
-- **議論の要点**: [各側の主要な意見/相違点を1〜2文の短い文で要約]
-- **決定事項**: [最終的に確定した解決策または結論]
-
-### 2. [議題 2]
-- **議論の要点**: [簡潔に要約]
-- **決定事項**: [最終的に確定した解決策または結論]
-
-## 📋 ToDo リスト
-*(必ず Markdown の表で記載してください。書き起こしテキストに担当者や期限が言及されていない場合は「未定」と記入し、空欄のままにしないでください。)*
-
-| タスク | 担当者 | 期限 |
-| :--- | :--- | :--- |
-| 例: Aプロジェクト事業計画書PPTの修正 | 山田太郎 | 来週水曜日の終業前 |
-| | | |
-
-## 🚀 まとめと次のステップ
-- **全体の進捗評価**: [本会議で達成された重要なマイルストーンを一文で要約]
-- **今後の進め方**: [会議終了後にチーム全体ですぐに着手すべき次のアクションを簡潔に記述]
-
-# 言語要件
-会議の要約を日本語と英語の2か国語で併記して出力してください。`,
-    },
-  },
   simple: {
     en: {
-      name: 'Quick Summary',
+      name: 'General Summary',
       content: `# Role and Task
-You are an efficient meeting assistant. Distill the following ASR transcript into a minimal meeting summary.
+You are a professional content-digest writer. Turn the following raw ASR (automatic speech recognition) transcript into a clearly structured, informative summary in Markdown. The audio may be ANY kind of spoken content — a meeting, a news segment, an interview, a lecture, a podcast, a vlog voiceover, etc. Identify what it actually is and organize the summary around that; do not force it into a meeting template.
 
-# Requirements
-1. Remove filler words, repetitions, and meaningless small talk.
-2. Correct obvious speech-recognition errors.
-3. Summarize the core content in 3-5 bullet points.
+# Transcript Preprocessing (ASR-specific)
+1. Remove filler words, verbal tics, meaningless repetitions, and small talk.
+2. Use context to correct homophone mistakes, typos, and misrecognized proper nouns.
+3. Merge fragments on the same topic that are scattered across the transcript, and restore a coherent narrative order.
 
-# Output Format
-- Meeting topic: [one-sentence summary]
-- Key conclusions:
-  1. ...
-  2. ...
-  3. ...
-- Next actions:
-  1. ...
-  2. ...
+# Summary Requirements
+- Start by identifying the content type and its topic; state it in one sentence.
+- Organize the body along the content's own logic (topics, arguments, or timeline). Keep the key facts, figures, viewpoints, and conclusions — do not drop valuable detail just to be short.
+- Compress digressions and repetition, but favor completeness over brevity: this is a digest, not a headline.
+- No speculation: never invent information that is not in the transcript; mark anything uncertain as such.
 
-Keep it brief: no tables, no complex hierarchy, and no speculative content.`,
+# Output Format (Markdown)
+## 📌 Overview
+[One or two sentences: what kind of content this is and what it is about]
+
+## 📝 Main Content
+[Sub-sections with short headings, following the content's own structure; include key information and important details]
+
+## 💡 Key Takeaways
+- [Core point / conclusion 1]
+- [Core point / conclusion 2]
+- [...]
+
+## ❓ Notes (optional)
+[Any unclear, doubtful, or possibly misrecognized parts; omit this section if none]`,
     },
     zh: {
-      name: '简洁总结',
+      name: '通用总结',
       content: `# 角色与任务
-你是一名高效的会议助理。请将以下 ASR 转写文本提炼成一份极简的会议纪要。
+你是一名专业的内容整理专家。请将以下由 ASR（语音识别）生成的原始转写文本，整理成一份结构清晰、信息完整的 Markdown 总结。这段音频可能是会议、新闻、访谈、演讲、课程、播客、vlog 旁白等任意类型的口述内容——请先判断它实际是什么，再按内容自身的特点组织总结，不要套用固定场景的模板。
 
-# 处理要求
-1. 删除口头禅、重复内容和无意义的寒暄。
-2. 纠正明显的语音识别错误。
-3. 用 3-5 个要点概括核心内容。
+# 文本预处理（针对 ASR 特性）
+1. 剔除口头禅、语气词、无意义的重复和寒暄。
+2. 结合上下文修正音近字、错别字和专有名词识别错误。
+3. 将分散在各处的同一话题内容合并，理顺叙述顺序。
 
-# 输出格式
-- 会议主题：[一句话概括]
-- 关键结论：
-  1. ...
-  2. ...
-  3. ...
-- 下一步行动：
-  1. ...
-  2. ...
+# 总结要求
+- 先识别内容类型与主题，用一两句话说明。
+- 按内容自身的逻辑（话题、论点或时间线）分段归纳，保留关键事实、数据、观点和结论；有价值的细节不要因为求短而省略。
+- 详略得当：压缩跑题与重复，但这是一份完整的摘要，不是一句话简报。
+- 拒绝推测：文本中没有的信息绝不编造，不确定的内容如实标注。
 
-请保持简洁，不要输出表格、复杂层级或推测性内容。`,
+# 输出格式（Markdown）
+## 📌 内容概要
+[一两句话说明这是什么类型的内容、主题是什么]
+
+## 📝 主要内容
+[按内容逻辑分小节归纳，每节一个小标题，包含关键信息与重要细节]
+
+## 💡 要点提炼
+- [核心观点/结论 1]
+- [核心观点/结论 2]
+- [...]
+
+## ❓ 补充说明（可选）
+[内容中存疑、待确认或可能识别不准之处；没有则省略本节]`,
     },
     ko: {
-      name: '간결 요약',
+      name: '일반 요약',
       content: `# 역할 및 작업
-당신은 효율적인 회의 어시스턴트입니다. 다음 ASR 전사 텍스트를 매우 간결한 회의 요약으로 정리해 주세요.
+당신은 전문 콘텐츠 정리 작성자입니다. 다음 ASR(음성 인식)로 생성된 원본 전사 텍스트를 구조가 명확하고 정보가 충실한 Markdown 요약으로 정리해 주세요. 이 오디오는 회의, 뉴스, 인터뷰, 강연, 수업, 팟캐스트, vlog 날레이션 등 어떤 유형의 구술 콘텐츠든 될 수 있습니다. 실제 내용이 무엇인지 먼저 파악하고 그 특성에 맞게 요약을 구성하세요. 고정된 회의 템플릿에 억지로 맞추지 마세요.
 
-# 처리 요구 사항
-1. 군말, 반복되는 내용, 의미 없는 인사말은 삭제하세요.
-2. 명백한 음성 인식 오류는 바로잡으세요.
-3. 핵심 내용을 3~5개의 항목으로 요약하세요.
+# 텍스트 전처리 (ASR 특성 대응)
+1. 군말, 추임새, 의미 없는 반복, 인사말은 제거하세요.
+2. 문맥을 바탕으로 발음이 비슷한 단어의 오기, 오탈자, 고유명사 인식 오류를 수정하세요.
+3. 여러 곳에 흩어져 있는 동일 주제의 내용을 하나로 합치고 서술 순서를 자연스럽게 정리하세요.
 
-# 출력 형식
-- 회의 주제: [한 문장으로 요약]
-- 핵심 결론:
-  1. ...
-  2. ...
-  3. ...
-- 다음 조치:
-  1. ...
-  2. ...
+# 요약 작성 요구 사항
+- 콘텐츠 유형과 주제를 먼저 파악해 한두 문장으로 밝히세요.
+- 콘텐츠 자체의 논리(주제, 논점, 시간 흐름)에 따라 나누어 정리하고, 핵심 사실·수치·관점·결론을 유지하세요. 짧게 만들려고 가치 있는 세부 정보를 생략하지 마세요.
+- 주제에서 벗어난 부분과 반복은 압축하되, 이는 한 줄 브리핑이 아니라 완전한 요약문입니다.
+- 추측 금지: 전사 텍스트에 없는 정보는 절대 지어내지 말고, 불확실한 내용은 그렇다고 표시하세요.
 
-간결하게 작성하고, 표나 복잡한 계층 구조, 추측성 내용은 출력하지 마세요.`,
+# 출력 형식 (Markdown)
+## 📌 콘텐츠 개요
+[어떤 유형의 콘텐츠이며 주제가 무엇인지 한두 문장으로]
+
+## 📝 주요 내용
+[내용의 논리에 따라 소제목을 달아 구분하고, 핵심 정보와 중요한 세부 사항을 포함]
+
+## 💡 핵심 정리
+- [핵심 관점/결론 1]
+- [핵심 관점/결론 2]
+- [...]
+
+## ❓ 참고 사항 (선택)
+[불분명하거나 확인이 필요하거나 인식이 부정확할 수 있는 부분; 없으면 이 섹션 생략]`,
     },
     ja: {
-      name: '簡潔な要約',
+      name: '汎用要約',
       content: `# 役割とタスク
-あなたは効率的な会議アシスタントです。以下の ASR 書き起こしテキストを、ごく簡潔な会議要約にまとめてください。
+あなたはプロのコンテンツ整理ライターです。以下の ASR（音声認識）で生成された生の書き起こしテキストを、構造が明確で情報量のある Markdown 要約にまとめてください。この音声は会議、ニュース、インタビュー、講演、授業、ポッドキャスト、vlog のナレーションなど、あらゆる種類の口語コンテンツでありえます。実際の内容が何かをまず判断し、その特性に沿って要約を構成してください。固定の会議テンプレートに当てはめないでください。
 
-# 処理要件
-1. 口癖、繰り返し、意味のない雑談は削除してください。
-2. 明らかな音声認識の誤りは修正してください。
-3. 核心となる内容を3〜5項目の箇条書きで要約してください。
+# テキストの前処理（ASR 特有の問題への対応）
+1. 口癖、フィラー、意味のない繰り返し、雑談を取り除いてください。
+2. 文脈に基づき、同音異義語の誤変換、誤字、固有名詞の認識ミスを修正してください。
+3. 複数箇所に散らばった同一話題の内容を統合し、自然な叙述順序に整えてください。
 
-# 出力形式
-- 会議のテーマ: [一文で要約]
-- 主な結論:
-  1. ...
-  2. ...
-  3. ...
-- 次のアクション:
-  1. ...
-  2. ...
+# 要約作成の要件
+- コンテンツの種類とテーマを最初に特定し、1〜2文で示してください。
+- 内容自体の論理（話題、論点、時系列）に沿って段落分けし、重要な事実・数値・意見・結論を保持してください。短くするために価値ある詳細を省かないでください。
+- 脱線や重複は圧縮しますが、これは一行速報ではなく完全なダイジェストです。
+- 推測しない: テキストにない情報は決して捏造せず、不確かな内容はその旨を明示してください。
 
-簡潔に記述し、表や複雑な階層構造、推測的な内容は出力しないでください。`,
+# 出力形式（Markdown）
+## 📌 コンテンツ概要
+[どのような種類の内容で、テーマは何かを1〜2文で]
+
+## 📝 主な内容
+[内容の論理に沿って小見出しで分け、重要な情報と詳細を含める]
+
+## 💡 要点まとめ
+- [核心的な視点/結論 1]
+- [核心的な視点/結論 2]
+- [...]
+
+## ❓ 補足（任意）
+[不明確な点、要確認の点、認識誤りの可能性がある箇所; なければこの節は省略]`,
     },
   },
   training: {
@@ -952,9 +795,8 @@ You are a team-management assistant. Organize the following 1-on-1 ASR transcrip
 }
 
 export const BUILTIN_PROMPT_IDS: string[] = [
-  'default',
-  'bilingual',
   'simple',
+  'default',
   'training',
   'client-visit',
   'interview',
@@ -962,23 +804,12 @@ export const BUILTIN_PROMPT_IDS: string[] = [
   'one-on-one',
 ]
 
-// 非双语模板统一追加的输出语言要求（bilingual 模板自带双语输出要求，不再追加）
-const OUTPUT_LANGUAGE_SUFFIX: Record<Language, string> = {
-  en: '\n\n# Output Language\nWrite the entire summary in English.',
-  zh: '\n\n# 输出语言\n请全程使用中文输出。',
-  ko: '\n\n# 출력 언어\n요약 전체를 한국어로 작성해 주세요.',
-  ja: '\n\n# 出力言語\n要約はすべて日本語で出力してください。',
-}
-
-/** 指定语言的内置 prompt 列表（按 BUILTIN_PROMPT_IDS 顺序）。 */
+/** 指定语言的内置 prompt 列表（按 BUILTIN_PROMPT_IDS 顺序）。模板内容本身不含输出语言限制。 */
 export function getBuiltinPrompts(lang: Language): SummaryPromptPreset[] {
   return BUILTIN_PROMPT_IDS.map((id) => ({
     id,
     name: BUILTIN_PROMPTS[id][lang].name,
-    content:
-      id === 'bilingual'
-        ? BUILTIN_PROMPTS[id][lang].content
-        : BUILTIN_PROMPTS[id][lang].content + OUTPUT_LANGUAGE_SUFFIX[lang],
+    content: BUILTIN_PROMPTS[id][lang].content,
     builtin: true,
   }))
 }
@@ -1027,9 +858,105 @@ export function saveCustomPrompts(customs: SummaryPromptPreset[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(storage))
 }
 
-/** 拼接完整请求文本：prompt 内容 + 空行 + 转写文本。 */
-export function composeFullPrompt(promptContent: string, transcript: string): string {
-  return promptContent + '\n\n' + transcript
+/** 拼接完整请求文本：prompt 内容 +（可选的）输出语言指令与附加要求 + 空行 + 转写文本。
+ *  output.lang 有值时自动生成一句英文输出语言指令；output.extra 非空时追加在其后。 */
+export function composeFullPrompt(
+  promptContent: string,
+  transcript: string,
+  output?: { lang?: string; extra?: string }
+): string {
+  const parts: string[] = []
+  if (output?.lang) parts.push(outputLanguageInstruction(output.lang))
+  const extra = output?.extra?.trim()
+  if (extra) parts.push(extra)
+  const head = parts.length > 0 ? promptContent + '\n\n' + parts.join('\n') : promptContent
+  return head + '\n\n' + transcript
+}
+
+// ---- 输出语言 + 附加要求（作用于所有模板的二级设置） ----
+
+/** 输出语言候选（LLM 普遍支持）。englishName 用于生成英文语言指令（比各语言自译更稳妥）。 */
+export interface OutputLangOption {
+  id: string
+  englishName: string
+  nativeName: string
+}
+
+export const OUTPUT_LANGUAGES: readonly OutputLangOption[] = [
+  { id: 'zh', englishName: 'Chinese', nativeName: '中文' },
+  { id: 'en', englishName: 'English', nativeName: 'English' },
+  { id: 'ja', englishName: 'Japanese', nativeName: '日本語' },
+  { id: 'ko', englishName: 'Korean', nativeName: '한국어' },
+  { id: 'fr', englishName: 'French', nativeName: 'Français' },
+  { id: 'de', englishName: 'German', nativeName: 'Deutsch' },
+  { id: 'es', englishName: 'Spanish', nativeName: 'Español' },
+  { id: 'pt', englishName: 'Portuguese', nativeName: 'Português' },
+  { id: 'ru', englishName: 'Russian', nativeName: 'Русский' },
+  { id: 'it', englishName: 'Italian', nativeName: 'Italiano' },
+  { id: 'ar', englishName: 'Arabic', nativeName: 'العربية' },
+  { id: 'th', englishName: 'Thai', nativeName: 'ไทย' },
+  { id: 'vi', englishName: 'Vietnamese', nativeName: 'Tiếng Việt' },
+  { id: 'id', englishName: 'Indonesian', nativeName: 'Bahasa Indonesia' },
+]
+
+/** 生成输出语言指令：统一用英文书写（各语言自译的指令稳定性更差）。 */
+export function outputLanguageInstruction(langId: string): string {
+  const name = OUTPUT_LANGUAGES.find((l) => l.id === langId)?.englishName ?? 'English'
+  return `Write the entire output in ${name}.`
+}
+
+/** 输出设置持久化结构：lang = OUTPUT_LANGUAGES 的 id；extra = 用户附加要求（可空）。 */
+export interface SummaryOutputPrefs {
+  lang: string
+  extra: string
+}
+
+/** 持久化 key（独立于模板存储 voxminutes-summary-prompts） */
+export const OUTPUT_PREFS_KEY = 'voxminutes-summary-output-prefs'
+
+/** 旧版「输出语言附加提示词」自由文本 key（2026-09-28 起迁移到 OUTPUT_PREFS_KEY 后清除） */
+const LEGACY_OUTPUT_LANGUAGE_PROMPT_KEY = 'voxminutes-summary-output-language-prompt'
+
+/** 默认输出语言 = 软件界面语言（4 种 UI 语言都在 OUTPUT_LANGUAGES 里，直接同名映射）。 */
+export function defaultOutputLang(uiLang: Language): string {
+  return OUTPUT_LANGUAGES.some((l) => l.id === uiLang) ? uiLang : 'en'
+}
+
+/**
+ * 读取输出设置：已保存的新 key 优先；否则若旧 key（自由文本提示词）存在，
+ * 把旧值迁移为附加要求（语言取界面语言）并清除旧 key；都没有则给默认值。
+ */
+export function loadOutputPrefs(uiLang: Language): SummaryOutputPrefs {
+  const fallback: SummaryOutputPrefs = { lang: defaultOutputLang(uiLang), extra: '' }
+  if (typeof window === 'undefined') return fallback
+  try {
+    const raw = localStorage.getItem(OUTPUT_PREFS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SummaryOutputPrefs>
+      const lang =
+        typeof parsed?.lang === 'string' && OUTPUT_LANGUAGES.some((l) => l.id === parsed.lang)
+          ? parsed.lang
+          : fallback.lang
+      const extra = typeof parsed?.extra === 'string' ? parsed.extra : ''
+      return { lang, extra }
+    }
+    const legacy = localStorage.getItem(LEGACY_OUTPUT_LANGUAGE_PROMPT_KEY)
+    if (legacy !== null) {
+      localStorage.removeItem(LEGACY_OUTPUT_LANGUAGE_PROMPT_KEY)
+      const migrated: SummaryOutputPrefs = { lang: fallback.lang, extra: legacy.trim() }
+      saveOutputPrefs(migrated)
+      return migrated
+    }
+  } catch {}
+  return fallback
+}
+
+/** 保存输出设置（extra 为空也保存——表示用户主动清空、不再附加）。 */
+export function saveOutputPrefs(prefs: SummaryOutputPrefs): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(OUTPUT_PREFS_KEY, JSON.stringify(prefs))
+  } catch {}
 }
 
 /** 从（内置+自定义合并后的）完整列表中筛出需要持久化的用户项：自定义 prompt + 被改过的内置 prompt。 */

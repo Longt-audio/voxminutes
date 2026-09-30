@@ -18,11 +18,27 @@ impl RecordingsRepository {
             .await
     }
 
+    /// 按录音文件夹路径找历史行（2026-09-24）。
+    ///
+    /// 用途：一次录音会有**两个写入方**（Rust 停止时写原始段落、前端随后写按段落合并的版本），
+    /// 必须落在**同一行**上，否则历史列表会出现两条同名记录。
+    /// 前端 `api_save_transcript` 也改用它：先按 folder_path 复用，找不到才新建。
+    pub async fn get_by_folder_path(
+        pool: &SqlitePool,
+        folder_path: &str,
+    ) -> Result<Option<Recording>, sqlx::Error> {
+        sqlx::query_as::<_, Recording>(
+            "SELECT * FROM recordings WHERE folder_path = ? ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(folder_path)
+        .fetch_optional(pool)
+        .await
+    }
+
     pub async fn get_recording(
         pool: &SqlitePool,
         id: &str,
-    ) -> Result<Option<RecordingWithSegments>, sqlx::Error> {
-        let recording = sqlx::query_as::<_, Recording>("SELECT * FROM recordings WHERE id = ?")
+    ) -> Result<Option<RecordingWithSegments>, sqlx::Error> {        let recording = sqlx::query_as::<_, Recording>("SELECT * FROM recordings WHERE id = ?")
             .bind(id)
             .fetch_optional(pool)
             .await?;

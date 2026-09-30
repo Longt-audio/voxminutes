@@ -40,7 +40,27 @@ pub async fn summary_save(
     content: String,
 ) -> Result<String, String> {
     let path = summary_path(state.db_manager.pool(), &recording_id, &source).await?;
-    std::fs::write(&path, content).map_err(|e| format!("Failed to write summary: {}", e))?;
+    match std::fs::write(&path, &content) {
+        Ok(()) => {
+            log::info!(
+                "💾 总结已保存 recording_id={} 来源={} 正文 {} 字 路径={}",
+                recording_id,
+                source,
+                content.chars().count(),
+                path.to_string_lossy()
+            );
+        }
+        Err(e) => {
+            log::warn!(
+                "⚠️ 总结保存失败 recording_id={} 来源={} 路径={}: {}",
+                recording_id,
+                source,
+                path.to_string_lossy(),
+                e
+            );
+            return Err(format!("Failed to write summary: {}", e));
+        }
+    }
     Ok(path.to_string_lossy().to_string())
 }
 

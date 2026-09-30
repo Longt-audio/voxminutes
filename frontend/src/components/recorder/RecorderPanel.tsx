@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { Mic, Square, Pause, Play, MicOff, Speaker, Languages, Captions } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { toast } from 'sonner'
+import { Mic, Square, Pause, Play, MicOff, Speaker, Languages, Captions, Info } from 'lucide-react'
 import { useAppStore } from '@/state'
-import { useRecorder, useRecordingTimer, DEFAULT_ASR_MODEL } from '@/hooks/useRecorder'
+import { useRecorder, DEFAULT_ASR_MODEL } from '@/hooks/useRecorder'
 import { useAudioLevel } from '@/hooks/useAudioLevel'
 import {
   sherpaOnnxGetModels,
@@ -12,6 +14,8 @@ import {
   getDownloadableModels,
   getDefaultAudioDevices,
   apiGetTranscriptConfig,
+  apiSaveTranscriptConfig,
+  switchAsrModel,
   setMicMute as ipcSetMicMute,
   openSystemSoundSettings,
   getTranslationEnabled,
@@ -31,7 +35,10 @@ import { RecordingSetupDialog, type RecordingSetup } from './RecordingSetupDialo
 import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
-import { availableTranslationEngines } from '@/lib/translationEngines'
+import { availableTranslationEngines, fetchCustomApiConfigured } from '@/lib/translationEngines'
+import { useRemoteModelChoice, remoteModelDisplayName, formatModelPrice } from '@/lib/remoteModelChoice'
+import { pickLangSegment } from '@/lib/langSegment'
+import { cn } from '@/lib/utils'
 import type { ModelInfo, TranslationEngine, DownloadableModelInfo } from '@/types'
 
 function formatDuration(totalSeconds: number): string {
@@ -57,9 +64,15 @@ function useRecorderInit() {
       .then(async (list) => {
         try {
           const cfg = await apiGetTranscriptConfig()
-          if (cfg?.model && list.some((m) => m.name === cfg.model)) {
-            setSelectedModel(cfg.model)
-            return
+          if (cfg?.model) {
+            // 远程占位名（qwen3-asr-remote*）不在本地模型列表里，需单独识别——
+            // 否则会被下面的 firstAvailable 兜底成 X-ASR，导致信息卡显示与实际引擎不符
+            const isRemoteCfg =
+              cfg.provider === 'remote-qwen3-asr' || cfg.model.startsWith('qwen3-asr-remote')
+            if (isRemoteCfg || list.some((m) => m.name === cfg.model)) {
+              setSelectedModel(cfg.model)
+              return
+            }
           }
         } catch {}
         const firstAvailable = list.find((m) => !m.hidden && !m.is_remote && m.status !== 'Missing')
@@ -104,8 +117,10 @@ function useRecorderInit() {
           .then((list) => {
             setModels(list)
             // 若当前未选中任何可用模型，自动选中第一个已下载的
+            // （远程占位名不在本地列表里但同样是有效选择，不能因此被改回本地模型）
             const cur = useAppStore.getState().selectedModel
-            const stillAvailable = list.some((m) => m.name === cur && m.status !== 'Missing')
+            const isRemoteSel = cur === 'remote' || cur.startsWith('qwen3-asr-remote')
+            const stillAvailable = isRemoteSel || list.some((m) => m.name === cur && m.status !== 'Missing')
             if (!stillAvailable) {
               const first = list.find((m) => !m.hidden && !m.is_remote && m.status !== 'Missing')
               if (first) setSelectedModel(first.name)
@@ -127,11 +142,11 @@ function useRecorderInit() {
 /** 左栏：开始/停止按钮（开始前仅此一个）+ 录音中的暂停/静音 + 当前配置信息 */
 export function RecorderControls() {
   const { isRecording, isPaused, isProcessing, startRecording, stopRecording, togglePause } = useRecorder()
-  useRecordingTimer()
   useRecorderInit()
   const t = useMessages()
 
   const selectedModel = useAppStore((s) => s.selectedModel)
+  const localModels = useAppStore((s) => s.models)
   const isMicMuted = useAppStore((s) => s.isMicMuted)
   const setMicMuted = useAppStore((s) => s.setMicMuted)
   const defaultDevices = useAppStore((s) => s.defaultDevices)
@@ -144,9 +159,68 @@ export function RecorderControls() {
 
   const [setupOpen, setSetupOpen] = useState(false)
   const [subtitleVisible, setSubtitleVisible] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
+  // 信息卡 fixed 定位锚点（打开时按按钮位置计算一次）
+  const infoBtnRef = useRef<HTMLButtonElement | null>(null)
+  const [infoPos, setInfoPos] = useState<{ left: number; top: number } | null>(null)
   const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
   const [remoteEnabled, setRemoteEnabled] = useState(false)
+  const [customApiConfigured, setCustomApiConfigured] = useState(false)
   const home = useLanguageStore((s) => s.language)
+
+  // 当前远程语音识别模型选择（录音信息区显示用）
+  const remoteAsr = useRemoteModelChoice('asr')
+  // 录音中切换翻译模型：远程部分列出全部具体翻译模型（排除推理模型，与录音前设置弹窗同一口径）
+  const remoteTranslate = useRemoteModelChoice('translate', { excludeReasoning: true, usage: 'translate' })
+
+  // ── 录音中热切换流式 ASR 模型（流式↔流式：X-ASR / 远程流式）──
+  const [asrSwitching, setAsrSwitching] = useState(false)
+  const isRemoteAsrSelected = selectedModel === 'remote' || selectedModel.startsWith('qwen3-asr-remote')
+  const currentAsrIsStreaming = isRemoteAsrSelected || selectedModel.startsWith('x-asr-')
+  // 下拉选项：本地仅流式 X-ASR（SenseVoice 是 VAD 伪实时，不支持录音中切换）+ 远程流式
+  const localStreamingModels = localModels.filter(
+    (m) => m.name.startsWith('x-asr-') && m.status !== 'Missing'
+  )
+  const asrSwitchValue = isRemoteAsrSelected ? `remote:${remoteAsr.value}` : selectedModel
+
+  const handleAsrSwitch = async (v: string) => {
+    if (asrSwitching) return
+    const prevModel = selectedModel
+    const prevRemoteId = remoteAsr.value
+    setAsrSwitching(true)
+    try {
+      // 先持久化新选择（后端切换命令读的就是这份配置）。
+      // remoteAsr.set 内部已带 asr_mode 持久化（远端模型选择走全局 store），
+      // 这里不再重复调 IPC，避免两份写入互相覆盖。
+      // 但真实远程模型 id 仍随 apiSaveTranscriptConfig/switchAsrModel 显式传给后端
+      // （2026-09-28 竞态修复：set 的持久化是异步的，切换命令不能赌它已落盘）。
+      if (v.startsWith('remote:')) {
+        const id = v.slice('remote:'.length)
+        remoteAsr.set(id)
+        await apiSaveTranscriptConfig('remote-qwen3-asr', 'qwen3-asr-remote', null, id)
+      } else {
+        await apiSaveTranscriptConfig('x-asr', v, null)
+      }
+      // 再触发后端热切换（录音管线不动，只重启转写子系统）
+      await switchAsrModel(v.startsWith('remote:') ? v.slice('remote:'.length) : null)
+      useAppStore.getState().setSelectedModel(v.startsWith('remote:') ? 'qwen3-asr-remote' : v)
+      toast.success(t.recAsrSwitched)
+    } catch (e) {
+      // 切换失败：回滚持久化配置与界面选择，仍在跑的旧引擎不受影响
+      try {
+        if (prevModel === 'remote' || prevModel.startsWith('qwen3-asr-remote')) {
+          if (prevRemoteId) remoteAsr.set(prevRemoteId)
+          await apiSaveTranscriptConfig('remote-qwen3-asr', 'qwen3-asr-remote', null, prevRemoteId || null)
+        } else {
+          await apiSaveTranscriptConfig(prevModel.startsWith('x-asr-') ? 'x-asr' : 'sherpaonnx', prevModel, null)
+        }
+      } catch {}
+      useAppStore.getState().setSelectedModel(prevModel)
+      toast.error(t.recAsrSwitchFailed.replace('{error}', e instanceof Error ? e.message : String(e)))
+    } finally {
+      setAsrSwitching(false)
+    }
+  }
 
   useEffect(() => {
     getDownloadableModels()
@@ -156,6 +230,13 @@ export function RecorderControls() {
       .then(setRemoteEnabled)
       .catch(() => setRemoteEnabled(false))
   }, [])
+
+  // 自定义 API 引擎是否在引擎下拉中显示（开启翻译时刷新一次，设置页改动后可见）
+  useEffect(() => {
+    fetchCustomApiConfigured()
+      .then(setCustomApiConfigured)
+      .catch(() => setCustomApiConfigured(false))
+  }, [translateEnabled])
 
   // 未加载完成时先显示全部引擎，加载后按已下载过滤
   const translationEngines = translationModels === null
@@ -196,6 +277,25 @@ export function RecorderControls() {
     }
   }
 
+  // 翻译模型下拉：本地引擎（opus/hymt2）与自定义 API 原样；远程展开为具体模型（remote:<id>）。
+  // 选远程项时先持久化远程子模型选择（全局 store，与其他使用处同步），再切引擎到 remote。
+  const handleTranslateModelSelect = (v: string) => {
+    if (v.startsWith('remote:')) {
+      remoteTranslate.set(v.slice('remote:'.length))
+      if (translationEngine !== 'remote') handleEngineChange('remote')
+    } else {
+      handleEngineChange(v as TranslationEngine)
+    }
+  }
+  const translateModelValue =
+    translationEngine === 'remote' ? `remote:${remoteTranslate.value}` : translationEngine
+  const translateModelOptionValues = [
+    ...(translationEngines.includes('opus') ? ['opus'] : []),
+    ...(translationEngines.includes('hymt2') ? ['hymt2'] : []),
+    ...(remoteEnabled ? remoteTranslate.models.map((m) => `remote:${m.id}`) : []),
+    ...(customApiConfigured ? ['custom-api'] : []),
+  ]
+
   // 目标语言选项按引擎动态生成（全量，不排除 home）；zh/en 沿用既有文案，其余用语言名
   const targetLangOptions = getTranslateTargetLangs(translationEngine).map((code) => ({
     code,
@@ -229,6 +329,74 @@ export function RecorderControls() {
     }
   }
 
+  // 切换录音状态时收起信息展示卡
+  useEffect(() => {
+    setInfoOpen(false)
+  }, [isRecording])
+
+  // 打开信息卡时按按钮当前位置计算 fixed 坐标（贴按钮下方，右对齐到按钮左缘）
+  useEffect(() => {
+    if (!infoOpen) {
+      setInfoPos(null)
+      return
+    }
+    const rect = infoBtnRef.current?.getBoundingClientRect()
+    if (rect) setInfoPos({ left: rect.left, top: rect.bottom + 4 })
+  }, [infoOpen])
+
+  // 信息展示卡数据（selectedModel 在 startRecording 时已回写为实际使用的模型）
+  const isRemoteModel = selectedModel === 'remote' || selectedModel.startsWith('qwen3-asr-remote')
+  const selectedRemoteAsr = remoteAsr.models.find((mm) => mm.id === remoteAsr.value)
+  const infoModelDisplay = isRemoteModel
+    ? selectedRemoteAsr
+      ? remoteModelDisplayName(selectedRemoteAsr)
+      : t.recRemoteModel
+    : selectedModel === 'x-asr-480ms'
+      ? t.recModelXAsr + t.mdLocalSuffix
+      : selectedModel === 'sense-voice'
+        ? t.recModelSenseVoice + t.mdLocalSuffix
+        : selectedModel || t.recNoModel
+  const infoModeLabel = isRemoteModel
+    ? selectedRemoteAsr?.mode === 'streaming'
+      ? t.recBadgeStreaming
+      : t.recBadgeBatch
+    : selectedModel.startsWith('x-asr-')
+      ? t.recBadgeStreaming
+      : t.recBadgeBatch
+  // 支持语言：远程取网关目录下发的 languages（四段式按界面语言取段）；本地用既有文案
+  const infoModelLangs = isRemoteModel
+    ? pickLangSegment(selectedRemoteAsr?.languages?.trim() || '', home)
+    : selectedModel.startsWith('x-asr-')
+      ? t.recLangsXAsr
+      : selectedModel === 'sense-voice'
+        ? t.recLangsSenseVoice
+        : ''
+  // 模型简介：远程用网关显示名+计费说明；本地用既有介绍文案
+  const infoModelDesc = isRemoteModel
+    ? selectedRemoteAsr
+      ? `${t.recBadgeRemote} · ${formatModelPrice(selectedRemoteAsr, t)}`
+      : ''
+    : selectedModel.startsWith('x-asr-')
+      ? t.recXAsrDesc
+      : selectedModel === 'sense-voice'
+        ? t.recSenseVoiceDesc
+        : ''
+  const infoEngineLabel =
+    translationEngine === 'opus'
+      ? t.recEngineOpus
+      : translationEngine === 'hymt2'
+        ? t.recEngineHymt2
+        : translationEngine === 'remote'
+          ? t.recEngineRemote
+          : t.recEngineCustomApi
+  const infoTargetLang =
+    targetLangOptions.find((o) => o.code === translateTargetLang)?.name || translateTargetLang
+  const infoRemoteStatus = !remoteEnabled
+    ? t.recInfoRemoteDisabled
+    : remoteAsr.models.length > 0
+      ? t.recInfoRemoteOnline
+      : t.recInfoRemoteOffline
+
   return (
     <div className="flex flex-col gap-3 shrink-0">
       {/* 主按钮 */}
@@ -244,7 +412,6 @@ export function RecorderControls() {
         </Button>
       )}
 
-      {/* 录音中的附加控制与当前配置 */}
       {isRecording && (
         <>
           <Button variant="outline" size="sm" className="gap-2 w-[120px] font-medium px-3" onClick={togglePause}>
@@ -260,6 +427,39 @@ export function RecorderControls() {
             {isMicMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             {isMicMuted ? t.recMuted : t.recMute}
           </Button>
+
+          {/* 录音中热切换识别模型（仅流式模型可切；非流式录音中禁用并提示） */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground px-0.5">{t.recAsrSwitchLabel}</label>
+            <select
+              className="h-8 w-[120px] rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none disabled:opacity-60"
+              value={asrSwitchValue}
+              disabled={asrSwitching || !currentAsrIsStreaming}
+              title={currentAsrIsStreaming ? undefined : t.recAsrSwitchStreamingOnly}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v && v !== asrSwitchValue) void handleAsrSwitch(v)
+              }}
+            >
+              {localStreamingModels.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name.startsWith('x-asr-') ? 'X-ASR' : m.name}
+                  {t.mdLocalSuffix}
+                </option>
+              ))}
+              {remoteEnabled &&
+                remoteAsr.models.map((m) => (
+                  <option key={m.id} value={`remote:${m.id}`}>
+                    {remoteModelDisplayName(m)}
+                  </option>
+                ))}
+              {/* 兜底：当前值不在选项里（如远程目录未加载完）时显示占位，避免 select 空白 */}
+              {![...localStreamingModels.map((m) => m.name), ...remoteAsr.models.map((m) => `remote:${m.id}`)].includes(asrSwitchValue) && (
+                <option value={asrSwitchValue}>{asrSwitchValue}</option>
+              )}
+            </select>
+            {asrSwitching && <span className="text-xs text-muted-foreground px-0.5">{t.recAsrSwitching}</span>}
+          </div>
           <Button
             variant={translateEnabled ? 'default' : 'outline'}
             size="sm"
@@ -294,39 +494,37 @@ export function RecorderControls() {
                   </option>
                 ))}
               </select>
-              <select
-                className="h-8 w-[120px] rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none"
-                value={translationEngine}
-                onChange={(e) => handleEngineChange(e.target.value as TranslationEngine)}
-                title={t.recTranslateEngine}
-              >
-                {translationEngines.includes('opus') && <option value="opus">{t.recEngineOpus}</option>}
-                {translationEngines.includes('hymt2') && <option value="hymt2">{t.recEngineHymt2}</option>}
-                {remoteEnabled && <option value="remote">{t.recEngineRemote}</option>}
-              </select>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted-foreground px-0.5">{t.recTranslateModelLabel}</label>
+                <select
+                  className="h-8 w-[120px] rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none"
+                  value={translateModelValue}
+                  onChange={(e) => handleTranslateModelSelect(e.target.value)}
+                  title={t.recTranslateModelLabel}
+                >
+                  {translationEngines.includes('opus') && <option value="opus">{t.recEngineOpus}</option>}
+                  {translationEngines.includes('hymt2') && <option value="hymt2">{t.recEngineHymt2}</option>}
+                  {/* 远程翻译模型逐个列出（display_name），不再是笼统的一个「远程模型」 */}
+                  {remoteEnabled && remoteTranslate.models.length > 0 && (
+                    <optgroup label={t.recAsrGroupRemote}>
+                      {remoteTranslate.models.map((m) => (
+                        <option key={m.id} value={`remote:${m.id}`}>
+                          {remoteModelDisplayName(m)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {customApiConfigured && <option value="custom-api">{t.recEngineCustomApi}</option>}
+                  {/* 兜底：当前值不在选项里（如远程目录未加载完）时显示占位，避免 select 空白 */}
+                  {!translateModelOptionValues.includes(translateModelValue) && (
+                    <option value={translateModelValue}>
+                      {translationEngine === 'remote' ? t.recEngineRemote : translateModelValue}
+                    </option>
+                  )}
+                </select>
+              </div>
             </>
           )}
-
-          <div className="w-[168px] rounded-md bg-muted/50 p-3 space-y-1.5 text-[11px] text-muted-foreground mt-1">
-            <p className="truncate" title={selectedModel}>
-              <span className="font-medium text-foreground">{t.recLabelAsr}</span>
-              {selectedModel === 'x-asr-480ms' ? t.recModelXAsr : selectedModel === 'sense-voice' ? t.recModelSenseVoice : selectedModel || t.recNoModel}
-            </p>
-            {(selectedModel === 'x-asr-480ms' || selectedModel === 'sense-voice') && (
-              <p className="truncate" title={selectedModel === 'x-asr-480ms' ? t.recLangsXAsr : t.recLangsSenseVoice}>
-                <span className="font-medium text-foreground">{t.recLabelLangs}</span>
-                {selectedModel === 'x-asr-480ms' ? t.recLangsXAsr : t.recLangsSenseVoice}
-              </p>
-            )}
-            <p className="truncate" title={defaultDevices.microphone || t.recNoDevice}>
-              <span className="font-medium text-foreground">{t.recLabelMic}</span>
-              {defaultDevices.microphone || t.recNoDevice}
-            </p>
-            <p className="truncate" title={defaultDevices.speaker || t.recNoDevice}>
-              <span className="font-medium text-foreground">{t.recLabelSpeaker}</span>
-              {defaultDevices.speaker || t.recNoDevice}
-            </p>
-          </div>
 
           {/* 打开 Windows 音频设备设置页（仅录音中显示） */}
           <Button
@@ -340,6 +538,66 @@ export function RecorderControls() {
             {t.recAudioDevices}
           </Button>
         </>
+      )}
+
+      {/* 信息展示：录音开始后才出现，固定排在所有控制按钮最下面；悬浮卡显示当前会话详情。
+          用 Portal 挂到 body（fixed 定位）——左栏容器是 overflow-y-auto，
+          旧 absolute 方案超出栏宽的部分会被整体裁剪（2026-09-17 用户反馈「展示区域不全」的根因）。 */}
+      {isRecording && (
+        <div className="relative">
+          <Button
+            ref={infoBtnRef}
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'gap-1.5 w-[120px] justify-start px-3 text-xs text-muted-foreground',
+              infoOpen && 'bg-accent text-foreground'
+            )}
+            onClick={() => setInfoOpen((v) => !v)}
+          >
+            <Info className="h-3.5 w-3.5" />
+            {t.recInfoToggle}
+          </Button>
+          {infoOpen && infoPos && createPortal(
+            <div
+              className="fixed z-[100] w-[280px] space-y-2 rounded-md border bg-popover p-3 text-[11px] text-muted-foreground shadow-xl"
+              style={{ left: infoPos.left, top: infoPos.top }}
+            >
+              {/* 语音识别：模型名 + 流式/非流式 + 支持语言 + 模型简介 */}
+              <div className="space-y-0.5">
+                <p>
+                  <span className="font-medium text-foreground">{t.recLabelAsr}</span>
+                  {infoModelDisplay} · {infoModeLabel}
+                </p>
+                {infoModelLangs && (
+                  <p className="text-muted-foreground/80">
+                    <span className="font-medium text-foreground">{t.recLabelLangs}</span>
+                    {infoModelLangs}
+                  </p>
+                )}
+                {infoModelDesc && <p className="leading-relaxed text-muted-foreground/70">{infoModelDesc}</p>}
+              </div>
+              <div className="border-t border-border/50" />
+              <p>
+                <span className="font-medium text-foreground">{t.recTranslate}: </span>
+                {translateEnabled ? `${infoEngineLabel} · ${infoTargetLang}` : t.recInfoTranslateOff}
+              </p>
+              <p className="break-all" title={defaultDevices.microphone || t.recNoDevice}>
+                <span className="font-medium text-foreground">{t.recLabelMic}</span>
+                {defaultDevices.microphone || t.recNoDevice}
+              </p>
+              <p className="break-all" title={defaultDevices.speaker || t.recNoDevice}>
+                <span className="font-medium text-foreground">{t.recLabelSpeaker}</span>
+                {defaultDevices.speaker || t.recNoDevice}
+              </p>
+              <p>
+                <span className="font-medium text-foreground">{t.recInfoRemoteLabel}: </span>
+                {infoRemoteStatus}
+              </p>
+            </div>,
+            document.body
+          )}
+        </div>
       )}
 
       <RecordingSetupDialog open={setupOpen} onOpenChange={setSetupOpen} onConfirm={handleConfirmSetup} />
@@ -398,7 +656,7 @@ export function RecorderInfo() {
   }
 
   return (
-    <div className="flex gap-3 items-center h-8">
+    <div className="flex gap-3 items-center h-8 w-full">
       <span className="sh-rec-dot text-primary shrink-0" />
       <span className="font-mono text-2xl font-semibold tracking-wider leading-none tabular-nums">
         {formatDuration(recordingDuration)}
@@ -408,7 +666,8 @@ export function RecorderInfo() {
         <LevelMeter label={t.recMicShort} value={audioLevels.mic} title={t.recMicLevelTitle} />
         <LevelMeter label={t.recSysShort} value={audioLevels.system} title={t.recSysLevelTitle} />
       </div>
-      <div className="flex-1 min-w-0 h-full rounded-md border bg-muted/40 px-1.5 py-0.5">
+      {/* 能量条：ml-auto 整体靠右与计时/指示灯拉开间距；flex-1 加宽、max-w 限宽、min-w 防窄窗口溢出 */}
+      <div className="ml-auto flex-1 min-w-[100px] max-w-[380px] h-full rounded-md border bg-muted/40 px-1.5 py-0.5">
         <AudioSpectrumBars />
       </div>
     </div>

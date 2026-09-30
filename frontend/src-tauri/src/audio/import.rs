@@ -19,7 +19,7 @@ use uuid::Uuid;
 use super::audio_processing::create_meeting_folder;
 use super::common::write_transcripts_json;
 use super::constants::AUDIO_EXTENSIONS;
-use super::recording_preferences::get_default_recordings_folder;
+use super::recording_preferences::resolved_recordings_folder;
 
 /// Global flag to track if import is in progress
 static IMPORT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
@@ -117,8 +117,7 @@ pub fn validate_audio_file(path: &Path) -> Result<AudioFileInfo> {
         ));
     }
 
-    let metadata = std::fs::metadata(path)
-        .map_err(|e| anyhow!("Cannot read file: {}", e))?;
+    let metadata = std::fs::metadata(path).map_err(|e| anyhow!("Cannot read file: {}", e))?;
     let size_bytes = metadata.len();
 
     if size_bytes > MAX_FILE_SIZE_BYTES {
@@ -141,7 +140,10 @@ pub fn validate_audio_file(path: &Path) -> Result<AudioFileInfo> {
             duration
         }
         Err(e) => {
-            warn!("Metadata extraction failed: {}, falling back to full decode", e);
+            warn!(
+                "Metadata extraction failed: {}, falling back to full decode",
+                e
+            );
             let decoded = decode_audio_file(path)?;
             decoded.duration_seconds
         }
@@ -162,8 +164,8 @@ fn extract_duration_from_metadata(path: &Path) -> Result<f64> {
     use symphonia::core::meta::MetadataOptions;
     use symphonia::core::probe::Hint;
 
-    let file = std::fs::File::open(path)
-        .map_err(|e| anyhow!("Failed to open audio file: {}", e))?;
+    let file =
+        std::fs::File::open(path).map_err(|e| anyhow!("Failed to open audio file: {}", e))?;
 
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -276,17 +278,18 @@ async fn run_import<R: Runtime>(
         return Err(anyhow!("Import cancelled"));
     }
 
-    let base_folder = get_default_recordings_folder();
-    let meeting_folder = create_meeting_folder(&base_folder, &title, false)?;
+    // 导入的会议文件夹建在用户配置的录音目录下（与实时录音一致），
+    // 此前硬编码默认目录导致「设置里改了目录，导入的文件仍进 ~/recordings」。
+    let base_folder = resolved_recordings_folder(&app).await;
+    // 文件夹名固定 Rec_ 前缀（语言无关）；源文件名作为会议标题记库/显示
+    let meeting_folder =
+        create_meeting_folder(&base_folder, super::audio_processing::MEETING_FOLDER_PREFIX, false)?;
 
     emit_progress(&app, "copying", 40, "复制音频文件...");
 
     let dest_filename = format!(
         "audio.{}",
-        source
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("mp4")
+        source.extension().and_then(|e| e.to_str()).unwrap_or("mp4")
     );
     let dest_path = meeting_folder.join(&dest_filename);
 
@@ -375,7 +378,10 @@ async fn create_meeting_with_transcripts(
     let recording_id = format!("recording-{}", Uuid::new_v4());
     let now = chrono::Utc::now();
 
-    let mut conn = pool.acquire().await.map_err(|e| anyhow!("DB error: {}", e))?;
+    let mut conn = pool
+        .acquire()
+        .await
+        .map_err(|e| anyhow!("DB error: {}", e))?;
     let mut tx = sqlx::Connection::begin(&mut *conn)
         .await
         .map_err(|e| anyhow!("Failed to start transaction: {}", e))?;
@@ -471,7 +477,10 @@ pub async fn select_and_validate_audio_command<R: Runtime>(
         app_clone
             .dialog()
             .file()
-            .add_filter("Audio Files", &AUDIO_EXTENSIONS.iter().map(|s| *s).collect::<Vec<_>>())
+            .add_filter(
+                "Audio Files",
+                &AUDIO_EXTENSIONS.iter().map(|s| *s).collect::<Vec<_>>(),
+            )
             .blocking_pick_file()
     })
     .await

@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  html, body { width:100%; height:100%; margin:0; padding:0; overflow:hidden; background:transparent; }
+  body.expanded, body.expanded ~ html { overflow: visible; }
+  #ball {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: #FF4B4B;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    position: absolute; top: 0; left: 0;
+    cursor: grab;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: #fff;
+    user-select: none; -webkit-user-select: none;
+    z-index: 10;
+    transition: top 0.15s ease, left 0.15s ease;
+  }
+  body.expanded #ball {
+    top: 52px; left: 52px;
+  }
+  /* 白色声波纹（与 App 图标/顶栏 logo 同一组比例 8:14:10:14:9）：静止时是 logo，录音时跳动 */
+  #ball .spectrum {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 17px;
+  }
+  #ball .spectrum span {
+    display: block;
+    width: 3.5px;
+    background: #fff;
+    border-radius: 1.5px;
+    opacity: 0.95;
+  }
+  #ball .spectrum span:nth-child(1) { height: 10px; }
+  #ball .spectrum span:nth-child(2) { height: 17px; }
+  #ball .spectrum span:nth-child(3) { height: 12px; }
+  #ball .spectrum span:nth-child(4) { height: 17px; }
+  #ball .spectrum span:nth-child(5) { height: 11px; }
+
+  /* 品牌简称（频谱图下方）；录音中被替换为计时（mm:ss，超 1 小时 h:mm:ss 缩小字号防溢出） */
+  #ball .brand {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    color: #fff;
+    opacity: 0.95;
+    font-variant-numeric: tabular-nums;
+  }
+  #ball .brand.timer-long {
+    font-size: 8.5px;
+    letter-spacing: 0;
+  }
+
+  @keyframes spectrum-bounce {
+    0%, 100% { transform: scaleY(1); }
+    50% { transform: scaleY(0.35); }
+  }
+  #ball.recording .spectrum span {
+    animation: spectrum-bounce 0.6s ease-in-out infinite;
+  }
+  #ball.recording .spectrum span:nth-child(1) { animation-delay: 0.0s; }
+  #ball.recording .spectrum span:nth-child(2) { animation-delay: 0.15s; }
+  #ball.recording .spectrum span:nth-child(3) { animation-delay: 0.3s; }
+  #ball.recording .spectrum span:nth-child(4) { animation-delay: 0.1s; }
+  #ball.recording .spectrum span:nth-child(5) { animation-delay: 0.25s; }
+
+  /* 静音指示：白底圆点 + 红色静音图标（与红色球体区分） */
+  #ball .mute-indicator {
+    position: absolute;
+    bottom: 1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 11px;
+    height: 11px;
+    background: #fff;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+  #ball .mute-indicator svg {
+    width: 7px;
+    height: 7px;
+    color: #FF4B4B;
+  }
+  #ball.muted .mute-indicator {
+    display: flex;
+  }
+
+  #ball:active { cursor: grabbing; }
+
+  .menu-item {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    position: absolute; top: 60px; left: 60px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 11px;
+    cursor: pointer;
+    opacity: 0;
+    transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--scale, 0.5));
+    transition: opacity 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+    z-index: 5;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  }
+  .menu-item.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .menu-item:hover { --scale: 1.15; }
+
+  /* Tooltip：固定在 160x160 窗口底部居中显示。菜单项环绕球体排布，tooltip 挂在按钮
+     任一侧都可能超出小窗口被裁剪、或藏到球体（z-index 更高）后面；窗口下半区是空的，
+     放底部总能完整显示。left/top 用 --tx/--ty 从「相对菜单项」反算回窗口坐标：
+     菜单项左上角 = (60+tx, 60+ty)，故水平居中到窗口 x=80 → left = 20-tx；
+     顶边对齐窗口 y=126 → top = 66-ty */
+  .menu-item::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(20px - var(--tx, 0px));
+    top: calc(66px - var(--ty, 0px));
+    transform: translateX(-50%) scale(0.9);
+    background: #1e293b;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .menu-item.visible:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+
+  .mi-mute  { background: linear-gradient(135deg, #dc2626, #f87171); }
+  .mi-unmute { background: linear-gradient(135deg, #22c55e, #4ade80); }
+  .mi-subtitle { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+  .mi-subtitle.active { background: linear-gradient(135deg, #10b981, #34d399); }
+  .mi-main   { background: linear-gradient(135deg, #10b981, #34d399); }
+  /* 当前状态段（高亮 = 当前所处模式） */
+  .mi-mute.current, .mi-unmute.current {
+    transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(1.15);
+    box-shadow: 0 0 12px rgba(0,0,0,0.35);
+    z-index: 6;
+  }
+  /* 未录音时双段均禁用（灰） */
+  .mi-mute.disabled, .mi-unmute.disabled {
+    background: #9ca3af;
+    opacity: 0.4;
+    pointer-events: none;
+    box-shadow: none;
+  }
+</style>
+</head>
+<body>
+  <div id="ball">
+    <div class="spectrum">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="brand">VoxMin</div>
+    <div class="mute-indicator" title="麦克风已静音">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v6a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+    </div>
+  </div>
+
+  <div class="menu-item mi-unmute" data-action="unmute" data-tooltip="开启麦克风" title="开启麦克风">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+  </div>
+  <div class="menu-item mi-mute" data-action="mute" data-tooltip="麦克风静音" title="麦克风静音">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v6a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+  </div>
+  <div class="menu-item mi-subtitle" data-action="subtitle" data-tooltip="桌面字幕" title="桌面字幕">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h4"/><path d="M13 10h4"/><path d="M7 14h10"/></svg>
+  </div>
+  <div class="menu-item mi-main" data-action="main" data-tooltip="主窗口" title="主窗口">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+  </div>
+  <!-- 2026-09-22：原「隐藏」按钮已移除。再次点击悬浮球本身就是收起菜单，
+       多一个关闭按钮语义重复且容易误点。 -->
+
+  <script>
+    (function() {
+      var ball = document.getElementById('ball');
+      var menuItems = document.querySelectorAll('.menu-item');
+      var menuOpen = false;
+
+      function tauriInvoke(cmd, args) {
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            return window.__TAURI_INTERNALS__.invoke(cmd, args || {});
+          }
+        } catch(e) { /* ignore */ }
+        return Promise.resolve();
+      }
+
+      var listenAvailable = false;
+      function tauriListen(event, handler) {
+        try {
+          if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
+            listenAvailable = true;
+            return window.__TAURI__.event.listen(event, handler);
+          }
+        } catch(e) { /* ignore */ }
+        return Promise.resolve(function() {});
+      }
+
+      var isRecording = false;
+
+      // --- 录音计时：录音中把「VoxMin」品牌文字替换为时长（mm:ss；超 1 小时 h:mm:ss），
+      // 动态频谱条保留（活的工作状态指示）；停止后恢复品牌文字。
+      // 本地计时即可：started/resumed 起走、paused 冻结、stopped 复位；
+      // 加载/轮询同步时用后端 get_recording_state 的 active_duration（不含暂停）校准。
+      var brandEl = ball.querySelector('.brand');
+      var BRAND_TEXT = brandEl ? brandEl.textContent : 'VoxMin';
+      var recBaseMs = 0;    // 已累计的有效录音时长（不含暂停）
+      var recResumeTs = 0;  // 当前计时段墙钟起点（0 = 暂停中/未录音）
+      var recTimerId = null;
+
+      function pad2(n) { return (n < 10 ? '0' : '') + n; }
+      function elapsedNow() {
+        return recBaseMs + (recResumeTs ? Date.now() - recResumeTs : 0);
+      }
+      function renderElapsed() {
+        if (!brandEl) return;
+        var s = Math.floor(elapsedNow() / 1000);
+        var h = Math.floor(s / 3600);
+        var m = Math.floor((s % 3600) / 60);
+        var sec = s % 60;
+        var txt = h > 0 ? h + ':' + pad2(m) + ':' + pad2(sec) : pad2(m) + ':' + pad2(sec);
+        brandEl.textContent = txt;
+        brandEl.classList.toggle('timer-long', h > 0);
+      }
+      function tickStart() {
+        tickStop();
+        recTimerId = setInterval(renderElapsed, 1000);
+        renderElapsed();
+      }
+      function tickStop() {
+        if (recTimerId) { clearInterval(recTimerId); recTimerId = null; }
+      }
+      function startElapsedTimer(baseMs) {
+        recBaseMs = baseMs || 0;
+        recResumeTs = Date.now();
+        tickStart();
+      }
+      function pauseElapsedTimer() {
+        if (!recResumeTs && !recTimerId) return; // 未在计时
+        recBaseMs = elapsedNow();
+        recResumeTs = 0;
+        tickStop();
+        renderElapsed(); // 冻结显示当前时长
+      }
+      function resumeElapsedTimer() {
+        recResumeTs = Date.now();
+        tickStart();
+      }
+      function stopElapsedTimer() {
+        tickStop();
+        recBaseMs = 0;
+        recResumeTs = 0;
+        if (brandEl) {
+          brandEl.textContent = BRAND_TEXT;
+          brandEl.classList.remove('timer-long');
+        }
+      }
+
+      // --- 录音状态 UI ---
+      function setRecordingState(recording) {
+        isRecording = !!recording;
+        if (isRecording) {
+          ball.classList.add('recording');
+        } else {
+          ball.classList.remove('recording');
+        }
+        updateMicItems();
+      }
+
+      // --- 静音状态 UI + 双段式控制 ---
+      function updateMicItems() {
+        var unmuteBtn = document.querySelector('.mi-unmute');
+        var muteBtn = document.querySelector('.mi-mute');
+        if (!unmuteBtn || !muteBtn) return;
+
+        if (!isRecording) {
+          // 未录音：双段均禁用（灰），不可交互
+          unmuteBtn.classList.add('disabled');
+          muteBtn.classList.add('disabled');
+          unmuteBtn.classList.remove('current');
+          muteBtn.classList.remove('current');
+        } else if (ball.classList.contains('muted')) {
+          // 当前已静音 → 绿色「开启」是可点动作，红色「静音」是当前状态（禁用）
+          unmuteBtn.classList.remove('disabled');
+          muteBtn.classList.add('disabled');
+          unmuteBtn.classList.remove('current');
+          muteBtn.classList.add('current');
+        } else {
+          // 当前未静音 → 红色「静音」是可点动作，绿色「开启」是当前状态（禁用）
+          muteBtn.classList.remove('disabled');
+          unmuteBtn.classList.add('disabled');
+          muteBtn.classList.remove('current');
+          unmuteBtn.classList.add('current');
+        }
+      }
+
+      function setMuteState(isMuted) {
+        if (isMuted) {
+          ball.classList.add('muted');
+        } else {
+          ball.classList.remove('muted');
+        }
+        updateMicItems();
+      }
+
+      var subtitleBtn = document.querySelector('.mi-subtitle');
+
+      // --- 桌面字幕状态 UI ---
+      function setSubtitleState(enabled) {
+        if (subtitleBtn) {
+          subtitleBtn.classList.toggle('active', !!enabled);
+          var tip = enabled ? '关闭字幕' : '桌面字幕';
+          subtitleBtn.setAttribute('data-tooltip', tip);
+          subtitleBtn.setAttribute('title', enabled ? '关闭桌面字幕' : '开启桌面字幕');
+        }
+      }
+
+      // --- 初始状态查询 ---
+      function syncState() {
+        tauriInvoke('is_recording').then(function(recording) {
+          setRecordingState(!!recording);
+          if (!recording) { setMuteState(false); }
+        }).catch(function() {});
+        tauriInvoke('get_recording_state').then(function(state) {
+          if (state && typeof state.is_recording === 'boolean') {
+            setRecordingState(state.is_recording);
+            if (!state.is_recording) { setMuteState(false); }
+            // 计时校准：active_duration（秒，不含暂停）为后端权威值；
+            // 轮询降级时每 2s 重校一次也无妨（暂停中该值不前进）
+            if (state.is_recording) {
+              var baseMs = typeof state.active_duration === 'number' ? state.active_duration * 1000 : 0;
+              if (state.is_paused) {
+                recBaseMs = baseMs;
+                recResumeTs = 0;
+                tickStop();
+                renderElapsed();
+              } else {
+                startElapsedTimer(baseMs);
+              }
+            } else {
+              stopElapsedTimer();
+            }
+          }
+        }).catch(function() {});
+        tauriInvoke('get_mic_mute').then(function(muted) {
+          setMuteState(!!muted);
+        }).catch(function() {
+          // 未录音时 get_mic_mute 返回 Err("No active recording")，按未静音处理
+          setMuteState(false);
+        });
+        tauriInvoke('get_subtitle_window_state').then(function(enabled) {
+          setSubtitleState(!!enabled);
+        }).catch(function() {
+          setSubtitleState(false);
+        });
+      }
+
+      // --- 状态变更事件 ---
+      tauriListen('recording-started', function() {
+        setRecordingState(true);
+        setMuteState(true);
+        startElapsedTimer(0);
+      });
+      tauriListen('recording-stopped', function() {
+        setRecordingState(false);
+        setMuteState(false);
+        stopElapsedTimer();
+      });
+      tauriListen('recording-paused', function() {
+        pauseElapsedTimer();
+      });
+      tauriListen('recording-resumed', function() {
+        resumeElapsedTimer();
+      });
+      tauriListen('mic-mute-changed', function(event) {
+        var payload = event && event.payload ? event.payload : event;
+        if (payload && typeof payload.muted === 'boolean') {
+          setMuteState(payload.muted);
+        }
+      });
+      tauriListen('subtitle-window-state', function(event) {
+        var payload = event && event.payload ? event.payload : event;
+        if (payload && typeof payload.visible === 'boolean') {
+          setSubtitleState(payload.visible);
+        }
+      });
+      tauriListen('floating-ball-state', function(event) {
+        var payload = event && event.payload ? event.payload : event;
+        if (payload && payload.visible === false && menuOpen) {
+          menuOpen = false;
+          setMenuVisible(false);
+        }
+      });
+
+      // 加载时同步一次
+      syncState();
+
+      // 初始为 56×56 紧凑窗口（只有球体，无透明死区）
+      tauriInvoke('set_floating_ball_compact', { compact: true }).catch(function() {});
+
+      // listen 不可用时的 2s 轮询降级
+      setTimeout(function() {
+        if (!listenAvailable) {
+          setInterval(syncState, 2000);
+        }
+      }, 500);
+
+      var mouseDownPos = null;
+      var wasDragged = false;
+      var dragMoveQueued = false;
+      var lastDragDelta = null;
+
+      var lastToggleTime = 0;
+      function toggleMenu() {
+        var now = Date.now();
+        if (now - lastToggleTime < 400) return;
+        lastToggleTime = now;
+        menuOpen = !menuOpen;
+        setMenuVisible(menuOpen);
+      }
+
+      // --- 拖拽 + 单击（mig/Windows 同款交互模型）：
+      // mousedown 只记录起点（用 screenX 屏幕坐标——窗口跟着动也不影响测量）；
+      // mousemove 累计位移超过 5px 才认定为拖动 → rAF 合帧调 floating_ball_drag_to
+      // （传「相对按下点的总位移」，Rust 按 起点+总位移 绝对定位并钳制进屏幕）；
+      // click 时若刚拖过（wasDragged）则不弹菜单。
+      // 点击从不触发拖拽、拖拽从不触发菜单——两者在发起前就分开了。
+      ball.addEventListener('mousedown', function(e) {
+        if (e.button !== 0) return;
+        mouseDownPos = { x: e.screenX, y: e.screenY };
+        wasDragged = false;
+        tauriInvoke('floating_ball_drag_begin');
+      });
+
+      document.addEventListener('mousemove', function(e) {
+        if (!mouseDownPos) return;
+        if (!(e.buttons & 1)) { mouseDownPos = null; return; } // 按键已在窗口外松开
+        var dx = e.screenX - mouseDownPos.x;
+        var dy = e.screenY - mouseDownPos.y;
+        if (!wasDragged) {
+          if (Math.abs(dx) <= 5 && Math.abs(dy) <= 5) return; // 5px 阈值内仍算单击
+          wasDragged = true;
+          if (menuOpen) { menuOpen = false; setMenuVisible(false); } // 拖动即收起菜单
+        }
+        lastDragDelta = { dx: dx, dy: dy };
+        if (!dragMoveQueued) {
+          dragMoveQueued = true;
+          requestAnimationFrame(function() {
+            dragMoveQueued = false;
+            if (lastDragDelta) {
+              tauriInvoke('floating_ball_drag_to', { dx: lastDragDelta.dx, dy: lastDragDelta.dy });
+            }
+          });
+        }
+      });
+
+      document.addEventListener('mouseup', function() {
+        if (mouseDownPos && wasDragged) {
+          tauriInvoke('floating_ball_drag_end');
+        }
+        mouseDownPos = null;
+        // wasDragged 不能在这里清——click 在 mouseup 之后才派发，要等 click 先读到它
+      });
+
+      ball.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (wasDragged) return; // 拖动后的 click 不弹菜单
+        toggleMenu();
+      });
+
+      function setMenuVisible(open) {
+        // 窗口尺寸切换：紧凑 56×56（球体，无死区）vs 展开 160×160（完整菜单），
+        // 避免透明区域挡住下层窗口的点击
+        tauriInvoke('set_floating_ball_compact', { compact: !open }).catch(function() {});
+        if (open) { document.body.classList.add('expanded'); }
+        else { document.body.classList.remove('expanded'); }
+
+        var r = 46;
+        var count = menuItems.length;
+        for (var i = 0; i < count; i++) {
+          var item = menuItems[i];
+          if (open) {
+            // 上半圆环均匀排布（完整落在 160x160 窗口内）
+            var angle = Math.PI + (Math.PI / (count - 1)) * i;
+            var x = Math.cos(angle) * r;
+            var y = Math.sin(angle) * r;
+            item.style.setProperty('--tx', x + 'px');
+            item.style.setProperty('--ty', y + 'px');
+            item.style.setProperty('--scale', '1');
+            item.classList.add('visible');
+          } else {
+            item.style.setProperty('--tx', '0px');
+            item.style.setProperty('--ty', '0px');
+            item.style.setProperty('--scale', '0.5');
+            item.classList.remove('visible');
+          }
+        }
+      }
+
+      // --- 菜单项点击 ---
+      for (var i = 0; i < menuItems.length; i++) {
+        menuItems[i].addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (this.classList.contains('disabled')) return;
+          var action = this.dataset.action;
+          if (action === 'main') {
+            tauriInvoke('focus_main_window');
+          } else if (action === 'mute' || action === 'unmute') {
+            tauriInvoke('toggle_mic_mute').then(function(newState) {
+              setMuteState(!!newState);
+            }).catch(function(err) {
+              console.error('[FloatingBall] toggle_mic_mute failed:', err);
+            });
+          } else if (action === 'subtitle') {
+            tauriInvoke('toggle_subtitle_window').then(function(newState) {
+              setSubtitleState(!!newState);
+            }).catch(function(err) {
+              console.error('[FloatingBall] toggle_subtitle_window failed:', err);
+            });
+          }
+          menuOpen = false;
+          setMenuVisible(false);
+        });
+      }
+
+      // --- 点击球体/菜单以外区域 → 收起 ---
+      document.addEventListener('click', function(e) {
+        if (!menuOpen) return;
+        if (ball.contains(e.target)) return;
+        for (var i = 0; i < menuItems.length; i++) {
+          if (menuItems[i].contains(e.target)) return;
+        }
+        menuOpen = false;
+        setMenuVisible(false);
+      });
+
+      // --- 诊断：排查「球收不到鼠标事件」（2026-09-22）---
+      // 每类事件只上报一次，日志里 grep floatprobe：
+      //   有 mouseenter  → 事件能到页面，问题在拖拽/光标逻辑
+      //   一条都没有      → 事件根本没到页面（窗口级问题：点击穿透 / 非前台 App 吞掉首击 / z 序）
+      var diagSent = {};
+      function diag(key, msg) {
+        if (diagSent[key]) return;
+        diagSent[key] = true;
+        tauriInvoke('floating_ball_diag', { msg: msg });
+      }
+      function reportLayout() {
+        var r = ball.getBoundingClientRect();
+        diag('load',
+          'load viewport=' + window.innerWidth + 'x' + window.innerHeight +
+          ' dpr=' + window.devicePixelRatio +
+          ' ball=(' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' +
+          Math.round(r.width) + 'x' + Math.round(r.height) + ')' +
+          ' bodyClass="' + document.body.className + '"' +
+          ' invoke=' + (window.__TAURI_INTERNALS__ ? 'ok' : 'MISSING'));
+      }
+      if (document.readyState === 'complete') { reportLayout(); }
+      else { window.addEventListener('load', reportLayout); }
+      ball.addEventListener('mouseenter', function() { diag('enter', 'mouseenter #ball'); });
+      ball.addEventListener('mousedown', function(e) { diag('down', 'mousedown #ball button=' + e.button); });
+      ball.addEventListener('click', function() { diag('click', 'click #ball'); });
+      document.addEventListener('mousemove', function() { diag('move', 'mousemove document'); });
+      window.addEventListener('focus', function() { diag('focus', 'window focus'); });
+      window.addEventListener('blur', function() { diag('blur', 'window blur'); });
+    })();
+  </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-use super::provider::{TranscriptionError, TranscriptionProvider, TranscriptResult};
+use super::provider::{TranscriptResult, TranscriptionError, TranscriptionProvider};
 use async_trait::async_trait;
 use log::{info, warn};
 use std::sync::Arc;
@@ -96,6 +96,8 @@ impl TranscriptionProvider for SherpaOnnxProvider {
                 text,
                 confidence: Some(0.9),
                 is_partial: false,
+                utterances: vec![],
+                warnings: Vec::new(),
             });
         }
 
@@ -170,6 +172,8 @@ impl TranscriptionProvider for SherpaOnnxProvider {
             text: combined_text,
             confidence: Some(0.85),
             is_partial: false,
+            utterances: vec![],
+            warnings: Vec::new(),
         })
     }
 

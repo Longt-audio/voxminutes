@@ -16,31 +16,38 @@ import { useLanguageStore } from '@/stores/languageStore'
 import {
   composeFullPrompt,
   getBuiltinPrompts,
+  loadOutputPrefs,
   loadPrompts,
   loadUserPrompts,
+  OUTPUT_LANGUAGES,
   pickUserPrompts,
   resetBuiltinOverride,
   saveCustomPrompts,
+  saveOutputPrefs,
+  defaultOutputLang,
   type SummaryPromptPreset,
 } from '@/lib/summaryPrompts'
 import { loadAiWebSites, resetAiWebSites, saveAiWebSites, type AiWebSite } from '@/lib/aiWebSites'
-import { summaryGetConfig, summaryLocalModels } from '@/services/ipc'
+import { remoteModelOptionLabel, useRemoteModelChoice } from '@/lib/remoteModelChoice'
+import { getRemoteEnabled, summaryGetConfig, summaryLocalModels } from '@/services/ipc'
 import type { SummaryGenerateParams } from '@/hooks/useSummaryGeneration'
 import type { SummaryApiConfig, SummaryLocalModelInfo } from '@/types'
 
-type MethodTab = 'web' | 'api' | 'local'
+type MethodTab = 'web' | 'api' | 'local' | 'remote'
 
-// 方式 tab 顺序持久化 key；读取时校验恰好包含 3 个合法 id，否则回退默认
+// 方式 tab 顺序持久化 key；读取时校验恰好包含 4 个合法 id（无重复），否则回退默认
 const METHOD_ORDER_KEY = 'voxminutes-summary-method-order'
-const DEFAULT_METHOD_ORDER: MethodTab[] = ['local', 'api', 'web']
+const METHOD_TABS: readonly MethodTab[] = ['remote', 'local', 'api', 'web']
+const DEFAULT_METHOD_ORDER: MethodTab[] = ['remote', 'local', 'api', 'web']
 
 function loadMethodOrder(): MethodTab[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(METHOD_ORDER_KEY) ?? 'null')
     if (
       Array.isArray(parsed) &&
-      parsed.length === DEFAULT_METHOD_ORDER.length &&
-      DEFAULT_METHOD_ORDER.every((m) => parsed.includes(m))
+      parsed.length === METHOD_TABS.length &&
+      parsed.every((m) => typeof m === 'string' && (METHOD_TABS as readonly string[]).includes(m)) &&
+      new Set(parsed).size === METHOD_TABS.length
     ) {
       return parsed as MethodTab[]
     }
@@ -64,7 +71,7 @@ interface SummaryDialogProps {
   onPromptChange?: (id: string) => void
 }
 
-/** 会议总结配置对话框：AI 网站 / API / 本地模型三种方式 + 模板与 prompt 编辑（生成在结果面板进行） */
+/** 会议总结配置对话框：远程网关 / 本地模型 / API / AI 网站四种方式 + 模板与 prompt 编辑（生成在结果面板进行） */
 export function SummaryDialog({
   open,
   onOpenChange,
@@ -80,9 +87,13 @@ export function SummaryDialog({
   const [method, setMethod] = useState<MethodTab>(DEFAULT_METHOD_ORDER[0])
   const dragTabRef = useRef<MethodTab | null>(null)
   const [prompts, setPrompts] = useState<SummaryPromptPreset[]>([])
-  const [innerPromptId, setInnerPromptId] = useState('default')
+  const [innerPromptId, setInnerPromptId] = useState('simple')
   const [promptContent, setPromptContent] = useState('')
-  const [editorOpen, setEditorOpen] = useState(false)
+  // 提示词编辑区默认展开（2026-09-27 用户要求：打开弹窗即可看到/编辑 prompt）
+  const [editorOpen, setEditorOpen] = useState(true)
+  // 「输出语言」下拉（默认 = 界面语言）+「附加要求」输入框（作用于所有模板；独立 localStorage key 持久化）
+  const [outputLang, setOutputLang] = useState('zh')
+  const [outputExtra, setOutputExtra] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [newPresetName, setNewPresetName] = useState('')
   const [newPresetContent, setNewPresetContent] = useState('')
@@ -93,8 +104,22 @@ export function SummaryDialog({
   const [newSiteUrl, setNewSiteUrl] = useState('')
 
   const [apiConfig, setApiConfig] = useState<SummaryApiConfig | null>(null)
+  // 表单本体在「设置 → 自定义 LLM」；此处只保留已保存配置（生成参数 + 摘要行用）
   const [localModels, setLocalModels] = useState<SummaryLocalModelInfo[] | null>(null)
   const [localModelId, setLocalModelId] = useState('')
+
+  // 远程网关：总开关（false 时给引导）+ 远程 LLM 模型
+  const [remoteEnabled, setRemoteEnabled] = useState<boolean | null>(null)
+  // kind='summary'：**总结有自己的持久化字段**（后端 REMOTE_SUMMARY_MODEL），不再借用
+  // 'translate'。为什么必须分开（2026-09-23）：网关后台给 LLM 标了用途，而总结与翻译的
+  // 合法模型集**不相交** —— 豆包机器翻译只翻译、deepseek-flash 只总结。共用字段时，
+  // 在总结里选模型会把用户在翻译页的选择改掉（两侧的「失配自动纠正」还会互相打架）。
+  //
+  // usage:'summary' 过滤掉「只翻译」的模型。另外**保留一条 protocol 判断**：
+  // 旧版网关不下发 usage（一律按 both），只靠 usage 会让豆包翻译重新出现在总结下拉里，
+  // 点下去就被网关 400（这是 2026-09-20 加这条硬编码的原因）。两重过滤成本为零。
+  const remoteChoice = useRemoteModelChoice('summary', { usage: 'summary' })
+  const summaryModels = remoteChoice.models.filter((m) => m.protocol !== 'doubao-mt')
 
   const promptId = controlledPromptId ?? innerPromptId
 
@@ -114,14 +139,21 @@ export function SummaryDialog({
     }
   }, [transcript])
 
-  // 打开时加载：模板列表 / 网站列表 / API 配置 / 本地模型状态
+  // 打开时加载：模板列表 / 网站列表 / API 配置 / 本地模型状态 / 远程总开关 / 输出语言与附加要求
   useEffect(() => {
     if (!open) return
     setPrompts(loadPrompts(language))
     setSites(loadAiWebSites())
+    const prefs = loadOutputPrefs(language)
+    setOutputLang(prefs.lang)
+    setOutputExtra(prefs.extra)
+    setEditorOpen(true)
     summaryGetConfig()
-      .then(setApiConfig)
+      .then((config) => setApiConfig(config))
       .catch(() => setApiConfig(null))
+    getRemoteEnabled()
+      .then((enabled) => setRemoteEnabled(enabled))
+      .catch(() => setRemoteEnabled(false))
     summaryLocalModels()
       .then((models) => {
         setLocalModels(models)
@@ -145,6 +177,26 @@ export function SummaryDialog({
   const handlePromptChange = (id: string) => {
     if (onPromptChange) onPromptChange(id)
     else setInnerPromptId(id)
+  }
+
+  // 选中模板已不存在（如旧版 bilingual 模板已下线、或自定义模板被删）时回落到第一个模板
+  useEffect(() => {
+    if (!open || prompts.length === 0) return
+    if (!prompts.some((p) => p.id === promptId)) handlePromptChange(prompts[0].id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prompts, promptId])
+
+  // 输出语言 + 附加要求：保存 / 恢复默认（默认语言 = 界面语言，附加要求清空）
+  const handleSaveOutputPrefs = () => {
+    saveOutputPrefs({ lang: outputLang, extra: outputExtra.trim() })
+    toast.success(t.sumPresetSaved)
+  }
+  const handleResetOutputPrefs = () => {
+    const prefs = { lang: defaultOutputLang(language), extra: '' }
+    saveOutputPrefs(prefs)
+    setOutputLang(prefs.lang)
+    setOutputExtra(prefs.extra)
+    toast.success(t.sumPresetSaved)
   }
 
   // 编辑器里显式保存：内置模板存为 override，自定义模板整体持久化
@@ -176,7 +228,7 @@ export function SummaryDialog({
     saveCustomPrompts(loadUserPrompts(language).filter((p) => p.id !== promptId))
     setPrompts(loadPrompts(language))
     setEditorOpen(false)
-    handlePromptChange('default')
+    handlePromptChange('simple')
   }
 
   // 清除当前内置模板的用户覆盖，恢复默认内容
@@ -211,7 +263,7 @@ export function SummaryDialog({
 
   const handleCopyAndOpen = async (site: AiWebSite) => {
     try {
-      await navigator.clipboard.writeText(composeFullPrompt(promptContent, clip.text))
+      await navigator.clipboard.writeText(composeFullPrompt(promptContent, clip.text, { lang: outputLang, extra: outputExtra }))
       await openUrl(site.url)
       toast.success(t.sumCopiedFull)
     } catch {
@@ -223,16 +275,24 @@ export function SummaryDialog({
 
   const canGenerate =
     !!clip.text.trim() &&
-    (method === 'api' ? !!apiConfig : method === 'local' ? installedLocalModels.length > 0 : false)
+    (method === 'api'
+      ? !!apiConfig
+      : method === 'local'
+        ? installedLocalModels.length > 0
+        : method === 'remote'
+          ? remoteEnabled === true && !!remoteChoice.value
+          : false)
 
   // 生成：交给父组件打开结果面板，自己关闭
   const handleGenerate = () => {
     if (!canGenerate || method === 'web') return
     onGenerate({
       method,
-      prompt: composeFullPrompt(promptContent, clip.text),
+      prompt: composeFullPrompt(promptContent, clip.text, { lang: outputLang, extra: outputExtra }),
       apiConfig,
       localModelId: localModelId || undefined,
+      // 豆包翻译不参与总结：选中时回退默认模型（网关侧也会拒绝）
+      remoteModelId: method === 'remote' && remoteChoice.value !== 'doubao-mt' ? remoteChoice.value : undefined,
     })
     onOpenChange(false)
   }
@@ -254,6 +314,7 @@ export function SummaryDialog({
     web: t.sumTabWeb,
     api: t.sumTabApi,
     local: t.sumTabLocal,
+    remote: t.sumTabRemote,
   }
 
   return (
@@ -287,7 +348,9 @@ export function SummaryDialog({
           ))}
         </div>
 
-        {/* 模板选择 + 可折叠 prompt 编辑器（三种方式共用） */}
+        {/* 中间内容区（模板 + prompt 编辑器 + 输出设置 + 各方式内容）：超出时滚动，底部按钮固定 */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1">
+        {/* 模板选择 + 可折叠 prompt 编辑器（四种方式共用） */}
         <div className="shrink-0 flex items-center gap-2">
           <span className="shrink-0 text-xs text-muted-foreground">{t.sumPromptPreset}</span>
           <Select value={promptId} onValueChange={handlePromptChange}>
@@ -338,6 +401,42 @@ export function SummaryDialog({
             </div>
           </div>
         )}
+
+        {/* 输出语言 + 附加要求（作用于所有模板）：生成时自动按所选语言拼接一句英文输出语言指令，
+            再附上用户的附加要求（非空才拼）。与模板编辑器用虚线框 + 弱底色区分；独立 localStorage key 持久化。 */}
+        <div className="shrink-0 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium">{t.sumOutputLanguageLabel}</span>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={handleResetOutputPrefs}>
+                {t.sumResetPreset}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={handleSaveOutputPrefs}>
+                {t.comSave}
+              </Button>
+            </div>
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{t.sumOutputLanguageHint}</p>
+          <Select value={outputLang} onValueChange={setOutputLang}>
+            <SelectTrigger className="mt-1.5 h-8 w-full text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OUTPUT_LANGUAGES.map((l) => (
+                <SelectItem key={l.id} value={l.id} className="text-xs">
+                  {l.nativeName} ({l.englishName})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="mt-2 text-xs font-medium">{t.sumExtraLabel}</div>
+          <textarea
+            className="mt-1 w-full min-h-[40px] rounded-md border border-input bg-background px-2.5 py-1.5 text-xs leading-relaxed shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            value={outputExtra}
+            placeholder={t.sumExtraPlaceholder}
+            onChange={(e) => setOutputExtra(e.target.value)}
+          />
+        </div>
         {addOpen && (
           <div className="shrink-0 flex flex-col gap-1.5">
             <Input
@@ -460,19 +559,26 @@ export function SummaryDialog({
             </div>
           )}
 
-          {method === 'api' &&
-            (apiConfig ? (
-              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground truncate">
-                {apiConfig.endpoint} · {apiConfig.model}
-              </div>
-            ) : (
+          {method === 'api' && (
+            <div className="flex flex-col gap-2">
+              {/* 当前已保存配置摘要（打开弹窗时已加载） */}
+              {apiConfig && (
+                <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground truncate">
+                  {apiConfig.endpoint} · {apiConfig.model}
+                </div>
+              )}
+
+              {/* 配置入口已统一到「设置 → 自定义 LLM」，此处只保留摘要 + 跳转引导 */}
               <div className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
-                <span className="text-sm">{t.sumApiNotConfigured}</span>
+                <span className="text-sm">{t.sumApiConfigGuide}</span>
                 <Button variant="outline" size="sm" className="shrink-0" asChild>
-                  <Link href="/settings">{t.sumGoSettings}</Link>
+                  <Link href="/settings?tab=customApi" onClick={() => onOpenChange(false)}>
+                    {t.sumGoSettings}
+                  </Link>
                 </Button>
               </div>
-            ))}
+            </div>
+          )}
 
           {method === 'local' &&
             (localModels === null ? (
@@ -506,14 +612,47 @@ export function SummaryDialog({
                 </Select>
               </div>
             ))}
+
+          {method === 'remote' && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">{t.sumRemoteHint}</p>
+              {remoteEnabled === null || (remoteEnabled && remoteChoice.loading) ? (
+                <p className="text-xs text-muted-foreground">{t.comLoading}</p>
+              ) : remoteEnabled && remoteChoice.value ? (
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 text-xs text-muted-foreground">{t.sumApiModel}</span>
+                  <Select value={remoteChoice.value !== 'doubao-mt' ? remoteChoice.value : ''} onValueChange={remoteChoice.set}>
+                    <SelectTrigger className="h-8 flex-1 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {summaryModels.map((m) => (
+                        <SelectItem key={m.id} value={m.id} className="text-xs">
+                          {remoteModelOptionLabel(m, t)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
+                  <span className="text-sm">{t.sumRemoteNeedConfig}</span>
+                  <Button variant="outline" size="sm" className="shrink-0" asChild>
+                    <Link href="/account">{t.navAccount}</Link>
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 超长截断提示 */}
         {clip.truncated && method !== 'web' && (
           <p className="shrink-0 text-[11px] text-muted-foreground">{t.sumTruncated}</p>
         )}
+        </div>
 
-        {/* 底部操作 */}
+        {/* 底部操作（固定在可视区，不随内容滚动） */}
         <div className="shrink-0 flex items-center justify-end gap-2">
           {method !== 'web' && (
             <Button size="sm" disabled={!canGenerate} onClick={handleGenerate}>

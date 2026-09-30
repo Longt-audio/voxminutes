@@ -1,13 +1,13 @@
 use anyhow::Result;
 use chrono::Utc;
 use log::{debug, info, warn};
+use nnnoiseless::DenoiseState;
 use realfft::num_complex::{Complex32, ComplexFloat};
 use realfft::RealFftPlanner;
 use rubato::{
     Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
 };
 use std::path::PathBuf;
-use nnnoiseless::DenoiseState;
 
 use super::encode::encode_single_audio; // Correct path to encode module
 
@@ -24,23 +24,36 @@ pub fn sanitize_filename(name: &str) -> String {
         .to_string()
 }
 
+/// 会议文件夹名的固定前缀（语言无关）：文件夹最终名为 `Rec_YYYY-MM-DD_HH-MM-SS`。
+/// 不再把会议标题拼进文件夹名——标题带 i18n 文案（「录音」「録音」…），
+/// 非中文用户拿到中文目录名不友好，标题的展示由 DB/metadata 承担。
+pub const MEETING_FOLDER_PREFIX: &str = "Rec";
+
 /// Create a meeting folder with timestamp and return the path
-/// Creates structure: base_path/MeetingName_YYYY-MM-DD_HH-MM/
+/// Creates structure: base_path/Rec_YYYY-MM-DD_HH-MM-SS/
 ///                    ├── .checkpoints/  (for incremental saves, optional)
 ///
 /// # Arguments
 /// * `base_path` - Base directory for meetings
-/// * `meeting_name` - Name of the meeting
+/// * `folder_prefix` - Folder name prefix (callers pass `MEETING_FOLDER_PREFIX`)
 /// * `create_checkpoints_dir` - Whether to create .checkpoints/ subdirectory (only needed when auto_save is true)
 pub fn create_meeting_folder(
     base_path: &PathBuf,
-    meeting_name: &str,
+    folder_prefix: &str,
     create_checkpoints_dir: bool,
 ) -> Result<PathBuf> {
-    let timestamp = Utc::now().format("%Y-%m-%d_%H-%M").to_string();
-    let sanitized_name = sanitize_filename(meeting_name);
-    let folder_name = format!("{}_{}", sanitized_name, timestamp);
-    let meeting_folder = base_path.join(folder_name);
+    // 精确到秒 + 碰撞兜底：同一分钟内开始两段录音时，旧命名（分钟级）会复用同一文件夹，
+    // 后一段的 audio.mp4 / transcripts.json 直接覆盖前一段（2026-09-17 实测发生数据丢失）。
+    // 用本地时间而不是 UTC：文件夹名是用户在 Finder/资源管理器里直接看到的，
+    // 应与历史记录里显示的开始时间一致（2026-09-28 起）。
+    let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+    let sanitized_name = sanitize_filename(folder_prefix);
+    let mut meeting_folder = base_path.join(format!("{}_{}", sanitized_name, timestamp));
+    if meeting_folder.exists() {
+        // 极端情况（同秒）：追加毫秒后缀，保证永不覆盖既有录音
+        let millis = Utc::now().timestamp_subsec_millis();
+        meeting_folder = base_path.join(format!("{}_{}-{:03}", sanitized_name, timestamp, millis));
+    }
 
     // Create main meeting folder
     std::fs::create_dir_all(&meeting_folder)?;
@@ -49,9 +62,15 @@ pub fn create_meeting_folder(
     if create_checkpoints_dir {
         let checkpoints_dir = meeting_folder.join(".checkpoints");
         std::fs::create_dir_all(&checkpoints_dir)?;
-        log::info!("Created meeting folder with checkpoints: {}", meeting_folder.display());
+        log::info!(
+            "Created meeting folder with checkpoints: {}",
+            meeting_folder.display()
+        );
     } else {
-        log::info!("Created meeting folder without checkpoints: {}", meeting_folder.display());
+        log::info!(
+            "Created meeting folder without checkpoints: {}",
+            meeting_folder.display()
+        );
     }
 
     Ok(meeting_folder)
@@ -69,7 +88,7 @@ pub fn normalize_v2(audio: &[f32]) -> Vec<f32> {
     }
 
     // Increase target RMS for better voice volume while keeping peak in check
-    let target_rms = 0.9;  // Increased from 0.6
+    let target_rms = 0.9; // Increased from 0.6
     let target_peak = 0.95; // Slightly reduced to prevent clipping
 
     let rms_scaling = target_rms / rms;
@@ -162,8 +181,12 @@ impl LoudnessNormalizer {
         const TRUE_PEAK_LIMIT: f64 = -1.0;
         const ANALYZE_CHUNK_SIZE: usize = 512;
 
-        let ebur128 = ebur128::EbuR128::new(channels, sample_rate, ebur128::Mode::I | ebur128::Mode::TRUE_PEAK)
-            .map_err(|e| anyhow::anyhow!("Failed to create EBU R128 normalizer: {}", e))?;
+        let ebur128 = ebur128::EbuR128::new(
+            channels,
+            sample_rate,
+            ebur128::Mode::I | ebur128::Mode::TRUE_PEAK,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to create EBU R128 normalizer: {}", e))?;
 
         let true_peak_limit = 10_f32.powf(TRUE_PEAK_LIMIT as f32 / 20.0);
 
@@ -237,7 +260,7 @@ impl LoudnessNormalizer {
 pub struct NoiseSuppressionProcessor {
     denoiser: DenoiseState<'static>,
     frame_buffer: Vec<f32>,
-    frame_size: usize,  // 480 samples at 48kHz = 10ms
+    frame_size: usize, // 480 samples at 48kHz = 10ms
 }
 
 impl NoiseSuppressionProcessor {
@@ -255,7 +278,10 @@ impl NoiseSuppressionProcessor {
 
         const FRAME_SIZE: usize = DenoiseState::FRAME_SIZE;
 
-        info!("Initializing RNNoise noise suppression (frame size: {} samples, 10ms @ 48kHz)", FRAME_SIZE);
+        info!(
+            "Initializing RNNoise noise suppression (frame size: {} samples, 10ms @ 48kHz)",
+            FRAME_SIZE
+        );
 
         Ok(Self {
             denoiser: *DenoiseState::new(),
@@ -365,7 +391,10 @@ impl HighPassFilter {
         let dt = 1.0 / sample_rate_f;
         let alpha = rc / (rc + dt);
 
-        info!("Initializing high-pass filter: cutoff={}Hz @ {}Hz", cutoff_hz, sample_rate);
+        info!(
+            "Initializing high-pass filter: cutoff={}Hz @ {}Hz",
+            cutoff_hz, sample_rate
+        );
 
         Self {
             sample_rate: sample_rate_f,
@@ -413,7 +442,11 @@ pub fn spectral_subtraction(audio: &[f32], d: f32) -> Result<Vec<f32>> {
 
     // If audio is longer than window size, truncate to prevent overflow
     let processed_audio = if audio.len() > window_size {
-        warn!("Audio length {} exceeds window size {}, truncating", audio.len(), window_size);
+        warn!(
+            "Audio length {} exceeds window size {}, truncating",
+            audio.len(),
+            window_size
+        );
         &audio[..window_size]
     } else {
         audio
@@ -679,73 +712,74 @@ pub fn resample(input: &[f32], from_sample_rate: u32, to_sample_rate: u32) -> Re
     let (sinc_len, interpolation_type, oversampling) = if ratio >= 2.0 {
         // Large upsampling (e.g., 8kHz → 16kHz, 16kHz → 48kHz, 24kHz → 48kHz)
         // Needs high quality to avoid artifacts
-        debug!("High-quality upsampling: {}Hz → {}Hz (ratio: {:.2}x)",
-               from_sample_rate, to_sample_rate, ratio);
+        debug!(
+            "High-quality upsampling: {}Hz → {}Hz (ratio: {:.2}x)",
+            from_sample_rate, to_sample_rate, ratio
+        );
         (
-            512,                              // Longer sinc for smoother interpolation
-            SincInterpolationType::Cubic,     // Cubic for best quality
-            512,                              // Higher oversampling
+            512,                          // Longer sinc for smoother interpolation
+            SincInterpolationType::Cubic, // Cubic for best quality
+            512,                          // Higher oversampling
         )
     } else if ratio >= 1.5 {
         // Moderate upsampling (e.g., 32kHz → 48kHz)
-        debug!("Moderate upsampling: {}Hz → {}Hz (ratio: {:.2}x)",
-               from_sample_rate, to_sample_rate, ratio);
-        (
-            384,
-            SincInterpolationType::Cubic,
-            384,
-        )
+        debug!(
+            "Moderate upsampling: {}Hz → {}Hz (ratio: {:.2}x)",
+            from_sample_rate, to_sample_rate, ratio
+        );
+        (384, SincInterpolationType::Cubic, 384)
     } else if ratio > 1.0 {
         // Small upsampling (e.g., 44.1kHz → 48kHz)
-        debug!("Small upsampling: {}Hz → {}Hz (ratio: {:.2}x)",
-               from_sample_rate, to_sample_rate, ratio);
-        (
-            256,
-            SincInterpolationType::Linear,
-            256,
-        )
+        debug!(
+            "Small upsampling: {}Hz → {}Hz (ratio: {:.2}x)",
+            from_sample_rate, to_sample_rate, ratio
+        );
+        (256, SincInterpolationType::Linear, 256)
     } else if ratio <= 0.5 {
         // Large downsampling (e.g., 48kHz → 16kHz, 48kHz → 8kHz)
         // Needs strong anti-aliasing
-        debug!("Anti-aliased downsampling: {}Hz → {}Hz (ratio: {:.2}x)",
-               from_sample_rate, to_sample_rate, ratio);
+        debug!(
+            "Anti-aliased downsampling: {}Hz → {}Hz (ratio: {:.2}x)",
+            from_sample_rate, to_sample_rate, ratio
+        );
         (
-            512,                              // Longer sinc for anti-aliasing
-            SincInterpolationType::Cubic,     // Cubic for quality
+            512,                          // Longer sinc for anti-aliasing
+            SincInterpolationType::Cubic, // Cubic for quality
             512,
         )
     } else {
         // Moderate downsampling (e.g., 48kHz → 24kHz, 48kHz → 32kHz)
-        debug!("Moderate downsampling: {}Hz → {}Hz (ratio: {:.2}x)",
-               from_sample_rate, to_sample_rate, ratio);
-        (
-            384,
-            SincInterpolationType::Linear,
-            384,
-        )
+        debug!(
+            "Moderate downsampling: {}Hz → {}Hz (ratio: {:.2}x)",
+            from_sample_rate, to_sample_rate, ratio
+        );
+        (384, SincInterpolationType::Linear, 384)
     };
 
     let params = SincInterpolationParameters {
         sinc_len,
-        f_cutoff: 0.95,                      // Preserve most of the frequency content
+        f_cutoff: 0.95, // Preserve most of the frequency content
         interpolation: interpolation_type,
         oversampling_factor: oversampling,
-        window: WindowFunction::BlackmanHarris2,  // Best window for audio
+        window: WindowFunction::BlackmanHarris2, // Best window for audio
     };
 
     let mut resampler = SincFixedIn::<f32>::new(
         ratio,
-        2.0,  // Maximum relative deviation
+        2.0, // Maximum relative deviation
         params,
         input.len(),
-        1,    // Mono
+        1, // Mono
     )?;
 
     let waves_in = vec![input.to_vec()];
     let waves_out = resampler.process(&waves_in, None)?;
 
-    debug!("Resampling complete: {} samples → {} samples",
-           input.len(), waves_out[0].len());
+    debug!(
+        "Resampling complete: {} samples → {} samples",
+        input.len(),
+        waves_out[0].len()
+    );
 
     Ok(waves_out.into_iter().next().unwrap())
 }
@@ -770,7 +804,14 @@ pub fn write_audio_to_file(
     device: &str,
     skip_encoding: bool,
 ) -> Result<String> {
-    write_audio_to_file_with_meeting_name(audio, sample_rate, output_path, device, skip_encoding, None)
+    write_audio_to_file_with_meeting_name(
+        audio,
+        sample_rate,
+        output_path,
+        device,
+        skip_encoding,
+        None,
+    )
 }
 
 pub fn write_audio_to_file_with_meeting_name(

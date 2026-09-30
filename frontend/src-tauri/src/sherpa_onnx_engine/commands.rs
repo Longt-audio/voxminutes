@@ -267,9 +267,9 @@ pub async fn sherpa_onnx_get_models() -> Result<Vec<serde_json::Value>, String> 
         }));
     }
 
-    // Remote Qwen3-ASR model (requires LAN server)
-    // Only mark as "Available" if the remote endpoint has been configured;
-    // otherwise show "NotConfigured" so the frontend can hide/disable the option.
+    // Remote Qwen3-ASR model (requires remote gateway)
+    // is_remote_asr_configured() 基于 effective 地址（内置默认 https://api.voxmin.top 兜底），
+    // 实际恒为 true —— 远程模型恒显示 Available，可用性由远程总开关另行控制。
     let remote_status = if crate::audio::transcription::is_remote_asr_configured() {
         "Available"
     } else {
@@ -345,7 +345,10 @@ pub async fn sherpa_onnx_get_models() -> Result<Vec<serde_json::Value>, String> 
 pub async fn sherpa_onnx_load_model(model_name: String) -> Result<(), String> {
     // Remote model: no local loading needed
     if model_name == "qwen3-asr-remote" || model_name.starts_with("qwen3-asr-remote") {
-        log::info!("Remote ASR model selected, no local loading required: {}", model_name);
+        log::info!(
+            "Remote ASR model selected, no local loading required: {}",
+            model_name
+        );
         return Ok(());
     }
 
@@ -355,21 +358,30 @@ pub async fn sherpa_onnx_load_model(model_name: String) -> Result<(), String> {
         if XASR_LOADED_MODEL.lock().unwrap().as_deref() == Some(model_name.as_str())
             && XASR_ONLINE_ENGINE.lock().unwrap().is_some()
         {
-            log::info!("X-ASR model '{}' already loaded, skipping reload", model_name);
+            log::info!(
+                "X-ASR model '{}' already loaded, skipping reload",
+                model_name
+            );
             return Ok(());
         }
-        let dir = find_x_asr_model_dir()
-            .ok_or_else(|| format!(
+        let dir = find_x_asr_model_dir().ok_or_else(|| {
+            format!(
                 "X-ASR model not found at {}. Download the model first.",
                 get_models_dir().display()
-            ))?;
+            )
+        })?;
         crate::llama_sidecar::emit_model_loading(&model_name, "start", None, None);
         let start = std::time::Instant::now();
         let eng = match XAsrOnlineEngine::create_x_asr(&dir, &model_name) {
             Ok(eng) => eng,
             Err(e) => {
                 let msg = format!("Failed to load X-ASR model: {}", e);
-                crate::llama_sidecar::emit_model_loading(&model_name, "error", None, Some(msg.clone()));
+                crate::llama_sidecar::emit_model_loading(
+                    &model_name,
+                    "error",
+                    None,
+                    Some(msg.clone()),
+                );
                 return Err(msg);
             }
         };

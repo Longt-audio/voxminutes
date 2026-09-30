@@ -12,12 +12,20 @@ use log::error;
 #[cfg(target_os = "macos")]
 use crate::audio::capture::AudioCaptureBackend;
 
+fn default_file_format() -> String {
+    "mp4".to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RecordingPreferences {
     #[serde(rename = "recordingsFolder")]
     pub save_folder: PathBuf,
     #[serde(rename = "autoSave")]
     pub auto_save: bool,
+    // 前端 setRecordingPreferences 只发 recordingsFolder/autoSave（/defaultAsrModel），
+    // 没有 serde default 时整条命令会因 missing field `file_format` 反序列化失败，
+    // 设置页改目录直接报错（2026-09-28 排查确认）。
+    #[serde(default = "default_file_format")]
     pub file_format: String,
     #[serde(default)]
     pub preferred_mic_device: Option<String>,
@@ -53,12 +61,51 @@ pub fn get_default_recordings_folder() -> PathBuf {
         .join("recordings")
 }
 
+/// Resolve the effective recordings base folder: the user's configured
+/// `save_folder`, falling back to the default when preferences can't be loaded
+/// or the configured path is empty. Used by every place that creates a new
+/// meeting folder (recording / import / merge) so the setting is honored
+/// consistently.
+pub async fn resolved_recordings_folder<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
+    match load_recording_preferences(app).await {
+        Ok(prefs) if !prefs.save_folder.as_os_str().is_empty() => prefs.save_folder,
+        Ok(_) => {
+            warn!("Configured recordings folder is empty, using default");
+            get_default_recordings_folder()
+        }
+        Err(e) => {
+            warn!(
+                "Failed to load recording preferences, using default recordings folder: {}",
+                e
+            );
+            get_default_recordings_folder()
+        }
+    }
+}
+
 /// Ensure the recordings directory exists
 pub fn ensure_recordings_directory(path: &PathBuf) -> Result<()> {
     if !path.exists() {
         std::fs::create_dir_all(path)?;
         info!("Created recordings directory: {:?}", path);
     }
+    Ok(())
+}
+
+/// Validate that `path` is usable as the recordings base folder:
+/// non-empty, creatable, and writable. Called before persisting preferences so
+/// a bad destination is rejected at settings time instead of failing (or
+/// silently losing recordings) at recording time.
+pub fn validate_recordings_folder(path: &PathBuf) -> Result<()> {
+    if path.as_os_str().is_empty() {
+        return Err(anyhow::anyhow!("录音保存目录不能为空"));
+    }
+    ensure_recordings_directory(path)?;
+    // 目录存在 ≠ 可写（只读挂载/权限收紧）。写一个探测文件再删掉来验证。
+    let probe = path.join(".voxminutes_write_test");
+    std::fs::write(&probe, b"test")
+        .map_err(|e| anyhow::anyhow!("录音保存目录不可写 {}: {}", path.display(), e))?;
+    let _ = std::fs::remove_file(&probe);
     Ok(())
 }
 
@@ -124,6 +171,10 @@ pub async fn save_recording_preferences<R: Runtime>(
           preferences.save_folder, preferences.auto_save, preferences.file_format,
           preferences.preferred_mic_device, preferences.preferred_system_device);
 
+    // 先验证目标目录（可创建 + 可写），失败则不落盘——避免把坏路径存进去之后
+    // 录音时才发现（旧行为是把目录建不起来当警告吞掉）。
+    validate_recordings_folder(&preferences.save_folder)?;
+
     // Get or create store
     let store = app
         .store("recording_preferences.json")
@@ -152,9 +203,6 @@ pub async fn save_recording_preferences<R: Runtime>(
         }
     }
 
-    // Ensure the directory exists
-    ensure_recordings_directory(&preferences.save_folder)?;
-
     Ok(())
 }
 
@@ -173,7 +221,19 @@ pub async fn set_recording_preferences<R: Runtime>(
     app: AppHandle<R>,
     preferences: RecordingPreferences,
 ) -> Result<(), String> {
-    save_recording_preferences(&app, &preferences)
+    // 前端只发送它管理的字段（recordingsFolder / autoSave [/ defaultAsrModel]），
+    // 其余字段（file_format、设备偏好、macOS 采集后端）经 serde default 进来的是
+    // 默认值而非用户已有值——直接整体覆盖会在「改目录」时把其他偏好抹掉。
+    // 这里与已存偏好合并：只采纳前端真正负责的字段。
+    let mut merged = load_recording_preferences(&app)
+        .await
+        .unwrap_or_else(|_| RecordingPreferences::default());
+    merged.save_folder = preferences.save_folder;
+    merged.auto_save = preferences.auto_save;
+    if preferences.default_asr_model.is_some() {
+        merged.default_asr_model = preferences.default_asr_model;
+    }
+    save_recording_preferences(&app, &merged)
         .await
         .map_err(|e| format!("Failed to save recording preferences: {}", e))
 }
@@ -228,10 +288,7 @@ pub async fn open_recordings_folder<R: Runtime>(app: AppHandle<R>) -> Result<(),
 pub async fn select_recording_folder<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Option<String>, String> {
-    let path = app
-        .dialog()
-        .file()
-        .blocking_pick_folder();
+    let path = app.dialog().file().blocking_pick_folder();
 
     match path {
         Some(p) => {
@@ -377,3 +434,41 @@ pub async fn get_audio_backend_info() -> Result<Vec<BackendInfo>, String> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 前端 setRecordingPreferences 只发 {recordingsFolder, autoSave} 两个字段，
+    /// file_format 必须有 serde default，否则整条保存命令反序列化失败。
+    #[test]
+    fn deserialize_frontend_partial_payload() {
+        let value = serde_json::json!({
+            "recordingsFolder": "/tmp/vox-test-recordings",
+            "autoSave": true
+        });
+        let prefs: RecordingPreferences =
+            serde_json::from_value(value).expect("partial payload must deserialize");
+        assert_eq!(prefs.save_folder, PathBuf::from("/tmp/vox-test-recordings"));
+        assert!(prefs.auto_save);
+        assert_eq!(prefs.file_format, "mp4");
+        assert_eq!(prefs.preferred_mic_device, None);
+    }
+
+    /// 校验：空路径直接拒绝；不存在的路径会被创建；创建后可写。
+    #[test]
+    fn validate_recordings_folder_cases() {
+        assert!(validate_recordings_folder(&PathBuf::new()).is_err());
+
+        let tmp = std::env::temp_dir().join(format!(
+            "vox-pref-test-{}",
+            std::process::id()
+        ));
+        let nested = tmp.join("a").join("b");
+        let _ = std::fs::remove_dir_all(&tmp);
+        validate_recordings_folder(&nested).expect("nested path should be created");
+        assert!(nested.is_dir());
+        // 探测文件已清理
+        assert!(!nested.join(".voxminutes_write_test").exists());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+}

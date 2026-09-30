@@ -14,6 +14,8 @@ export interface TranscriptSegment {
   audio_end_time: number
   duration: number
   source: string
+  /** 流式引擎按连续静音分段的段落 id；同段内所有单元相同，VAD 引擎为 null/undefined */
+  paragraph_id?: number | null
 }
 
 /** transcript-update 事件 payload（音频时间单位为秒） */
@@ -28,6 +30,7 @@ export interface TranscriptUpdate {
   audio_start_time: number
   audio_end_time: number
   duration: number
+  paragraph_id?: number | null
 }
 
 // ── 音频设备 ──────────────────────────────────────────────────────────────────
@@ -117,6 +120,8 @@ export interface RecordingSegment {
   end_ms?: number | null
   speaker?: string | null
   source?: string | null
+  /** 段落最终译文（实时内嵌翻译；空串/缺省 = 无译文） */
+  translation?: string
 }
 
 export interface RecordingDetails {
@@ -138,6 +143,21 @@ export interface PaginatedSegmentsResponse {
   segments: RecordingSegment[]
   total_count: number
   has_more: boolean
+}
+
+/** api_merge_recordings 返回的新合并工程元信息 */
+export interface MergedRecordingResult {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+  duration_ms?: number | null
+  audio_path?: string | null
+  folder_path?: string | null
+  source?: string | null
+  asr_engine?: string | null
+  language?: string | null
+  status?: string | null
 }
 
 export interface SearchTranscriptResult {
@@ -201,6 +221,8 @@ export interface RetranscriptionResult {
   duration_seconds: number
   language?: string
   elapsed_seconds?: number
+  /** 用户可见告警（上游内容风控部分拦截 / 档位降级 / 部分分片失败…） */
+  warnings?: string[]
 }
 
 export interface RetranscriptionError {
@@ -221,7 +243,12 @@ export interface RetranscriptionPartial {
 // ── 远程 ASR（预留接口，MVP 不实现） ──────────────────────────────────────────
 
 export interface RemoteAsrConfig {
+  /** 生效地址（用户未自定义时回落内置默认 https://api.voxmin.top） */
   serverUrl: string
+  /** 用户自定义地址（空串 = 未自定义 = 用默认） */
+  customServerUrl: string
+  /** 当前是否在用内置默认地址 */
+  isDefault: boolean
   license: string
   model: string
   configured: boolean
@@ -238,8 +265,8 @@ export type TranslationDirection = 'auto' | 'zh-en' | 'en-zh'
  */
 export type TranslateTargetLang = string
 
-/** 翻译引擎：opus = OPUS-MT（快速），hymt2 = Hy-MT2（高质量），remote = 远程网关 */
-export type TranslationEngine = 'opus' | 'hymt2' | 'remote'
+/** 翻译引擎：opus = OPUS-MT（快速），hymt2 = Hy-MT2（高质量），remote = 远程网关，custom-api = 自定义 LLM API（与会议总结共享 summary.api_config） */
+export type TranslationEngine = 'opus' | 'hymt2' | 'remote' | 'custom-api'
 
 /** translate-update 事件 payload */
 export interface TranslateUpdate {
@@ -293,8 +320,18 @@ export interface SummaryApiConfig {
 /** summary-stream 事件 payload（每个请求必有一个 done/error 终止事件） */
 export interface SummaryStreamEvent {
   requestId: string
-  kind: 'token' | 'done' | 'error'
+  /**
+   * token = 正文增量；thinking = 思维链增量；done/error = 终止事件。
+   *
+   * thinking 为什么单独一类（2026-09-23）：开启「思考模式」的上游（DeepSeek / MiMo）
+   * 会先吐十几秒思维链、然后才出正文。以前客户端**只读 content、把思维链整个丢掉**，
+   * 于是那十几秒界面毫无输出，用户以为卡死。现在把思维链也上报，界面可显示"正在思考"。
+   */
+  kind: 'token' | 'thinking' | 'done' | 'error'
   text: string
+  /** 仅 kind='done' 时有意义：true = 输出顶到 max_tokens（finish_reason=length）被截断，
+   *  总结正文不完整（2026-09-27 新增；旧版后端不下发该字段，按 false 处理） */
+  truncated?: boolean
 }
 
 /** summary_local_models 返回的本地总结模型项 */

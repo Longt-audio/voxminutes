@@ -1,10 +1,10 @@
+use anyhow::Result;
+use log::{error, info};
+use realfft::{RealFftPlanner, RealToComplex};
+use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Runtime};
-use anyhow::Result;
-use log::{error, info};
-use serde::Serialize;
-use realfft::{RealFftPlanner, RealToComplex};
 
 /// Number of time-domain samples sent to the UI per update. This is independent
 /// of the capture sample rate; the raw ring buffer is decimated down to this
@@ -78,11 +78,11 @@ fn compute_spectrum(all_samples: &[f32], sample_rate: u32) -> Vec<f32> {
 pub struct AudioLevelData {
     pub device_name: String,
     pub device_type: String, // "input" or "output"
-    pub rms_level: f32,     // RMS level (0.0 to 1.0)
-    pub peak_level: f32,    // Peak level (0.0 to 1.0)
-    pub is_active: bool,    // Whether audio is being detected
-    pub spectrum: Vec<f32>, // Log-frequency-band magnitudes (0..1) for the spectrum visualizer.
-    pub samples: Vec<f32>,  // Time-domain samples for the waveform visualizer.
+    pub rms_level: f32,      // RMS level (0.0 to 1.0)
+    pub peak_level: f32,     // Peak level (0.0 to 1.0)
+    pub is_active: bool,     // Whether audio is being detected
+    pub spectrum: Vec<f32>,  // Log-frequency-band magnitudes (0..1) for the spectrum visualizer.
+    pub samples: Vec<f32>,   // Time-domain samples for the waveform visualizer.
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -134,7 +134,10 @@ pub async fn start_monitoring<R: Runtime>(
     app_handle: AppHandle<R>,
     device_names: Vec<String>,
 ) -> Result<()> {
-    info!("Starting real audio level monitoring for devices: {:?}", device_names);
+    info!(
+        "Starting real audio level monitoring for devices: {:?}",
+        device_names
+    );
 
     // Stop any existing monitoring
     IS_MONITORING.store(false, Ordering::SeqCst);
@@ -188,7 +191,8 @@ pub async fn start_monitoring<R: Runtime>(
             let mut levels: Vec<AudioLevelData> = Vec::new();
 
             for name in &device_names {
-                let is_mic = name.to_lowercase().contains("microphone") || name.to_lowercase().contains("mic");
+                let is_mic = name.to_lowercase().contains("microphone")
+                    || name.to_lowercase().contains("mic");
                 let (rms, peak, active) = if is_stale {
                     (0.0f32, 0.0f32, false)
                 } else if is_mic {
@@ -199,7 +203,11 @@ pub async fn start_monitoring<R: Runtime>(
 
                 levels.push(AudioLevelData {
                     device_name: name.clone(),
-                    device_type: if is_mic { "input".to_string() } else { "output".to_string() },
+                    device_type: if is_mic {
+                        "input".to_string()
+                    } else {
+                        "output".to_string()
+                    },
                     rms_level: rms,
                     peak_level: peak,
                     is_active: active,

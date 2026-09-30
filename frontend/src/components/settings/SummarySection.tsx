@@ -8,15 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SettingsSection } from './SettingsSection'
 import { useMessages } from '@/i18n/useMessages'
-
-/** 格式化模型单价为可读积分消耗文案：ASR「积分/小时」，LLM「积分/千token」，TTS「积分/千字符」。 */
-function formatModelPrice(m: RemoteModelItem): string {
-  const price = m.price ?? 0
-  if (price <= 0) return '免费'
-  if (m.price_unit === 'second') return `${(price * 3600).toFixed(2)} 积分/小时`
-  if (m.price_unit === 'char') return `${(price * 1000).toFixed(2)} 积分/千字符`
-  return `${(price * 1000).toFixed(2)} 积分/千token`
-}
+import { remoteModelOptionLabel } from '@/lib/remoteModelChoice'
+import { catalogByKind } from '@/stores/remoteCatalogStore'
 
 /** 设置页：会议总结 / AI —— 走远程服务网关（去掉了自定义 API），选择总结模型。
  *  与远程 ASR/翻译/TTS 平行：列出网关已上架的 LLM 模型并显示积分单价。 */
@@ -28,7 +21,7 @@ export function SummarySection() {
 
   useEffect(() => {
     listRemoteModels()
-      .then((list) => setModels(list.filter((m) => m.kind === 'translate')))
+      .then((list) => setModels(catalogByKind(list, 'translate')))
       .catch(() => {})
     summaryGetConfig()
       .then((c) => {
@@ -65,10 +58,7 @@ export function SummarySection() {
             <SelectContent>
               {models.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
-                  {m.owned_by} / {m.id}
-                  <span className="ml-1 text-muted-foreground/70">
-                    {formatModelPrice(m)}
-                  </span>
+                  {remoteModelOptionLabel(m, t)}
                 </SelectItem>
               ))}
             </SelectContent>

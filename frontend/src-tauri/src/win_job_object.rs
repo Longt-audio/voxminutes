@@ -89,7 +89,9 @@ pub fn assign_child_to_job(child: &Child) {
             std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as DWORD,
         );
         if ok != TRUE {
-            log::warn!("SetInformationJobObject failed; backend will not be auto-killed on parent exit");
+            log::warn!(
+                "SetInformationJobObject failed; backend will not be auto-killed on parent exit"
+            );
             CloseHandle(job);
             return;
         }
@@ -98,7 +100,9 @@ pub fn assign_child_to_job(child: &Child) {
         let ok = AssignProcessToJobObject(job, process_handle);
         if ok != TRUE {
             // The parent may already be in a job (debugger, shell, etc.).
-            log::warn!("AssignProcessToJobObject failed; backend will not be auto-killed on parent exit");
+            log::warn!(
+                "AssignProcessToJobObject failed; backend will not be auto-killed on parent exit"
+            );
             CloseHandle(job);
             return;
         }

@@ -95,43 +95,53 @@ pub(crate) fn parse_direction(direction: &str) -> Option<(&str, &str)> {
 /// 普通模式：单行指令 + 原文；asr_mode：针对语音转录文本的纠错翻译指令
 /// （完整 6 条要求，移植自参考实现的 build_asr_translate_prompt）。
 /// src 或 tgt 属于中文系（zh/zh-Hant/yue）时用中文指令，否则用英文指令。
-pub(crate) fn build_prompt(text: &str, source_lang: &str, target_lang: &str, asr_mode: bool) -> String {
+/// context：前几句原文（流式转写的翻译上下文），仅供理解、不翻译。
+pub(crate) fn build_prompt(
+    text: &str,
+    source_lang: &str,
+    target_lang: &str,
+    asr_mode: bool,
+    context: Option<&str>,
+) -> String {
     let user_text = if asr_mode {
         let (_, src_en) = lang_names(source_lang);
         let (_, tgt_en) = lang_names(target_lang);
+        // ⚠️ 2026-09-22 重写：旧提示词是
+        //   {指令}\n\n前文（仅供理解上下文，不要翻译）：{ctx}\n\nSource: {text}\n\nTarget (中文)：
+        // 实测（远程 LLM）模型**不遵守**「前文不要翻译」—— 它把前文一并翻译并拼在译文前面，
+        // 还把 `Source:` 标签译成「来源：」混进正文，于是"每段译文都带着前 1~2 段的中文"。
+        // 现在：① 不再夹带前文（上下文已在下游关闭）；② 用 <source> 标签明确边界，
+        // 并把「不得输出标签/前文/任何前缀」写成硬性要求。标签写法比 "Source:" 更难被误翻。
         let instruction = if is_chinese_family(source_lang) || is_chinese_family(target_lang) {
-            // 涉及中文时统一使用中文指令（参考实现的 has_zh 分支）
             format!(
-                "将以下{src_en}语音转录文本翻译为{tgt_en}。\n\
-                 要求：\n\
-                 1. 只输出{tgt_en}译文，严禁输出原文、双语对照、原文片段或重复原文；\n\
-                 2. 直接开始翻译，不要写“翻译：”“{tgt_en}：”等任何前缀；\n\
-                 3. 修正识别错误和同音词；\n\
-                 4. 省略语气词；\n\
-                 5. 输出流畅自然的口语翻译；\n\
-                 6. 不要解释，不要备注。"
+                "把 <source> 标签内的{src_en}翻译成{tgt_en}。\n\
+                 硬性要求：\n\
+                 1. 只输出 <source> 内容的{tgt_en}译文，不得输出原文、双语对照、标签本身、前文或任何说明文字；\n\
+                 2. 不要写「译文：」「{tgt_en}：」「来源：」等任何前缀；\n\
+                 3. 修正语音识别错误与同音词，省略语气词，输出流畅自然的口语翻译；\n\
+                 4. 不要解释、不要备注、不要复述前文。"
             )
         } else {
             format!(
-                "Translate the following {src_en} spoken transcript into {tgt_en}.\n\
-                 Requirements:\n\
-                 1. Output ONLY the {tgt_en} translation. \
-                 Do NOT output the original text, bilingual pairs, source fragments, or repeated source.\n\
-                 2. Start directly with the translation; \
-                 do not write prefixes like \"Translation:\" or \"{tgt_en}:\".\n\
-                 3. Fix ASR errors and homophones.\n\
-                 4. Omit filler words.\n\
-                 5. Produce a fluent, natural, conversational translation.\n\
-                 6. Do not explain or add notes."
+                "Translate the {src_en} text inside the <source> tag into {tgt_en}.\n\
+                 Hard requirements:\n\
+                 1. Output ONLY the {tgt_en} translation of the <source> content. \
+                 Do NOT output the original text, bilingual pairs, the tags themselves, \
+                 any preceding context, or explanations.\n\
+                 2. Do not write prefixes such as \"Translation:\", \"{tgt_en}:\" or \"Source:\".\n\
+                 3. Fix ASR errors and homophones, drop filler words, produce fluent conversational {tgt_en}.\n\
+                 4. Never repeat or translate anything outside the <source> tag."
             )
         };
-        format!("{instruction}\n\nSource: {text}\n\nTarget ({tgt_en}):")
+        // 前文**故意不再拼接**（哪怕调用方传了 context）：远程 LLM 会把它当正文一起翻译，
+        // 造成「每段译文都带着前几段中文」的重复（2026-09-22 用户实测）。
+        // 参数 `context` 保留在签名里以兼容调用方；需要恢复时改这里 + flow.rs 的 CONTEXT_UNITS。
+        let _ = context;
+        format!("{instruction}\n\n<source>\n{text}\n</source>")
     } else {
         let (tgt_native, tgt_en) = lang_names(target_lang);
         let instruction = if is_chinese_family(source_lang) {
-            format!(
-                "将以下文本翻译为{tgt_native}，注意只需要输出翻译后的结果，不要额外解释"
-            )
+            format!("将以下文本翻译为{tgt_native}，注意只需要输出翻译后的结果，不要额外解释")
         } else {
             format!(
                 "Translate the following text into {tgt_en}. Only output the translated result, without any additional explanation."
@@ -146,9 +156,31 @@ pub(crate) fn build_prompt(text: &str, source_lang: &str, target_lang: &str, asr
 
 /// 模型可能回声的常见前缀（仅保留 zh/en 相关项）。
 const ECHO_PREFIXES: &[&str] = &[
-    "Translation:", "translation:", "Translated:", "translated:",
-    "Translate:", "translate:", "English:", "Chinese:",
-    "译文：", "翻译：", "英文：", "中文：",
+    "Translation:",
+    "translation:",
+    "Translated:",
+    "translated:",
+    "Translate:",
+    "translate:",
+    "English:",
+    "Chinese:",
+    "译文：",
+    "翻译：",
+    "英文：",
+    "中文：",
+    // 2026-09-22：模型会把提示词里的标签/字段名也「翻译」出来当正文前缀
+    "来源：",
+    "来源:",
+    "Source:",
+    "source:",
+    "前文：",
+    "前文:",
+    "上下文：",
+    "Context:",
+    "<source>",
+    "</source>",
+    "<context>",
+    "</context>",
 ];
 
 /// 剔除 `<｜hy_...｜>` / `<|hy_...|>` / `<│hy_...│>` 形式的特殊 token。
@@ -173,15 +205,21 @@ fn strip_special_tokens(text: &str) -> String {
 
 /// s 以 '<' 开头，判断是否为 `<[｜│|]hy_...[｜│|]>` 形式的特殊 token。
 fn is_hy_special_token(s: &str) -> bool {
-    let Some(after_lt) = s.strip_prefix('<') else { return false };
-    let Some(delim) = after_lt.chars().next() else { return false };
+    let Some(after_lt) = s.strip_prefix('<') else {
+        return false;
+    };
+    let Some(delim) = after_lt.chars().next() else {
+        return false;
+    };
     if !matches!(delim, '\u{FF5C}' | '\u{2502}' | '|') {
         return false;
     }
     let Some(body) = after_lt[delim.len_utf8()..].strip_prefix("hy_") else {
         return false;
     };
-    let Some(end) = body.find('>') else { return false };
+    let Some(end) = body.find('>') else {
+        return false;
+    };
     let inner = &body[..end];
     matches!(inner.chars().last(), Some('\u{FF5C}' | '\u{2502}' | '|'))
 }
@@ -261,6 +299,20 @@ pub(crate) fn postprocess(text: &str, source_lang: &str, target_lang: &str) -> S
         }
     }
 
+    // 1.5 剥离**包裹式**输出的提示词标签。
+    //     2026-09-22 实测：qwen-max 会把整段包在提示词的 <source> 标签里返回
+    //     （"<source>\n译文\n</source>"）。前缀已在第 1 步处理，这里处理结尾——
+    //     否则用户会在译文末尾看到一个多余的 </source>。
+    for tag in ["</source>", "</context>", "<source>", "<context>"] {
+        loop {
+            let trimmed = out.trim_end();
+            match trimmed.strip_suffix(tag) {
+                Some(rest) => out = rest.trim_end().to_string(),
+                None => break,
+            }
+        }
+    }
+
     // 2. 按脚本过滤原文回声行（其他语言对不做脚本过滤，避免误伤）
     let cjk_echo_source =
         is_chinese_family(source_lang) || source_lang == "ja" || source_lang == "ko";
@@ -295,7 +347,8 @@ pub(crate) fn postprocess(text: &str, source_lang: &str, target_lang: &str) -> S
             {
                 break;
             }
-            if stripped.contains("说明") || stripped.contains("Note") || stripped.contains("原文") {
+            if stripped.contains("说明") || stripped.contains("Note") || stripped.contains("原文")
+            {
                 break;
             }
             if is_mostly_latin(stripped) {
@@ -321,6 +374,7 @@ pub(crate) fn postprocess(text: &str, source_lang: &str, target_lang: &str) -> S
 /// 用 Hy-MT2 翻译一段文本。direction 为 "{src}-{tgt}" 形式（如 "zh-en"、
 /// "en-zh-Hant"），src/tgt 须在语言表内。
 /// asr_mode=true 使用语音转录纠错指令（实时翻译路径）。
+/// context：前几句原文（流式转写的翻译上下文），仅供理解、不翻译。
 /// on_token 提供时走 sidecar 流式协议，增量文本（未清洗的原始输出）逐个
 /// 回调；返回值始终是清洗后的完整译文。
 /// 阻塞调用，请放在 spawn_blocking 中执行。
@@ -328,6 +382,7 @@ pub fn translate(
     text: &str,
     direction: &str,
     asr_mode: bool,
+    context: Option<&str>,
     on_token: Option<&mut dyn FnMut(&str)>,
 ) -> Result<String, String> {
     let Some((source_lang, target_lang)) = parse_direction(direction) else {
@@ -345,7 +400,7 @@ pub fn translate(
     let helper_exe = llama_sidecar::resolve_helper_exe()
         .ok_or_else(|| "本地推理引擎（llama-helper）未找到，请重新安装应用".to_string())?;
 
-    let prompt = build_prompt(text, source_lang, target_lang, asr_mode);
+    let prompt = build_prompt(text, source_lang, target_lang, asr_mode, context);
     // 输出预算按输入字符数估算（译文 token 数通常不超过原文字符数的两倍）
     let max_tokens = (text.chars().count() * 2).clamp(64, 1024) as u32;
     // 韩语目标重复率偏高，按参考实现加大惩罚
@@ -412,7 +467,7 @@ mod tests {
 
     #[test]
     fn build_prompt_normal_zh_en() {
-        let p = build_prompt("你好，世界", "zh", "en", false);
+        let p = build_prompt("你好，世界", "zh", "en", false, None);
         assert!(p.starts_with(CHAT_PREFIX));
         assert!(p.ends_with(CHAT_SUFFIX));
         assert!(p.contains("将以下文本翻译为英语"));
@@ -421,7 +476,7 @@ mod tests {
 
     #[test]
     fn build_prompt_normal_en_zh() {
-        let p = build_prompt("hello world", "en", "zh", false);
+        let p = build_prompt("hello world", "en", "zh", false, None);
         assert!(p.starts_with(CHAT_PREFIX));
         assert!(p.ends_with(CHAT_SUFFIX));
         assert!(p.contains("Translate the following text into Chinese."));
@@ -429,22 +484,75 @@ mod tests {
     }
 
     #[test]
-    fn build_prompt_asr_contains_instruction_and_source_target() {
-        let p = build_prompt("今天天气不错", "zh", "en", true);
+    fn build_prompt_asr_contains_instruction_and_source_tag() {
+        let p = build_prompt("今天天气不错", "zh", "en", true, None);
         assert!(p.starts_with(CHAT_PREFIX));
         assert!(p.ends_with(CHAT_SUFFIX));
-        assert!(p.contains("将以下Chinese语音转录文本翻译为English。"));
-        // 完整 6 条要求（中文版）
-        assert!(p.contains("1. 只输出English译文，严禁输出原文、双语对照、原文片段或重复原文；"));
-        assert!(p.contains("3. 修正识别错误和同音词；"));
-        assert!(p.contains("6. 不要解释，不要备注。"));
-        assert!(p.contains("Source: 今天天气不错"));
-        assert!(p.contains("Target (English):"));
+        assert!(p.contains("把 <source> 标签内的Chinese翻译成English。"));
+        // 硬性要求（中文版）
+        assert!(p.contains("1. 只输出 <source> 内容的English译文"));
+        assert!(p.contains("不要写「译文：」「English：」「来源：」等任何前缀"));
+        assert!(p.contains("4. 不要解释、不要备注、不要复述前文。"));
+        // 源文本包在 <source> 里（避免旧的 `Source:` 标签被模型当正文翻译）
+        assert!(p.contains("<source>\n今天天气不错\n</source>"));
+    }
+
+    /// 2026-09-22 回归：**即使调用方传了前文，也不再拼进提示词**。
+    /// 旧的「前文（仅供理解上下文，不要翻译）：…」被远程 LLM 当作正文一并翻译，
+    /// 导致每段译文都带着前 1~2 段的中文（用户实测「译文大量重复」）。
+    #[test]
+    fn build_prompt_asr_never_embeds_context() {
+        let p = build_prompt(
+            "We are grateful to you.",
+            "en",
+            "zh",
+            true,
+            Some("Previous sentence here."),
+        );
+        assert!(
+            !p.contains("Previous sentence here."),
+            "前文不应出现在提示词里: {}",
+            p
+        );
+        assert!(!p.contains("<context>"));
+    }
+
+    /// **结构性保证（与模型无关）**：枚举所有语言方向，asr 提示词都不得夹带前文，
+    /// 且必须带 `<source>` 边界。这是「换成别的翻译模型也不会重复」的根据 ——
+    /// 不是靠模型自觉，而是提示词里根本没有前文可翻。
+    #[test]
+    fn build_prompt_asr_never_embeds_context_for_any_language() {
+        let sentinel = "SENTINEL_CONTEXT_MUST_NOT_APPEAR";
+        let sources = ["zh", "en", "ja", "ko", "fr", "de", "es", "ru"];
+        let mut checked = 0;
+        for &tgt in SUPPORTED_TARGET_LANGS {
+            for &src in &sources {
+                if src == tgt {
+                    continue;
+                }
+                let p = build_prompt("hello world", src, tgt, true, Some(sentinel));
+                assert!(!p.contains(sentinel), "{}→{} 的提示词夹带了前文", src, tgt);
+                assert!(
+                    p.contains("<source>\nhello world\n</source>"),
+                    "{}→{} 缺少 <source> 边界",
+                    src,
+                    tgt
+                );
+                assert!(
+                    !p.contains("Source: hello world"),
+                    "{}→{} 仍在用会被误翻的 Source: 标签",
+                    src,
+                    tgt
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked >= 40, "覆盖方向太少: {}", checked);
     }
 
     #[test]
     fn build_prompt_chat_tokens_use_fullwidth_pipe() {
-        let p = build_prompt("x", "zh", "en", false);
+        let p = build_prompt("x", "zh", "en", false, None);
         assert!(p.contains("<\u{FF5C}hy_begin\u{2581}of\u{2581}sentence\u{FF5C}>"));
         assert!(p.contains("<\u{FF5C}hy_User\u{FF5C}>"));
         assert!(p.contains("<\u{FF5C}hy_Assistant\u{FF5C}>"));
@@ -503,7 +611,7 @@ mod tests {
 
     #[test]
     fn build_prompt_normal_zh_ja() {
-        let p = build_prompt("你好，世界", "zh", "ja", false);
+        let p = build_prompt("你好，世界", "zh", "ja", false, None);
         assert!(p.starts_with(CHAT_PREFIX));
         assert!(p.ends_with(CHAT_SUFFIX));
         assert!(p.contains("将以下文本翻译为日语"));
@@ -511,34 +619,50 @@ mod tests {
 
     #[test]
     fn build_prompt_normal_en_fr() {
-        let p = build_prompt("hello world", "en", "fr", false);
+        let p = build_prompt("hello world", "en", "fr", false, None);
         assert!(p.contains("Translate the following text into French."));
         assert!(p.contains("hello world"));
     }
 
     #[test]
     fn build_prompt_normal_zh_hant_target_uses_chinese_instruction() {
-        let p = build_prompt("bonjour", "fr", "zh-Hant", false);
+        let p = build_prompt("bonjour", "fr", "zh-Hant", false, None);
         assert!(p.contains("Translate the following text into Traditional Chinese."));
     }
 
     #[test]
     fn build_prompt_asr_non_chinese_pair_uses_english_instruction() {
-        let p = build_prompt("hello world", "en", "ja", true);
-        assert!(p.contains("Translate the following English spoken transcript into Japanese."));
-        // 完整 6 条要求（英文版）
-        assert!(p.contains("1. Output ONLY the Japanese translation."));
-        assert!(p.contains("3. Fix ASR errors and homophones."));
-        assert!(p.contains("6. Do not explain or add notes."));
-        assert!(p.contains("Source: hello world"));
-        assert!(p.contains("Target (Japanese):"));
+        let p = build_prompt("hello world", "en", "ja", true, None);
+        assert!(p.contains("Translate the English text inside the <source> tag into Japanese."));
+        assert!(p.contains("1. Output ONLY the Japanese translation of the <source> content."));
+        assert!(p.contains("3. Fix ASR errors and homophones"));
+        assert!(p.contains("4. Never repeat or translate anything outside the <source> tag."));
+        assert!(p.contains("<source>\nhello world\n</source>"));
     }
 
     #[test]
     fn build_prompt_asr_chinese_family_target_uses_chinese_instruction() {
-        let p = build_prompt("bonjour le monde", "fr", "zh-Hant", true);
-        assert!(p.contains("将以下French语音转录文本翻译为Traditional Chinese"));
-        assert!(p.contains("Target (Traditional Chinese):"));
+        let p = build_prompt("bonjour le monde", "fr", "zh-Hant", true, None);
+        assert!(p.contains("把 <source> 标签内的French翻译成Traditional Chinese"));
+        assert!(p.contains("<source>\nbonjour le monde\n</source>"));
+    }
+
+    /// 2026-09-22：模型把提示词的 `<source>` 标签一起输出时必须清掉。
+    /// 实测 qwen-max 返回 `"<source>\n译文\n</source>"`（带换行），
+    /// 前缀与结尾都要处理，否则用户看到多余的标签。
+    #[test]
+    fn postprocess_strips_source_tags() {
+        assert_eq!(
+            postprocess("<source>\n你好，世界\n</source>", "en", "zh"),
+            "你好，世界"
+        );
+        assert_eq!(
+            postprocess("译文：你好，世界</source>", "en", "zh"),
+            "你好，世界"
+        );
+        assert_eq!(postprocess("<source>你好，世界", "en", "zh"), "你好，世界");
+        // 正常译文不受影响
+        assert_eq!(postprocess("你好，世界。", "en", "zh"), "你好，世界。");
     }
 
     #[test]

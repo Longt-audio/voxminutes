@@ -66,15 +66,17 @@ export function useModelLoadingToasts() {
   }, [])
 }
 
-/** model-loading 事件中的模型标识 → 界面显示名；查不到映射就原样显示。 */
+/** model-loading 事件中的模型标识 → 界面显示名；查不到映射就原样显示。
+ *  本地模型统一拼「（本地）」后缀（此处拿不到 t，用中文常量，与 mdLocalSuffix 的 zh 值一致）。 */
 export function modelDisplayName(model: string): string {
   const key = model.toLowerCase()
-  if (key.startsWith('x-asr')) return 'X-ASR'
-  if (key.startsWith('sense-voice')) return 'SenseVoice'
-  if (key.startsWith('opus-mt')) return 'OPUS-MT'
-  if (key.startsWith('hy-mt2')) return 'Hy-MT2'
-  if (key.includes('qwen2.5-3b')) return 'Qwen2.5-3B'
-  if (key.includes('qwen3-4b')) return 'Qwen3-4B-2507'
-  if (key.includes('gemma-3-4b')) return 'Gemma-3-4B'
-  return model
+  let name = model
+  if (key.startsWith('x-asr')) name = 'X-ASR'
+  else if (key.startsWith('sense-voice')) name = 'SenseVoice'
+  else if (key.startsWith('opus-mt')) name = 'OPUS-MT'
+  else if (key.startsWith('hy-mt2')) name = 'Hy-MT2'
+  else if (key.includes('qwen2.5-3b')) name = 'Qwen2.5-3B'
+  else if (key.includes('qwen3-4b')) name = 'Qwen3-4B-2507'
+  else if (key.includes('gemma-3-4b')) name = 'Gemma-3-4B'
+  return `${name}（本地）`
 }

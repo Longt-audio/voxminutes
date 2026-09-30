@@ -22,7 +22,7 @@ export const importingModels = new Set<string>()
 
 /**
  * 模型下载/导入共享逻辑：模型列表 + 进度事件订阅 + 下载/取消/导入动作。
- * 设置页 ModelDownloadCard 与首次启动向导 OnboardingDialog 共用，避免两份进度逻辑。
+ * 设置页 ModelDownloadCard 与欢迎弹窗 WelcomeDialog 共用，避免两份进度逻辑。
  * done/error 的 toast 由全局 useModelDownloadToasts（下载）与 importModel（导入）分别负责。
  */
 export function useModelDownload() {

@@ -68,16 +68,24 @@ async fn run_local_generation<R: Runtime>(
     model_id: Option<&str>,
     cancel: &AtomicBool,
 ) {
+    let started = std::time::Instant::now();
     let dir_name = match resolve_model_dir(model_id) {
         Ok(d) => d,
         Err(msg) => {
+            log::warn!("⚠️ 本地总结失败 request_id={}: {}", request_id, msg);
             emit_event(app, request_id, "error", msg);
             return;
         }
     };
+    log::info!("📝 本地总结生成 request_id={} 模型目录={}", request_id, dir_name);
     let model_path = match llama_sidecar::find_gguf_model(dir_name) {
         Some(p) => p,
         None => {
+            log::warn!(
+                "⚠️ 本地总结失败 request_id={}: 模型文件未找到（{}）",
+                request_id,
+                dir_name
+            );
             emit_event(
                 app,
                 request_id,
@@ -90,6 +98,10 @@ async fn run_local_generation<R: Runtime>(
     let helper_exe = match llama_sidecar::resolve_helper_exe() {
         Some(p) => p,
         None => {
+            log::warn!(
+                "⚠️ 本地总结失败 request_id={}: llama-helper 未找到",
+                request_id
+            );
             emit_event(
                 app,
                 request_id,
@@ -100,6 +112,7 @@ async fn run_local_generation<R: Runtime>(
         }
     };
     if cancel.load(Ordering::SeqCst) {
+        log::info!("⏹️ 本地总结在生成前已取消 request_id={}", request_id);
         emit_event(app, request_id, "done", String::new());
         return;
     }
@@ -144,17 +157,37 @@ async fn run_local_generation<R: Runtime>(
     if cancelled {
         // Cancellation ends as a normal `done`; the sidecar does not stream,
         // so there is no partial text to deliver.
+        log::info!(
+            "⏹️ 本地总结已取消 request_id={}（llama-helper 子进程已终止）耗时 {:.1}s",
+            request_id,
+            started.elapsed().as_secs_f64()
+        );
         emit_event(app, request_id, "done", String::new());
         return;
     }
     match result {
         Ok(text) => {
+            log::info!(
+                "✅ 本地总结完成 request_id={} 正文 {} 字 耗时 {:.1}s 空正文={}",
+                request_id,
+                text.chars().count(),
+                started.elapsed().as_secs_f64(),
+                text.trim().is_empty()
+            );
             // Non-streaming backend, streaming UX: deliver the whole text as
             // one token, then finalize with `done`.
             emit_event(app, request_id, "token", text.clone());
             emit_event(app, request_id, "done", text);
         }
-        Err(e) => emit_event(app, request_id, "error", e),
+        Err(e) => {
+            log::warn!(
+                "⚠️ 本地总结失败 request_id={} 耗时 {:.1}s: {}",
+                request_id,
+                started.elapsed().as_secs_f64(),
+                e
+            );
+            emit_event(app, request_id, "error", e);
+        }
     }
 }
 
@@ -170,14 +203,28 @@ pub async fn summary_local_generate<R: Runtime>(
     max_tokens: Option<u32>,
     model_id: Option<String>,
 ) -> Result<(), String> {
+    // 入口日志只记模型选择与 prompt 长度，不打 prompt 正文
+    log::info!(
+        "📝 本地总结开始 request_id={} 模型={} prompt {} 字",
+        request_id,
+        model_id.as_deref().unwrap_or("自动选择"),
+        prompt.chars().count()
+    );
     let flag = Arc::new(AtomicBool::new(false));
     {
         let mut map = CANCEL.lock().map_err(|e| e.to_string())?;
         map.insert(request_id.clone(), flag.clone());
     }
     tauri::async_runtime::spawn(async move {
-        run_local_generation(&app, &request_id, &prompt, max_tokens, model_id.as_deref(), &flag)
-            .await;
+        run_local_generation(
+            &app,
+            &request_id,
+            &prompt,
+            max_tokens,
+            model_id.as_deref(),
+            &flag,
+        )
+        .await;
         if let Ok(mut map) = CANCEL.lock() {
             map.remove(&request_id);
         }

@@ -20,11 +20,18 @@ pub struct TtsSynthesisResult {
 }
 
 /// 合成一段文本为语音（远程网关 TTS）。
+///
+/// - `voice`：音色 id（可选；缺省用供应商默认音色）
+/// - `model`：远程 TTS 模型（可选；缺省用用户选择的默认 TTS 模型）
+/// - `instructions`：自然语言指令（可选）。MiMo TTS 用它控制风格/情感/语速，
+///   音色设计模型（voicedesign）用它描述要生成的音色（官方无 speed/pitch 等数值参数）。
 #[tauri::command]
 pub async fn tts_synthesize(
     text: String,
     voice: Option<String>,
     model: Option<String>,
+    instructions: Option<String>,
+    language: Option<String>,
 ) -> Result<TtsSynthesisResult, String> {
     let base = crate::audio::transcription::remote_api_base()
         .ok_or_else(|| "远程服务未配置（缺少服务器地址）".to_string())?;
@@ -43,6 +50,27 @@ pub async fn tts_synthesize(
     let chosen = model
         .filter(|m| !m.trim().is_empty())
         .unwrap_or_else(|| crate::audio::transcription::get_remote_tts_model());
+
+    // 日志：tts_synthesize 以前**一行日志都没有**，TTS 出问题在 App 日志里完全不可见
+    // （2026-09-22 排查「所有 TTS 都没声音」时，只能靠网关 usage_log 反推）。
+    // 只记长度与前 20 字，不整段落盘。
+    log::info!(
+        "🔊 TTS 合成请求: model={} voice={} lang={} 文本 {} 字: {}",
+        if chosen.is_empty() {
+            "(网关默认)"
+        } else {
+            chosen.as_str()
+        },
+        voice
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .unwrap_or("(默认音色)"),
+        language.as_deref().map(str::trim).filter(|l| !l.is_empty()).unwrap_or("(未指定)"),
+        text.chars().count(),
+        text.chars().take(20).collect::<String>()
+    );
+
     let mut body = serde_json::json!({ "input": text });
     if !chosen.is_empty() {
         body["model"] = serde_json::json!(chosen);
@@ -53,16 +81,39 @@ pub async fn tts_synthesize(
             body["voice"] = serde_json::json!(v);
         }
     }
+    if let Some(i) = instructions {
+        let i = i.trim().to_string();
+        if !i.is_empty() {
+            body["instructions"] = serde_json::json!(i);
+        }
+    }
+    // 语种（2026-09-23）：网关据此按语种路由（中文→MiMo、其余 31 语种→自建 Supertonic），
+    // 并且 Supertonic **必须**显式告知语种才能正确发音（它不像 MiMo 靠音色决定语言）。
+    // 以前这里完全没有 language 字段，导致网关的语种路由形同虚设 —— 英文也用中文音色念。
+    if let Some(l) = language {
+        let l = l.trim().to_lowercase();
+        if !l.is_empty() && l != "auto" {
+            body["language"] = serde_json::json!(l);
+        }
+    }
 
+    let started = std::time::Instant::now();
     let client = reqwest::Client::new();
     let resp = client
         .post(format!("{}/audio/speech", base))
         .bearer_auth(&license)
+        // 任务会话 + 请求 id（2026-09-22）：会话用于把「朗读这段纪要」的多段合成归成一个任务；
+        // 请求 id 用于网关去重 —— TTS 按字符计费且单笔金额明显，超时重发重复扣费最容易被发现。
+        .header("x-vox-session", crate::task_session::current_session())
+        .header("x-vox-request-id", crate::task_session::new_request_id())
         .json(&body)
         .timeout(std::time::Duration::from_secs(120))
         .send()
         .await
-        .map_err(|e| format!("TTS 请求失败: {}", e))?;
+        .map_err(|e| {
+            log::warn!("❌ TTS 请求失败: {}", e);
+            format!("TTS 请求失败: {}", e)
+        })?;
 
     let status = resp.status();
     let content_type = resp
@@ -75,16 +126,25 @@ pub async fn tts_synthesize(
     if !status.is_success() {
         let detail = resp.text().await.unwrap_or_default();
         let msg = extract_gateway_error(&detail).unwrap_or(detail);
+        log::warn!("❌ TTS 失败 (HTTP {}): {}", status.as_u16(), msg);
         return Err(format!("TTS 失败 (HTTP {}): {}", status.as_u16(), msg));
     }
 
-    let bytes = resp
-        .bytes()
-        .await
-        .map_err(|e| format!("TTS 响应读取失败: {}", e))?;
+    let bytes = resp.bytes().await.map_err(|e| {
+        log::warn!("❌ TTS 响应读取失败: {}", e);
+        format!("TTS 响应读取失败: {}", e)
+    })?;
     if bytes.is_empty() {
+        log::warn!("❌ TTS 返回了空音频 (HTTP {})", status.as_u16());
         return Err("TTS 返回了空音频".to_string());
     }
+
+    log::info!(
+        "✅ TTS 合成成功: {} 字节 / {} / 用时 {}ms",
+        bytes.len(),
+        content_type,
+        started.elapsed().as_millis()
+    );
 
     Ok(TtsSynthesisResult {
         audio_base64: BASE64.encode(&bytes),
@@ -135,8 +195,7 @@ pub async fn save_tts_audio(
             let path = p.into_path().map_err(|e| e.to_string())?;
             if let Some(parent) = path.parent() {
                 if !parent.exists() {
-                    std::fs::create_dir_all(parent)
-                        .map_err(|e| format!("创建目录失败: {}", e))?;
+                    std::fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
                 }
             }
             std::fs::write(&path, &bytes).map_err(|e| format!("写入音频失败: {}", e))?;
@@ -172,7 +231,14 @@ fn extract_gateway_error(detail: &str) -> Option<String> {
 
 /// 根据 MIME 类型推导文件扩展名（保存对话框默认文件名用）。
 fn extension_from_mime(mime: &str) -> String {
-    match mime.split(';').next().unwrap_or("").trim().to_lowercase().as_str() {
+    match mime
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_lowercase()
+        .as_str()
+    {
         "audio/wav" | "audio/x-wav" | "audio/wave" => "wav".to_string(),
         "audio/mp4" | "audio/mp4a-latm" | "audio/x-m4a" => "m4a".to_string(),
         "audio/ogg" | "application/ogg" => "ogg".to_string(),

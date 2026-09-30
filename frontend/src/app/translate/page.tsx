@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeftRight, Copy, Check, Loader2, X, Volume2, Download } from 'lucide-react'
+import { ArrowLeftRight, Copy, Check, ChevronDown, Loader2, X, Volume2, Download, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { Button } from '@/components/ui/button'
-import { translateText, getTranslationEngine, setTranslationEngine as ipcSetTranslationEngine, getTranslationTargetLang, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationHomeLang, onTranslateTextStream, getDownloadableModels, getRemoteEnabled, ttsSynthesize, saveTtsAudio } from '@/services/ipc'
+import { translateText, getTranslationEngine, setTranslationEngine as ipcSetTranslationEngine, getTranslationTargetLang, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationHomeLang, onTranslateTextStream, ttsSynthesize, saveTtsAudio } from '@/services/ipc'
 import { useTranslatePageStore } from '@/stores/translatePageStore'
 import { useLanguageStore } from '@/stores/languageStore'
-import { useTtsVoiceStore } from '@/stores/ttsVoiceStore'
+import { useTtsDefaultVoiceStore } from '@/stores/ttsDefaultVoiceStore'
+import { useRemoteCatalogStore } from '@/stores/remoteCatalogStore'
 import { useMessages } from '@/i18n/useMessages'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
-import { availableTranslationEngines } from '@/lib/translationEngines'
-import { useRemoteModelChoice, formatModelPrice } from '@/lib/remoteModelChoice'
-import type { TranslationEngine, DownloadableModelInfo } from '@/types'
+import { useRemoteModelChoice, remoteModelDisplayName } from '@/lib/remoteModelChoice'
+import { ModelPickerDialog } from '@/components/translate/ModelPickerDialog'
+import type { TranslationEngine } from '@/types'
 
 /** 与后端一致的 CJK 启发式：非空白字符中 CJK 占比 > 30% 视为中文 */
 function detectIsZh(text: string): boolean {
@@ -52,8 +53,7 @@ export default function TranslatePage() {
   const [copied, setCopied] = useState(false)
   const [modelMissing, setModelMissing] = useState(false)
   const [engine, setEngine] = useState<TranslationEngine>('opus')
-  const [translationModels, setTranslationModels] = useState<DownloadableModelInfo[] | null>(null)
-  const [remoteEnabled, setRemoteEnabled] = useState(false)
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
 
   // ── TTS 播放（远程语音合成，走网关 /v1/audio/speech） ──────────────────────────
   const [ttsLoading, setTtsLoading] = useState<'source' | 'target' | null>(null)
@@ -69,22 +69,12 @@ export default function TranslatePage() {
   // 当前 Blob URL：新建前先 revoke，避免内存泄漏
   const ttsUrlRef = useRef<string | null>(null)
 
-  useEffect(() => {
-    getDownloadableModels()
-      .then(setTranslationModels)
-      .catch(() => setTranslationModels([]))
-    getRemoteEnabled()
-      .then(setRemoteEnabled)
-      .catch(() => setRemoteEnabled(false))
-  }, [])
-
-  const translationEngines = translationModels === null
-    ? (['opus', 'hymt2'] as const)
-    : availableTranslationEngines(translationModels)
   // 远程翻译模型（engine 为 remote 时在翻译页直接选择，与后端远程模型同步）
-  const remoteTranslate = useRemoteModelChoice('translate')
+  const remoteTranslate = useRemoteModelChoice('translate', { excludeReasoning: true, usage: 'translate' })
   // 远程 TTS 模型（语音合成使用，与后端远程模型同步）
   const remoteTts = useRemoteModelChoice('tts')
+  // 远程模型目录（全局 store）：按语种推导默认音色时需要知道哪些 TTS 模型可用
+  const catalogModels = useRemoteCatalogStore((s) => s.models)
   // 请求代际：取消时 +1，迟到结果比对不一致则丢弃
   const requestIdRef = useRef(0)
   // 当前流式请求的 request_id：匹配才接受 delta，取消/结束后置空
@@ -143,6 +133,17 @@ export default function TranslatePage() {
       ipcSetTranslationTargetLang(fallback).catch(() => {})
     }
   }, [setTargetLang])
+
+  // 模型选择按钮的显示名：本地引擎带「（本地）」后缀，远程用模型显示名
+  const currentModelLabel = useMemo(() => {
+    if (engine === 'remote') {
+      const m = remoteTranslate.models.find((mm) => mm.id === remoteTranslate.value)
+      return m ? remoteModelDisplayName(m) : t.trRemoteModel
+    }
+    if (engine === 'opus') return `OPUS-MT${t.mdLocalSuffix}`
+    if (engine === 'hymt2') return `Hy-MT2${t.mdLocalSuffix}`
+    return t.recEngineCustomApi
+  }, [engine, remoteTranslate.models, remoteTranslate.value, t])
 
   // 目标语言切换：同时写 store 与后端全局值，失败回滚
   const handleTargetLangChange = useCallback((lang: string) => {
@@ -234,9 +235,24 @@ export default function TranslatePage() {
       if (!text.trim() || ttsLoading) return
       setTtsLoading(kind)
       try {
-        // 用当前远程 TTS 模型的默认音色（可在「语音合成」页设置）；未设置走供应商默认
-        const voice = useTtsVoiceStore.getState().getVoice(remoteTts.value)
-        const result = await ttsSynthesize(text.trim(), voice, undefined)
+        // 语种与音色解析（2026-09-23 改版：按**语种**而不是"当前选中的模型"决定）。
+        //
+        // 语种怎么定（用户确认的方案 C）：
+        //   播放原文 → 按**检测到的文本语言**（目前只能区分中/英）
+        //   播放译文 → 按**目标语言**（targetLang，准确）
+        //
+        // 为什么必须把语言传给网关：Supertonic 靠 `language` 才能正确发音（它不像 MiMo
+        // 靠音色决定语言），而网关也正是靠它做「中文→MiMo / 其余 31 语种→自建 Supertonic」
+        // 的路由。以前这里完全不传，导致英文也用中文音色念、且自建 TTS 从未被用上。
+        const spokenLang = kind === 'source' ? (inputIsZh ? 'zh' : 'en') : targetLang
+        const cfg = useTtsDefaultVoiceStore.getState().resolve(spokenLang, catalogModels)
+        const result = await ttsSynthesize(
+          text.trim(),
+          cfg.voice || undefined,
+          cfg.model || undefined,
+          cfg.instructions,
+          spokenLang,
+        )
         if (ttsUrlRef.current) URL.revokeObjectURL(ttsUrlRef.current)
         const { url } = base64ToBlobUrl(result.audio_base64, result.content_type)
         ttsUrlRef.current = url
@@ -256,7 +272,7 @@ export default function TranslatePage() {
         setTtsLoading(null)
       }
     },
-    [input, output, ttsLoading, remoteTts.value, sourceLabel, targetLabel, t]
+    [input, output, ttsLoading, remoteTts.value, remoteTts.models, targetLang, sourceLabel, targetLabel, t]
   )
 
   const handleTtsDownload = useCallback(async () => {
@@ -288,10 +304,9 @@ export default function TranslatePage() {
 
   return (
     <div className="h-full flex flex-col bg-background px-5 pt-8 pb-5 gap-4 overflow-y-auto custom-scrollbar">
-      {/* 页头：标题 + 描述（同行） */}
-      <header className="shrink-0 flex items-baseline gap-2">
+      {/* 页头：标题 */}
+      <header className="shrink-0">
         <h1 className="text-xl font-semibold">{t.trTitle}</h1>
-        <p className="text-xs text-muted-foreground">{t.trSubtitle}</p>
       </header>
 
       {/* 语言指示 + 交换 + 翻译按钮（同一行） */}
@@ -322,58 +337,28 @@ export default function TranslatePage() {
           ))}
         </select>
 
-        <select
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none"
-          value={engine}
-          onChange={(e) => handleEngineChange(e.target.value as TranslationEngine)}
-          title={t.trEngine}
+        {/* 模型选择：标题与按钮同行垂直居中，点击弹出卡片式模型选择弹窗 */}
+        <div className="flex items-center gap-2">
+          <span className="shrink-0 text-xs text-muted-foreground">{t.trModelLabel}</span>
+          <button
+            type="button"
+            onClick={() => setModelPickerOpen(true)}
+            title={t.trPickModel}
+            className="flex h-8 max-w-[220px] items-center gap-1.5 rounded-md border border-input bg-background px-2 text-xs shadow-sm hover:text-foreground"
+          >
+            <span className="truncate">{currentModelLabel}</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* 模型与设置子页面入口 */}
+        <Link
+          href="/translate/models"
+          title={t.trModelSettings}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground shadow-sm hover:text-foreground"
         >
-          {translationEngines.includes('opus') && <option value="opus">{t.trEngineOpus}</option>}
-          {translationEngines.includes('hymt2') && <option value="hymt2">{t.trEngineHymt2}</option>}
-          {remoteEnabled && <option value="remote">{t.recEngineRemote}</option>}
-        </select>
-
-        {/* 远程翻译模型（engine 为 remote 时直接在此选择） */}
-        {engine === 'remote' && remoteTranslate.models.length > 0 && (
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none max-w-[220px]"
-            value={remoteTranslate.value}
-            onChange={(e) => remoteTranslate.set(e.target.value)}
-            title={t.trRemoteModel}
-          >
-            {remoteTranslate.models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.owned_by} / {m.id} · {formatModelPrice(m)}
-              </option>
-            ))}
-          </select>
-        )}
-
-        {/* 远程 TTS 模型（语音合成使用，与用户中心选择同步） */}
-        {remoteEnabled && remoteTts.models.length > 0 && (
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none max-w-[200px]"
-            value={remoteTts.value}
-            onChange={(e) => remoteTts.set(e.target.value)}
-            title={`${t.trRemoteModel} (TTS)`}
-          >
-            {remoteTts.models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.owned_by} / {m.id}
-              </option>
-            ))}
-          </select>
-        )}
-
-        {/* 默认语音入口：指引用户到语音合成页设置默认音色 */}
-        {remoteEnabled && (
-          <Link
-            href="/tts"
-            className="text-xs text-muted-foreground hover:text-foreground hover:underline shrink-0"
-          >
-            {t.trSetDefaultVoice}
-          </Link>
-        )}
+          <Settings2 className="h-3.5 w-3.5" />
+        </Link>
 
         <div className="flex-1" />
 
@@ -513,6 +498,17 @@ export default function TranslatePage() {
           </Button>
         </div>
       )}
+
+      {/* 模型选择弹窗：卡片点选即切换引擎并关闭 */}
+      <ModelPickerDialog
+        open={modelPickerOpen}
+        onOpenChange={setModelPickerOpen}
+        value={{ engine, remoteModel: remoteTranslate.value }}
+        onChange={(next) => {
+          if (next.engine) handleEngineChange(next.engine)
+          if (next.remoteModel) remoteTranslate.set(next.remoteModel)
+        }}
+      />
     </div>
   )
 }
