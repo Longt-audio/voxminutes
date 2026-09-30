@@ -29,6 +29,9 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    # 需要写权限才能把安装包发布到 Releases（GITHUB_TOKEN 默认对私有仓库是只读）
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -131,3 +134,26 @@ jobs:
           # 仓库根是 cargo workspace，bundle 产物在 <repo>/target 下
           path: target/release/bundle/nsis/*.exe
           if-no-files-found: error
+
+      # ── 固定入口：每次构建都更新同一个 Release ────────────────────────────
+      # 为什么要这一步：Actions 的 Artifacts 藏在每次运行页面里，找起来很麻烦；
+      # 而且 90 天就过期。这里把安装包同时挂到固定的 tag `windows-latest` 上，
+      # 于是永远有一个稳定的下载页：
+      #   https://github.com/Long-t-audio/voxminutes-build/releases/tag/windows-latest
+      # 同一个 tag 会被反复更新（资产替换），所以「最新安装包永远在这里」。
+      - name: Publish to Releases (always-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-latest
+          name: VoxMinutes · Windows 最新构建（自动更新）
+          prerelease: true
+          # 同名资产会被替换，保证这个页面永远是最新的
+          files: target/release/bundle/nsis/*.exe
+          body: |
+            **这是自动发布的最新 Windows 测试构建**，每次 CI 构建成功后覆盖更新。
+
+            - 提交：`${{ github.sha }}`
+            - 运行：[#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            安装说明：双击安装包 → 出现「Windows 已保护你的电脑」时点
+            **「更多信息」→「仍要运行」**（未做代码签名，属预期现象）。
