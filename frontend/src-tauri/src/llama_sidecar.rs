@@ -80,7 +80,10 @@ impl HelperProcess {
     }
 
     fn stderr_tail(&self) -> String {
-        self.stderr_tail.lock().map(|s| s.clone()).unwrap_or_default()
+        self.stderr_tail
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -94,6 +97,8 @@ impl Drop for HelperProcess {
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 const TARGET_TRIPLE: &str = "x86_64-pc-windows-msvc";
+#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+const TARGET_TRIPLE: &str = "aarch64-pc-windows-msvc";
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 const TARGET_TRIPLE: &str = "aarch64-apple-darwin";
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
@@ -102,6 +107,7 @@ const TARGET_TRIPLE: &str = "x86_64-apple-darwin";
 const TARGET_TRIPLE: &str = "x86_64-unknown-linux-gnu";
 #[cfg(not(any(
     all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "windows", target_arch = "aarch64"),
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "macos", target_arch = "x86_64"),
     all(target_os = "linux", target_arch = "x86_64")
@@ -298,10 +304,7 @@ fn parse_helper_response(line: &str) -> Result<HelperLine, String> {
         Some("response") => {
             if let Some(err) = json.get("error").and_then(|e| e.as_str()) {
                 if !err.is_empty() {
-                    return Ok(HelperLine::Done(Err(format!(
-                        "本地推理生成失败: {}",
-                        err
-                    ))));
+                    return Ok(HelperLine::Done(Err(format!("本地推理生成失败: {}", err))));
                 }
             }
             Ok(HelperLine::Done(Ok(json
@@ -439,10 +442,7 @@ pub(crate) fn blocking_generate(
                     .read_line(&mut line)
                     .map_err(|e| format!("读取本地推理引擎输出失败: {}", e))?;
                 if n == 0 {
-                    return Err(format!(
-                        "本地推理引擎意外退出。{}",
-                        helper.stderr_tail()
-                    ));
+                    return Err(format!("本地推理引擎意外退出。{}", helper.stderr_tail()));
                 }
                 match parse_helper_response(&line)? {
                     HelperLine::Token(text) => {

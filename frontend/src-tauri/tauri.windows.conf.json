@@ -1,0 +1,30 @@
+{
+    "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+    "app": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "VoxMinutes",
+                "width": 1100,
+                "height": 700,
+                "minWidth": 900,
+                "minHeight": 600,
+                "resizable": true,
+                "fullscreen": false,
+                "theme": "Light",
+                "decorations": false,
+                "shadow": false,
+                "center": true,
+                "focus": true
+            }
+        ]
+    },
+    "bundle": {
+        "resources": {
+            "resources-dll/onnxruntime.dll": "onnxruntime.dll",
+            "resources-dll/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll",
+            "resources-dll/sherpa-onnx-c-api.dll": "sherpa-onnx-c-api.dll",
+            "resources-dll/sherpa-onnx-cxx-api.dll": "sherpa-onnx-cxx-api.dll"
+        }
+    }
+}

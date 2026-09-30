@@ -45,28 +45,32 @@ pub const FEATURE_XASR_960MS_ENABLED: bool = false;
 
 pub mod api;
 pub mod audio;
-mod sherpa_onnx_engine;
 pub mod config;
 pub mod database;
+pub mod diagnostics;
+pub mod floating_ball;
 mod llama_sidecar;
 pub mod model_download;
 pub mod notifications;
+pub mod print_window;
+pub mod remote_messages;
+mod sherpa_onnx_engine;
 pub mod state;
+pub mod subtitle_overlay;
 pub mod summary;
+pub mod task_session;
 pub mod translation;
 pub mod tray;
-pub mod subtitle_overlay;
-pub mod remote_messages;
 mod tts;
 
 pub mod bundle_paths;
 pub mod utils;
-pub mod win_short_path;
 #[cfg(target_os = "windows")]
 pub mod win_job_object;
+pub mod win_short_path;
 
-use audio::{list_audio_devices, AudioDevice, trigger_audio_permission};
-use log::{error as log_error, info as log_info};
+use audio::{list_audio_devices, trigger_audio_permission, AudioDevice};
+use log::{error as log_error, info as log_info, warn as log_warn};
 use notifications::commands::NotificationManagerState;
 use std::sync::Arc;
 use tauri::{AppHandle, Runtime};
@@ -161,8 +165,11 @@ async fn start_recording<R: Runtime>(
     let recording_result = match (mic_device_name.clone(), system_device_name.clone()) {
         (None, None) => {
             log_info!("No devices specified, starting with system defaults");
-            audio::recording_commands::start_recording_with_meeting_name(app.clone(), meeting_name.clone())
-                .await
+            audio::recording_commands::start_recording_with_meeting_name(
+                app.clone(),
+                meeting_name.clone(),
+            )
+            .await
         }
         _ => {
             audio::recording_commands::start_recording_with_devices_and_meeting(
@@ -175,8 +182,7 @@ async fn start_recording<R: Runtime>(
         }
     };
 
-    match recording_result
-    {
+    match recording_result {
         Ok(_) => {
             RECORDING_FLAG.store(true, Ordering::SeqCst);
             tray::update_tray_menu(&app);
@@ -191,10 +197,7 @@ async fn start_recording<R: Runtime>(
             )
             .await
             {
-                log_error!(
-                    "Failed to show recording started notification: {}",
-                    e
-                );
+                log_error!("Failed to show recording started notification: {}", e);
             } else {
                 log_info!("Successfully showed recording started notification");
             }
@@ -206,6 +209,21 @@ async fn start_recording<R: Runtime>(
             Err(format!("Failed to start recording: {}", e))
         }
     }
+}
+
+/// 录音中热切换流式 ASR 引擎（前端先持久化新选择，再调本命令；见 recording_commands 实现注释）。
+/// `remote_asr_model`：切到远程时前端把当前真实选择一并传来（2026-09-28 竞态修复），
+/// 后端以此为权威同步 REMOTE_ASR_MODEL 后再切 —— 不再依赖选择器的异步持久化已落盘。
+#[tauri::command]
+async fn switch_asr_model<R: Runtime>(
+    app: AppHandle<R>,
+    remote_asr_model: Option<String>,
+) -> Result<(), String> {
+    log_info!("🔀 CALLED switch_asr_model");
+    if let Some(explicit) = remote_asr_model.as_deref() {
+        audio::transcription::apply_explicit_remote_asr_model(explicit);
+    }
+    audio::recording_commands::switch_streaming_asr_model(app).await
 }
 
 #[tauri::command]
@@ -230,13 +248,32 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
             tray::update_tray_menu(&app);
             subtitle_overlay::clear_subtitle_segments_internal();
 
-            if let Some(parent) = std::path::Path::new(&args.save_path).parent() {
-                if !parent.exists() {
-                    log_info!("Creating directory: {:?}", parent);
-                    if let Err(e) = std::fs::create_dir_all(parent) {
-                        let err_msg = format!("Failed to create save directory: {}", e);
-                        log_error!("{}", err_msg);
-                        return Err(err_msg);
+            // 仅当调用方真的给了「可写路径」时才补建父目录。
+            //
+            // 前端正常路径（应用内部落盘）不需要这个参数，新前端传空串；
+            // 历史版本传的是 POSIX 占位符 "/dev/null" —— 它在 Windows 上没有盘符，
+            // 属于「驱动器相对路径」，parent() 会得到 `\dev`，于是每次停止录音都会在
+            // 盘根创建出多余的 C:\dev 目录；盘根不可写（受管终端/只读盘）时还会让
+            // **已经成功结束的停止录音**返回 Err，前端弹出假的「停止录音失败」。
+            // 占位符与无盘符的根相对路径一律跳过（macOS 上 /dev 恰好存在，所以这个
+            // bug 在本机开发时完全看不出来）。
+            let save_path = args.save_path.trim();
+            let placeholder = save_path.is_empty()
+                || save_path == "/dev/null"
+                || save_path.eq_ignore_ascii_case("nul");
+            if !placeholder {
+                if let Some(parent) = std::path::Path::new(save_path).parent() {
+                    #[cfg(target_os = "windows")]
+                    let creatable = parent.is_absolute();
+                    #[cfg(not(target_os = "windows"))]
+                    let creatable = true;
+                    if creatable && !parent.as_os_str().is_empty() && !parent.exists() {
+                        log_info!("Creating directory: {:?}", parent);
+                        if let Err(e) = std::fs::create_dir_all(parent) {
+                            let err_msg = format!("Failed to create save directory: {}", e);
+                            log_error!("{}", err_msg);
+                            return Err(err_msg);
+                        }
                     }
                 }
             }
@@ -248,10 +285,7 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
             )
             .await
             {
-                log_error!(
-                    "Failed to show recording stopped notification: {}",
-                    e
-                );
+                log_error!("Failed to show recording stopped notification: {}", e);
             } else {
                 log_info!("Successfully showed recording stopped notification");
             }
@@ -455,10 +489,7 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
             )
             .await
             {
-                log_error!(
-                    "Failed to show recording started notification: {}",
-                    e
-                );
+                log_error!("Failed to show recording started notification: {}", e);
             }
 
             Ok(())
@@ -501,32 +532,109 @@ async fn set_language_preference(language: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn set_remote_asr_endpoint(endpoint: String, model_name: Option<String>) -> Result<(), String> {
+async fn set_remote_asr_endpoint(
+    endpoint: String,
+    model_name: Option<String>,
+) -> Result<(), String> {
     let model = model_name.unwrap_or_else(|| "Qwen/Qwen3-ASR-1.7B".to_string());
-    log_info!("Setting remote ASR endpoint: {} (model: {})", endpoint, model);
+    log_info!(
+        "Setting remote ASR endpoint: {} (model: {})",
+        endpoint,
+        model
+    );
     audio::transcription::set_remote_asr_config(&endpoint, &model);
     Ok(())
 }
 
+/// 远程服务器连通性检查（用户中心 / 欢迎弹窗「测试连接」）。
+///
+/// 两段式，避免「测试连接 OK 但一开录就 0 字符」这类假阳性（2026-09-22 事故）：
+///  ① HTTP `GET /health`（reqwest，免鉴权）→ 服务器/域名/证书是否可达；
+///  ② 若已选流式识别模型且已填授权码 → **真实握手一次 wss**（`probe_streaming_channel`），
+///     验证流式通道本身（客户端 TLS、鉴权、路由、上游模型）。
+/// 返回 `streamingOk = null` 表示「不适用/未检测」（未选流式模型、无授权码、或服务器本身不可达），
+/// 此时前端只显示服务器在线，不误报流式不可用。
 #[tauri::command]
-async fn check_remote_asr_health_cmd(endpoint: String) -> Result<bool, String> {
+async fn check_remote_asr_health_cmd(endpoint: String) -> Result<serde_json::Value, String> {
     log_info!("Checking remote ASR health at: {}", endpoint);
     let healthy = audio::transcription::check_remote_asr_health(&endpoint).await;
-    Ok(healthy)
+    // 结果落日志：之前只有请求没有结果行，排查远程连通性时看不到成败（2026-09-17 踩过）
+    log_info!(
+        "Remote ASR health check result: {}",
+        if healthy { "✅ online" } else { "❌ offline" }
+    );
+
+    let mut streaming_ok: Option<bool> = None;
+    let mut streaming_error: Option<String> = None;
+    if healthy && audio::transcription::is_remote_asr_configured() {
+        let applicable = audio::transcription::is_remote_asr_streaming()
+            && !audio::transcription::get_remote_license().is_empty();
+        if applicable {
+            match audio::transcription::remote_asr_streaming_provider::probe_streaming_channel()
+                .await
+            {
+                Ok(()) => {
+                    streaming_ok = Some(true);
+                    log_info!("Streaming channel probe: ✅ ok");
+                }
+                Err(e) => {
+                    streaming_ok = Some(false);
+                    log_warn!("Streaming channel probe: ❌ {}", e);
+                    streaming_error = Some(e);
+                }
+            }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "ok": healthy,
+        "streamingOk": streaming_ok,
+        "streamingError": streaming_error,
+    }))
+}
+
+/// 提前预热流式识别通道（2026-09-28）：fire-and-forget，立即返回。
+/// 预检成功有 5 分钟缓存（`probe_streaming_channel`），前端在「App 启动 / 打开录音弹窗 /
+/// 切换识别模型」三个时间点调用本命令，把 ~3.5s 的跨境握手挪到用户无感知的时间点——
+/// 点「开始录音」时命中即免等待。
+/// 触发时机（2026-09-28 修）：启动时本命令可能跑在远程配置（授权码等）恢复完成之前
+/// （实测启动后 0.9s 触发时授权码尚未就绪，固定延迟重试 3s/10s 都没赶上、空打三炮放弃，
+/// 真正的预检直到用户进设置页才发生）。改为**等待「远程配置加载完成」信号**再探测一次；
+/// 配置已加载时立即探测。幂等由 probe 的 5 分钟成功缓存保证（重复触发命中缓存不再真握）。
+#[tauri::command]
+fn warm_remote_streaming() {
+    tauri::async_runtime::spawn(async move {
+        // 配置加载是启动 setup 的同步环节，正常毫秒级完成；30s 上限只是防御
+        // （超时也照样探测一次——此时多半会报「未配置」，仅记日志不影响别的）。
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            audio::transcription::engine::wait_remote_config_loaded(),
+        )
+        .await;
+        match audio::transcription::remote_asr_streaming_provider::probe_streaming_channel().await
+        {
+            Ok(()) => log_info!("Streaming channel warm-up: ✅ ok（结果已缓存）"),
+            Err(e) => log_info!("Streaming channel warm-up: 跳过（{}）", e),
+        }
+    });
 }
 
 #[tauri::command]
 async fn get_remote_asr_config() -> Result<serde_json::Value, String> {
-    let endpoint = audio::transcription::get_remote_asr_endpoint();
+    let custom = audio::transcription::get_remote_asr_endpoint();
+    let endpoint = audio::transcription::effective_remote_endpoint();
     let model = audio::transcription::get_remote_asr_model();
     Ok(serde_json::json!({
         "endpoint": endpoint,
+        "customEndpoint": custom,
+        "isDefault": custom.is_empty(),
         "model": model,
         "configured": !endpoint.is_empty()
     }))
 }
 
 /// 设置远程服务（server_url + license + model）；license 存 OS keychain。
+/// server_url 传空串 = 不修改已存地址（UI 只传授权码）；地址改动走 set_remote_endpoint。
 #[tauri::command]
 async fn set_remote_config(
     server_url: String,
@@ -539,36 +647,61 @@ async fn set_remote_config(
     Ok(())
 }
 
+/// 只更新远程服务器地址（设置页「高级」入口；空串 = 恢复内置默认 https://api.voxmin.top）。
+/// 不动授权码 / 模型选择。
+#[tauri::command]
+async fn set_remote_endpoint(endpoint: String) -> Result<(), String> {
+    let trimmed = endpoint.trim().to_string();
+    log_info!(
+        "Setting remote endpoint: {}",
+        if trimmed.is_empty() {
+            "(restore default)".to_string()
+        } else {
+            trimmed.clone()
+        }
+    );
+    audio::transcription::set_remote_endpoint(&trimmed);
+    Ok(())
+}
+
 #[tauri::command]
 async fn get_remote_config() -> Result<serde_json::Value, String> {
-    let endpoint = audio::transcription::get_remote_asr_endpoint();
+    let custom = audio::transcription::get_remote_asr_endpoint();
+    let endpoint = audio::transcription::effective_remote_endpoint();
     let model = audio::transcription::get_remote_asr_model();
     let license = audio::transcription::get_remote_license();
     Ok(serde_json::json!({
         "serverUrl": endpoint,
+        "customServerUrl": custom,
+        "isDefault": custom.is_empty(),
         "license": license,
         "model": model,
         "configured": !endpoint.is_empty()
     }))
 }
 
-/// 设置三种能力各自的远程模型（模型选择器）。
+/// 设置各能力的远程模型（模型选择器）。asr_offline 为历史记录离线重识别专用（非流式）。
 #[tauri::command]
 async fn set_remote_model_choice(
     asr: Option<String>,
     asr_mode: Option<String>,
     translate: Option<String>,
     tts: Option<String>,
+    asr_offline: Option<String>,
+    summary: Option<String>,
 ) -> Result<(), String> {
-    audio::transcription::set_remote_models(asr, asr_mode, translate, tts)
+    audio::transcription::set_remote_models(asr, asr_mode, translate, tts, asr_offline, summary)
 }
 
-/// 读回三种能力的远程模型（模型选择器回显）。
+/// 读回各能力的远程模型（模型选择器回显）。
 #[tauri::command]
 async fn get_remote_model_choice() -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({
         "asr": audio::transcription::get_remote_asr_model(),
+        "asr_offline": audio::transcription::get_remote_asr_offline_model(),
         "translate": audio::transcription::get_remote_translate_model(),
+        // 会议总结用的模型（2026-09-23 起独立；未设置时后端回退到 translate 值）
+        "summary": audio::transcription::get_remote_summary_model(),
         "tts": audio::transcription::get_remote_tts_model(),
     }))
 }
@@ -595,8 +728,8 @@ async fn get_remote_enabled() -> Result<bool, String> {
 /// 从网关 /v1/models 拉取当前启用的 ASR/翻译/TTS 模型名（kind → id）。
 #[tauri::command]
 async fn get_remote_models() -> Result<serde_json::Value, String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let license = audio::transcription::get_remote_license();
     let client = reqwest::Client::new();
     let resp = client
@@ -632,8 +765,8 @@ async fn get_remote_models() -> Result<serde_json::Value, String> {
 /// 拉取网关 /v1/models 全量列表（供模型选择器下拉）。
 #[tauri::command]
 async fn list_remote_models() -> Result<serde_json::Value, String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let license = audio::transcription::get_remote_license();
     let client = reqwest::Client::new();
     let resp = client
@@ -647,7 +780,7 @@ async fn list_remote_models() -> Result<serde_json::Value, String> {
         return Err(format!("网关返回 HTTP {}", resp.status()));
     }
     let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-    Ok(json.get("data").cloned().unwrap_or_else(|| serde_json::json!([])))
+    Ok(json)
 }
 
 /// 一键清除所有模型后台，释放内存：
@@ -666,8 +799,8 @@ fn clear_all_model_backends() -> Result<(), String> {
 /// 拉取积分余额（网关 /v1/usage）。
 #[tauri::command]
 async fn get_remote_usage() -> Result<serde_json::Value, String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let license = audio::transcription::get_remote_license();
     let client = reqwest::Client::new();
     let resp = client
@@ -703,8 +836,17 @@ fn read_device_id() -> Result<String, String> {
     }
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
+        // reg.exe 是控制台程序：不加 CREATE_NO_WINDOW 会在用户点「免费领取积分」
+        // 自动注册时闪出一个黑框（GUI 子系统应用运行控制台子进程的默认行为）。
         let out = std::process::Command::new("reg")
-            .args(["query", r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
+            .args([
+                "query",
+                r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography",
+                "/v",
+                "MachineGuid",
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("reg 失败: {e}"))?;
         let s = String::from_utf8_lossy(&out.stdout);
@@ -720,7 +862,8 @@ fn read_device_id() -> Result<String, String> {
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let s = std::fs::read_to_string("/etc/machine-id").map_err(|e| format!("machine-id 失败: {e}"))?;
+        let s = std::fs::read_to_string("/etc/machine-id")
+            .map_err(|e| format!("machine-id 失败: {e}"))?;
         return Ok(s.trim().to_string());
     }
 }
@@ -734,8 +877,8 @@ fn get_device_id() -> Result<String, String> {
 /// 设备绑定自动注册：POST /v1/register，成功则把授权码写入 keychain + 内存。
 #[tauri::command]
 async fn register_device() -> Result<serde_json::Value, String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let device_id = read_device_id()?;
     let client = reqwest::Client::new();
     let resp = client
@@ -764,8 +907,8 @@ async fn register_device() -> Result<serde_json::Value, String> {
 /// 兑换码充值：POST /v1/redeem。
 #[tauri::command]
 async fn redeem_code(code: String) -> Result<serde_json::Value, String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let license = audio::transcription::get_remote_license();
     let client = reqwest::Client::new();
     let resp = client
@@ -792,8 +935,8 @@ async fn redeem_code(code: String) -> Result<serde_json::Value, String> {
 /// 用户自己的积分流水：GET /v1/ledger。
 #[tauri::command]
 async fn get_remote_ledger() -> Result<serde_json::Value, String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let license = audio::transcription::get_remote_license();
     let client = reqwest::Client::new();
     let resp = client
@@ -809,11 +952,35 @@ async fn get_remote_ledger() -> Result<serde_json::Value, String> {
     resp.json().await.map_err(|e| e.to_string())
 }
 
+/// 用户「按任务 × 模型类型」消耗汇总：GET /v1/usage/tasks。
+///
+/// 与 by-model 的区别：by-model 按模型汇总，看不出「这次录音花了多少」；
+/// 本接口一次录音 / 一次离线识别 / 一次会议总结各占一行，行内再按
+/// 语音识别 / 翻译 / 会议总结 / 语音合成拆开（见 gateway/src/attribution.ts）。
+#[tauri::command]
+async fn get_remote_usage_tasks() -> Result<serde_json::Value, String> {
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
+    let license = audio::transcription::get_remote_license();
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{base}/usage/tasks"))
+        .bearer_auth(license)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("网关返回 HTTP {}", resp.status()));
+    }
+    resp.json().await.map_err(|e| e.to_string())
+}
+
 /// 用户按模型消耗汇总：GET /v1/usage/by-model。
 #[tauri::command]
 async fn get_remote_usage_by_model() -> Result<serde_json::Value, String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let license = audio::transcription::get_remote_license();
     let client = reqwest::Client::new();
     let resp = client
@@ -832,8 +999,8 @@ async fn get_remote_usage_by_model() -> Result<serde_json::Value, String> {
 /// 模型测速（网关 /v1/speedtest，仅测延迟，不扣积分）。
 #[tauri::command]
 async fn run_speed_test(kind: String, model: Option<String>) -> Result<serde_json::Value, String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let license = audio::transcription::get_remote_license();
     let client = reqwest::Client::new();
     let resp = client
@@ -850,34 +1017,88 @@ async fn run_speed_test(kind: String, model: Option<String>) -> Result<serde_jso
     resp.json().await.map_err(|e| e.to_string())
 }
 
-/// 提交用户反馈（文字 + 可选截图 base64 + 联系方式）到网关 /v1/feedback。
+/// 提交用户反馈（文字 + 可选截图 base64 + 联系方式 + 可选诊断日志）到网关 /v1/feedback。
+///
+/// `diag_log`（2026-09-25）：客户端「附加诊断日志」勾选后由 `collect_diag_log` 生成，
+/// 网关落成独立文件并在后台「用户反馈」页提供下载。这样软件发布后也能拿到用户侧的
+/// 运行日志（否则只能让用户自己去翻日志目录）。
 #[tauri::command]
 async fn submit_feedback(
     text: String,
     screenshot: Option<String>,
     contact: Option<String>,
+    diag_log: Option<String>,
 ) -> Result<(), String> {
-    let base = audio::transcription::remote_api_base()
-        .ok_or_else(|| "远程服务未配置".to_string())?;
+    // 入口日志只记长度与「有无」，不打正文/联系方式内容（隐私）
+    log::info!(
+        "📮 提交用户反馈：正文 {} 字，截图={}，联系方式={}，诊断日志={}",
+        text.chars().count(),
+        if screenshot.is_some() { "有" } else { "无" },
+        if contact.is_some() { "有" } else { "无" },
+        if diag_log.is_some() { "有" } else { "无" },
+    );
+    let base =
+        audio::transcription::remote_api_base().ok_or_else(|| "远程服务未配置".to_string())?;
     let license = audio::transcription::get_remote_license();
     let body = serde_json::json!({
         "text": text,
         "screenshot": screenshot,
         "contact": contact,
+        "diag_log": diag_log,
         "license": license,
     });
     let client = reqwest::Client::new();
-    let resp = client
+    let resp = match client
         .post(format!("{}/feedback", base))
         .json(&body)
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
-        .map_err(|e| format!("提交失败: {}", e))?;
-    if !resp.status().is_success() {
-        return Err(format!("网关返回 HTTP {}", resp.status()));
+    {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!("⚠️ 用户反馈提交失败（网络错误）: {}", e);
+            return Err(format!("提交失败: {}", e));
+        }
+    };
+    let status = resp.status();
+    if !status.is_success() {
+        log::warn!("⚠️ 用户反馈提交失败：网关返回 HTTP {}", status);
+        return Err(format!("网关返回 HTTP {}", status));
     }
+    log::info!("✅ 用户反馈已提交（网关 HTTP {}）", status);
     Ok(())
+}
+
+/// 收集客户端诊断日志（脱敏后的日志尾部），供「意见反馈」勾选后一起上传。
+///
+/// `max_files` / `since_hours`（2026-09-28）：用户可选附加范围——最近 1/2/5 次运行
+/// （按文件数）或最近一天（按 24 小时时间窗）；都不传 = 默认最近 2 个文件（旧行为）。
+#[tauri::command]
+async fn collect_diag_log(max_files: Option<usize>, since_hours: Option<u32>) -> Result<String, String> {
+    // 读文件是阻塞操作 → 丢到阻塞线程池，避免卡住 UI；收集失败也返回说明文本而不是报错，
+    // 免得「拿不到日志」把用户的反馈提交整个挡掉。
+    tauri::async_runtime::spawn_blocking(move || diagnostics::collect_diag_log(max_files, since_hours))
+        .await
+        .map_err(|e| format!("收集日志失败: {}", e))
+}
+
+/// 应用日志目录的绝对路径：反馈表单「附加日志文件…」对话框的 defaultPath 用。
+/// 与诊断收集同一套定位逻辑（diagnostics::log_dir），macOS / Windows 通用。
+#[tauri::command]
+async fn get_log_dir() -> Option<String> {
+    diagnostics::log_dir().map(|p| p.to_string_lossy().into_owned())
+}
+
+/// 读取用户在反馈表单里手动挑选的日志文件（脱敏 + 单文件上限），与自动收集的日志一并上传。
+#[tauri::command]
+async fn collect_manual_logs(paths: Vec<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let pbs: Vec<std::path::PathBuf> = paths.into_iter().map(std::path::PathBuf::from).collect();
+        diagnostics::collect_manual_logs(&pbs)
+    })
+    .await
+    .map_err(|e| format!("收集日志失败: {}", e))
 }
 
 // Internal helper function to get language preference (for use within Rust code)
@@ -923,12 +1144,70 @@ pub fn run() {
                 }
             }
 
+            // ── 字幕数据源改为 Rust 侧直连（2026-09-24）──────────────────────────
+            //
+            // 以前：字幕缓冲由**前端**（useTranscripts 里的 push_subtitle_segment/Translation）
+            // 喂 → 主窗口 webview 的 JS 一旦不跑（切页面卸载订阅、窗口最小化被节流、
+            // webview 崩了），字幕就停更，哪怕录音与识别都还在正常跑。
+            // 现在：Rust 自己监听转写/翻译事件写缓冲（悬浮窗本来就轮询 get_subtitle_segments），
+            // 前端页面在不在、切到哪一页、窗口是不是最小化，都不影响字幕刷新。
+            {
+                use tauri::Listener;
+                let app_handle = _app.handle().clone();
+                app_handle.listen("transcript-update", move |event: tauri::Event| {
+                    #[derive(serde::Deserialize)]
+                    struct Seg {
+                        sequence_id: u64,
+                        text: String,
+                        #[serde(default)]
+                        is_partial: bool,
+                    }
+                    if let Ok(u) = serde_json::from_str::<Seg>(event.payload()) {
+                        subtitle_overlay::upsert_subtitle_segment(
+                            subtitle_overlay::SubtitleSegmentInput {
+                                sequence_id: u.sequence_id,
+                                text: u.text,
+                                is_partial: u.is_partial,
+                            },
+                        );
+                    }
+                });
+
+                let app_handle2 = _app.handle().clone();
+                app_handle2.listen("translate-update", move |event: tauri::Event| {
+                    #[derive(serde::Deserialize)]
+                    struct Tr {
+                        sequence_id: u64,
+                        #[serde(default)]
+                        translated_text: String,
+                        #[serde(default)]
+                        is_partial: bool,
+                    }
+                    if let Ok(u) = serde_json::from_str::<Tr>(event.payload()) {
+                        // 只把**定稿**译文送字幕（与前端原逻辑一致：草稿译文不覆盖悬浮窗）
+                        if !u.is_partial && !u.translated_text.is_empty() {
+                            subtitle_overlay::upsert_subtitle_translation(
+                                subtitle_overlay::SubtitleTranslationInput {
+                                    sequence_id: u.sequence_id,
+                                    translated_text: u.translated_text,
+                                },
+                            );
+                        }
+                    }
+                });
+                log::info!("Subtitle feed wired to Rust-side listeners (page/webview independent)");
+            }
+
             // Initialize notification system with proper defaults
             log::info!("Initializing notification system...");
             let app_for_notif = _app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let notif_state = app_for_notif.state::<NotificationManagerState<tauri::Wry>>();
-                match notifications::commands::initialize_notification_manager(app_for_notif.clone()).await {
+                match notifications::commands::initialize_notification_manager(
+                    app_for_notif.clone(),
+                )
+                .await
+                {
                     Ok(manager) => {
                         if let Err(e) = manager.set_consent(true).await {
                             log::error!("Failed to set initial consent: {}", e);
@@ -952,7 +1231,8 @@ pub fn run() {
 
             // Initialize database (handles first launch detection and conditional setup)
             tauri::async_runtime::block_on(async {
-                let init_result = database::setup::initialize_database_on_startup(&_app.handle()).await;
+                let init_result =
+                    database::setup::initialize_database_on_startup(&_app.handle()).await;
 
                 init_result
             })
@@ -963,23 +1243,40 @@ pub fn run() {
                 use crate::database::repositories::setting::SettingsRepository;
                 let app_state = _app.state::<state::AppState>();
                 let pool = app_state.db_manager.pool();
-                let (saved_engine, saved_lang, saved_home) = tauri::async_runtime::block_on(async {
-                    let engine = SettingsRepository::get(pool, "translation.engine")
-                        .await
-                        .ok()
-                        .flatten();
-                    let lang = SettingsRepository::get(pool, "translation.target_lang")
-                        .await
-                        .ok()
-                        .flatten();
-                    let home = SettingsRepository::get(pool, "translation.home_lang")
-                        .await
-                        .ok()
-                        .flatten();
-                    (engine, lang, home)
-                });
-                if let Some(engine) =
-                    saved_engine.filter(|e| matches!(e.as_str(), "opus" | "hymt2" | "remote"))
+                let (saved_engine, saved_lang, saved_home, saved_flow_pause) =
+                    tauri::async_runtime::block_on(async {
+                        let engine = SettingsRepository::get(pool, "translation.engine")
+                            .await
+                            .ok()
+                            .flatten();
+                        let lang = SettingsRepository::get(pool, "translation.target_lang")
+                            .await
+                            .ok()
+                            .flatten();
+                        let home = SettingsRepository::get(pool, "translation.home_lang")
+                            .await
+                            .ok()
+                            .flatten();
+                        let flow_pause =
+                            SettingsRepository::get(pool, "transcript.flow_pause_secs")
+                                .await
+                                .ok()
+                                .flatten();
+                        //  summary.api_config 读入内存缓存：翻译引擎 custom-api 的
+                        // 合法性校验（current_engine）是同步路径，只读缓存不查库
+                        let summary_cfg =
+                            SettingsRepository::get(pool, summary::config::SUMMARY_CONFIG_KEY)
+                                .await
+                                .ok()
+                                .flatten()
+                                .and_then(|json| {
+                                    serde_json::from_str::<summary::SummaryApiConfig>(&json).ok()
+                                });
+                        summary::config::set_cached_config(summary_cfg);
+                        (engine, lang, home, flow_pause)
+                    });
+                if let Some(engine) = saved_engine
+                    .filter(|e| matches!(e.as_str(), "opus" | "hymt2" | "remote" | "custom-api"))
                 {
                     if let Ok(mut guard) = translation::TRANSLATION_ENGINE.lock() {
                         *guard = engine;
@@ -996,14 +1293,20 @@ pub fn run() {
                 // 目标语言：合法的 13 种之一直接读回；存量 "auto" 或非法值
                 // 迁移为 home 的默认目标（home != "en" → "en"，home == "en" → "zh"）
                 if let Some(lang) = saved_lang {
-                    let migrated = if translation::llm::SUPPORTED_TARGET_LANGS.contains(&lang.as_str())
-                    {
-                        lang
-                    } else {
-                        translation::default_target_for_home(&translation::home_lang())
-                    };
+                    let migrated =
+                        if translation::llm::SUPPORTED_TARGET_LANGS.contains(&lang.as_str()) {
+                            lang
+                        } else {
+                            translation::default_target_for_home(&translation::home_lang())
+                        };
                     if let Ok(mut guard) = translation::TARGET_LANG.lock() {
                         *guard = migrated;
+                    }
+                }
+                // 流式停顿分段阈值（秒）：读不到/非法值保持默认 10
+                if let Some(v) = saved_flow_pause.and_then(|s| s.parse::<u64>().ok()) {
+                    if matches!(v, 5 | 10 | 20) {
+                        audio::transcription::flow::set_flow_pause_break_secs(v);
                     }
                 }
             }
@@ -1028,6 +1331,16 @@ pub fn run() {
                 }
             }
 
+            // 远程配置（含授权码）加载完成：唤醒等待中的流式通道 warm-up，
+            // 并主动预热一次（此前只靠前端触发，启动竞态下 warm-up 会跑在配置就绪之前，
+            // 空打三炮后放弃、直到用户进设置页才真正预检——2026-09-28 日志实测）。
+            // 幂等：probe 的 5 分钟成功缓存保证重复触发不再真握手。
+            audio::transcription::mark_remote_config_loaded();
+            if audio::transcription::remote_enabled() && audio::transcription::is_remote_asr_streaming()
+            {
+                warm_remote_streaming();
+            }
+
             // 恢复字幕悬浮窗的可见状态
             {
                 let app_for_subtitle = _app.handle().clone();
@@ -1035,6 +1348,9 @@ pub fn run() {
                     subtitle_overlay::restore_subtitle_overlay_on_startup(&app_for_subtitle).await;
                 });
             }
+
+            // 启动后延迟自动显示悬浮球（定位主窗口右上角内侧，位置不持久化）
+            floating_ball::show_floating_ball_on_startup(_app.handle());
 
             Ok(())
         })
@@ -1049,9 +1365,20 @@ pub fn run() {
             subtitle_overlay::hide_subtitle_window,
             subtitle_overlay::toggle_subtitle_window,
             subtitle_overlay::get_subtitle_window_state,
+            subtitle_overlay::set_subtitle_overlay_height,
             subtitle_overlay::start_subtitle_drag,
+            floating_ball::show_floating_ball,
+            floating_ball::hide_floating_ball,
+            floating_ball::toggle_floating_ball,
+            floating_ball::get_floating_ball_state,
+            floating_ball::set_floating_ball_compact,
+            floating_ball::floating_ball_drag_begin,
+            floating_ball::floating_ball_drag_to,
+            floating_ball::floating_ball_drag_end,
+            floating_ball::floating_ball_diag,
             start_recording,
             stop_recording,
+            switch_asr_model,
             is_recording,
             get_transcription_status,
             read_audio_file,
@@ -1113,7 +1440,14 @@ pub fn run() {
             api::api_get_transcript_api_key,
             api::api_export_recording,
             api::summary_export_markdown,
+            print_window::open_summary_print_window,
+            print_window::get_pending_summary_print,
+            print_window::print_window,
             api::api_update_segment_text,
+            api::api_get_speaker_names,
+            api::api_get_retranscribed_model,
+            api::api_get_offline_recognition_info,
+            api::api_set_speaker_name,
             api::api_get_settings,
             api::api_save_setting,
             api::open_recording_folder,
@@ -1134,14 +1468,18 @@ pub fn run() {
             translation::commands::get_translation_enabled,
             translation::commands::set_translation_target_lang,
             translation::commands::get_translation_target_lang,
+            audio::transcription::flow::set_flow_pause_secs,
+            audio::transcription::flow::get_flow_pause_secs,
             translation::commands::set_translation_home_lang,
             translation::commands::get_translation_home_lang,
             translation::commands::set_translation_engine,
             translation::commands::get_translation_engine,
             set_remote_asr_endpoint,
             check_remote_asr_health_cmd,
+            warm_remote_streaming,
             get_remote_asr_config,
             set_remote_config,
+            set_remote_endpoint,
             get_remote_config,
             set_remote_model_choice,
             get_remote_model_choice,
@@ -1156,11 +1494,17 @@ pub fn run() {
             redeem_code,
             get_remote_ledger,
             get_remote_usage_by_model,
+            get_remote_usage_tasks,
             submit_feedback,
+            collect_diag_log,
+            get_log_dir,
+            collect_manual_logs,
             tts::tts_synthesize,
             tts::save_tts_audio,
             remote_messages::fetch_remote_messages,
             remote_messages::fetch_notice_documents,
+            remote_messages::fetch_welcome,
+            remote_messages::fetch_important_notice,
             run_speed_test,
             notifications::commands::get_notification_settings,
             notifications::commands::set_notification_settings,
@@ -1191,6 +1535,7 @@ pub fn run() {
             database::commands::open_database_folder,
             #[cfg(target_os = "macos")]
             utils::open_system_settings,
+            audio::merge::api_merge_recordings,
             audio::retranscription::start_retranscription_command,
             audio::retranscription::cancel_retranscription_command,
             audio::retranscription::is_retranscription_in_progress_command,
@@ -1233,7 +1578,9 @@ pub fn run() {
                             log::info!("Database cleanup completed successfully");
                         }
                     } else {
-                        log::warn!("AppState not available for database cleanup (likely first launch)");
+                        log::warn!(
+                            "AppState not available for database cleanup (likely first launch)"
+                        );
                     }
                 });
                 log::info!("Application cleanup complete");

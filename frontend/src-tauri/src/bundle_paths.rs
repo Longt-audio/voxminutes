@@ -57,14 +57,22 @@ pub fn resolve_bundle_dir<R: Runtime>(app: &AppHandle<R>, name: &str) -> Option<
     if let Some(root) = project_root_from_exe() {
         let candidate = root.join(name);
         if candidate.exists() {
-            log::info!("Using project-local {} directory: {}", name, candidate.display());
+            log::info!(
+                "Using project-local {} directory: {}",
+                name,
+                candidate.display()
+            );
             return Some(candidate);
         }
     }
 
     // 3. Sibling directory from CWD (covers running from project root)
     if let Some(candidate) = find_local_sibling_dir(name) {
-        log::info!("Using local sibling {} directory: {}", name, candidate.display());
+        log::info!(
+            "Using local sibling {} directory: {}",
+            name,
+            candidate.display()
+        );
         return Some(candidate);
     }
 
@@ -72,7 +80,11 @@ pub fn resolve_bundle_dir<R: Runtime>(app: &AppHandle<R>, name: &str) -> Option<
     if let Ok(resource_dir) = app.path().resource_dir() {
         let candidate = resource_dir.join(name);
         if candidate.exists() {
-            log::info!("Using bundled resource {} directory: {}", name, candidate.display());
+            log::info!(
+                "Using bundled resource {} directory: {}",
+                name,
+                candidate.display()
+            );
             return Some(candidate);
         }
     }
@@ -97,17 +109,20 @@ pub fn resolve_bundle_dir<R: Runtime>(app: &AppHandle<R>, name: &str) -> Option<
 // Pure-ASCII install paths are used as-is (no staging, zero overhead).
 // ---------------------------------------------------------------------------
 
+#[cfg(target_os = "windows")]
 static STAGED_MODELS_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 
-const ASR_MODEL_SUBDIRS: &[&str] = &[
-    "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
-];
+#[cfg(target_os = "windows")]
+const ASR_MODEL_SUBDIRS: &[&str] = &["sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17"];
 
 /// X-ASR model directory prefix — used to locate the actual directory name
 /// which includes a date suffix (e.g. sherpa-onnx-x-asr-480ms-streaming-zipformer-transducer-zh-en-punct-2026-06-05).
-const XASR_MODEL_DIR_PREFIX: &str = "sherpa-onnx-x-asr-480ms-streaming-zipformer-transducer-zh-en-punct";
+#[cfg(target_os = "windows")]
+const XASR_MODEL_DIR_PREFIX: &str =
+    "sherpa-onnx-x-asr-480ms-streaming-zipformer-transducer-zh-en-punct";
 
 /// Find the X-ASR model directory in the given base path by matching the prefix.
+#[cfg(target_os = "windows")]
 fn find_xasr_dir_in(base: &Path) -> Option<PathBuf> {
     let entries = std::fs::read_dir(base).ok()?;
     for entry in entries.flatten() {
@@ -130,10 +145,18 @@ fn find_xasr_dir_in(base: &Path) -> Option<PathBuf> {
 
 /// The ASCII-safe models directory selected for native engines (set by
 /// `stage_models_dir_for_native`). Used to pass VOXMINUTES_MODELS_DIR to the backend.
+#[cfg(target_os = "windows")]
 pub fn staged_models_dir() -> Option<PathBuf> {
     STAGED_MODELS_DIR.lock().ok().and_then(|g| g.clone())
 }
 
+/// 非 Windows：没有 ASCII 暂存机制，永远返回 None。
+#[cfg(not(target_os = "windows"))]
+pub fn staged_models_dir() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_os = "windows")]
 fn set_staged_models_dir(p: &Path) {
     if let Ok(mut g) = STAGED_MODELS_DIR.lock() {
         *g = Some(p.to_path_buf());
@@ -149,12 +172,14 @@ fn strip_verbatim(p: &Path) -> PathBuf {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn path_is_ascii(p: &Path) -> bool {
     p.as_os_str().to_string_lossy().is_ascii()
 }
 
 /// Hash a path into a short deterministic token. Used to create a unique
 /// fallback staging directory when the default one is locked or corrupted.
+#[cfg(target_os = "windows")]
 fn compute_path_hash(path: &Path) -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -163,9 +188,9 @@ fn compute_path_hash(path: &Path) -> String {
     format!("{:08x}", hasher.finish())
 }
 
+#[cfg(target_os = "windows")]
 fn staged_has_models(staged: &Path) -> bool {
-    ASR_MODEL_SUBDIRS.iter().any(|d| staged.join(d).exists())
-        || find_xasr_dir_in(staged).is_some()
+    ASR_MODEL_SUBDIRS.iter().any(|d| staged.join(d).exists()) || find_xasr_dir_in(staged).is_some()
 }
 
 #[cfg(target_os = "windows")]
@@ -179,6 +204,7 @@ fn is_reparse_point(path: &Path) -> bool {
 
 /// Remove a staging entry without following junctions/symlinks and deleting
 /// their targets. Broken junctions are removed as entries.
+#[cfg(target_os = "windows")]
 fn remove_staging_safely(path: &Path) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
@@ -192,6 +218,7 @@ fn remove_staging_safely(path: &Path) -> std::io::Result<()> {
 /// Check whether an existing staging entry can be reused for `original`.
 /// - Junctions/symlinks are reused only when they point at `original`.
 /// - Directory copies are reused if they contain the required model files.
+#[cfg(target_os = "windows")]
 fn is_valid_staging(staged: &Path, original: &Path) -> bool {
     if !staged.exists() {
         return false;
@@ -215,6 +242,7 @@ fn is_valid_staging(staged: &Path, original: &Path) -> bool {
 
 /// Try to create or reuse a staging directory at `staged` pointing to `original`.
 /// Returns `Some(staged)` on success, `None` if the location cannot be used.
+#[cfg(target_os = "windows")]
 fn try_stage_at(staged: &Path, original: &Path) -> Option<PathBuf> {
     if is_valid_staging(staged, original) {
         log::info!("Reusing existing ASCII model staging: {}", staged.display());
@@ -234,7 +262,11 @@ fn try_stage_at(staged: &Path, original: &Path) -> Option<PathBuf> {
 
     if let Some(parent) = staged.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
-            log::warn!("Failed to create staging parent {}: {}", parent.display(), e);
+            log::warn!(
+                "Failed to create staging parent {}: {}",
+                parent.display(),
+                e
+            );
             return None;
         }
     }
@@ -271,48 +303,61 @@ fn try_stage_at(staged: &Path, original: &Path) -> Option<PathBuf> {
 pub fn stage_models_dir_for_native(original: &Path) -> PathBuf {
     let original = strip_verbatim(original);
 
-    if path_is_ascii(&original) {
-        set_staged_models_dir(&original);
+    // 非 Windows 平台不需要这一步：macOS/Linux 上 sherpa-onnx 走 UTF-8 路径，
+    // 中文目录名完全正常。而 `C:\ProgramData\...` 在 Unix 上会被当成**单个**
+    // 相对文件名（含反斜杠），create_dir_all 会在进程 CWD 下凭空造出一个
+    // 名字里带反斜杠的目录。所以这里必须按平台短路，而不是只依赖后面的分支。
+    #[cfg(not(target_os = "windows"))]
+    {
+        // 非 Windows 上没有 ASCII 暂存（staged_models_dir() 恒为 None），直接用原路径。
         return original;
     }
 
-    log::warn!(
-        "Models path contains non-ASCII characters ({}); sherpa-onnx cannot open such paths. Staging to ASCII dir.",
-        original.display()
-    );
-
-    // If we already have a valid ASCII staging for this exact original, reuse it.
-    if let Some(existing) = staged_models_dir() {
-        if path_is_ascii(&existing) && is_valid_staging(&existing, &original) {
-            return existing;
+    #[cfg(target_os = "windows")]
+    {
+        if path_is_ascii(&original) {
+            set_staged_models_dir(&original);
+            return original;
         }
-    }
 
-    let primary = PathBuf::from(r"C:\ProgramData\VoxMinutes\models");
-    if let Some(staged) = try_stage_at(&primary, &original) {
-        set_staged_models_dir(&staged);
-        return staged;
-    }
+        log::warn!(
+            "Models path contains non-ASCII characters ({}); sherpa-onnx cannot open such paths. Staging to ASCII dir.",
+            original.display()
+        );
 
-    let fallback = PathBuf::from(format!(
-        r"C:\ProgramData\VoxMinutes\models_{}",
-        compute_path_hash(&original)
-    ));
-    log::warn!(
-        "Default staging location {} is unusable; trying fallback: {}",
-        primary.display(),
-        fallback.display()
-    );
-    if let Some(staged) = try_stage_at(&fallback, &original) {
-        set_staged_models_dir(&staged);
-        return staged;
-    }
+        // If we already have a valid ASCII staging for this exact original, reuse it.
+        if let Some(existing) = staged_models_dir() {
+            if path_is_ascii(&existing) && is_valid_staging(&existing, &original) {
+                return existing;
+            }
+        }
 
-    log::error!(
-        "Failed to stage models to ASCII dir. Falling back to original path (ASR/TTS may not work under a non-ASCII path)."
-    );
-    set_staged_models_dir(&original);
-    original
+        let primary = PathBuf::from(r"C:\ProgramData\VoxMinutes\models");
+        if let Some(staged) = try_stage_at(&primary, &original) {
+            set_staged_models_dir(&staged);
+            return staged;
+        }
+
+        let fallback = PathBuf::from(format!(
+            r"C:\ProgramData\VoxMinutes\models_{}",
+            compute_path_hash(&original)
+        ));
+        log::warn!(
+            "Default staging location {} is unusable; trying fallback: {}",
+            primary.display(),
+            fallback.display()
+        );
+        if let Some(staged) = try_stage_at(&fallback, &original) {
+            set_staged_models_dir(&staged);
+            return staged;
+        }
+
+        log::error!(
+            "Failed to stage models to ASCII dir. Falling back to original path (ASR/TTS may not work under a non-ASCII path)."
+        );
+        set_staged_models_dir(&original);
+        original
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -328,6 +373,7 @@ fn try_make_junction(link: &Path, target: &Path) -> bool {
     matches!(status, Ok(s) if s.success()) && staged_has_models(link)
 }
 
+#[cfg(target_os = "windows")]
 fn copy_asr_models(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for sub in ASR_MODEL_SUBDIRS {
@@ -344,6 +390,7 @@ fn copy_asr_models(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {

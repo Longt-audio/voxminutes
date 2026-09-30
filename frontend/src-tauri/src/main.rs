@@ -3,11 +3,11 @@
     windows_subsystem = "windows"
 )]
 
+use log::{LevelFilter, Log, Metadata, Record};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use log::{LevelFilter, Log, Metadata, Record};
 
 /// Finds the project root by walking up 3 directories from the executable
 /// (target/debug/voxminutes.exe → target/ → project root). Falls back to the
@@ -42,6 +42,54 @@ fn resolve_app_data_dir() -> Option<PathBuf> {
         .map(|p| p.to_path_buf())
 }
 
+/// 候选日志根目录（按优先级）：
+/// 1. 生产环境可执行文件所在目录（用户最容易找到）；
+/// 2. 每用户数据目录（Windows: `%LOCALAPPDATA%`；macOS: `~/Library/Application Support`）。
+///
+/// 为什么需要第 2 条：Windows 上应用可能被装到 `C:\Program Files\...`（管理员为全机
+/// 安装），普通用户对该目录**没有写权限** —— 此时 `create_dir_all(logs)` 与
+/// `OpenOptions::open` 都失败，日志会静默退化成「只写 stderr」，而 GUI 子系统
+/// （`windows_subsystem = "windows"`）没有 stderr，等于**完全没有日志**，
+/// 「反馈时附带诊断日志」也随之失效。macOS 上把 .app 放在 /Applications 时同理。
+fn log_dir_candidates() -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    if let Some(dir) = resolve_app_data_dir() {
+        out.push(dir);
+    }
+    if let Some(dir) = dirs::data_local_dir() {
+        out.push(dir.join("VoxMinutes"));
+    }
+    out
+}
+
+/// 目录是否真的可写：写一个探测文件再删掉（只判断 exists 会被 ACL/只读挂载骗过）。
+fn dir_is_writable(dir: &Path) -> bool {
+    let probe = dir.join(".voxminutes_log_write_test");
+    match fs::write(&probe, b"ok") {
+        Ok(()) => {
+            let _ = fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// 选择本次运行的日志文件路径：逐个候选目录尝试，都不行才退回当前目录。
+fn resolve_log_path() -> PathBuf {
+    let ts = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    for base in log_dir_candidates() {
+        let log_dir = base.join("logs");
+        if fs::create_dir_all(&log_dir).is_err() || !dir_is_writable(&log_dir) {
+            continue;
+        }
+        // Retain the last 30 log files so recent history is available.
+        cleanup_old_logs(&log_dir, 30);
+        return log_dir.join(format!("app_{}.log", ts));
+    }
+    // Last-resort fallback: a log file in the current directory.
+    PathBuf::from(format!("app_{}.log", ts))
+}
+
 /// Logger that writes to both stderr (console) and a single shared log file.
 /// All layers (Rust, Python backend, frontend webview) are directed into this
 /// one file so a support bundle only needs a single log.
@@ -56,7 +104,10 @@ impl DualLogger {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(LevelFilter::Info);
-        Self { file: Mutex::new(file), level_filter: filter }
+        Self {
+            file: Mutex::new(file),
+            level_filter: filter,
+        }
     }
 
     fn level_filter(&self) -> LevelFilter {
@@ -108,7 +159,7 @@ impl Log for DualLogger {
 
 /// Collect a small set of system facts useful for support/debugging.
 fn collect_system_info() -> serde_json::Value {
-    use sysinfo::{System, RefreshKind};
+    use sysinfo::{RefreshKind, System};
 
     let mut sys = System::new_with_specifics(
         RefreshKind::new()
@@ -123,10 +174,21 @@ fn collect_system_info() -> serde_json::Value {
             .with_memory(sysinfo::MemoryRefreshKind::everything()),
     );
 
-    let cpus: Vec<String> = sys.cpus().iter().map(|c| c.brand().trim().to_string()).collect();
-    let cpu_brand = cpus.first().cloned().unwrap_or_else(|| "unknown".to_string());
+    let cpus: Vec<String> = sys
+        .cpus()
+        .iter()
+        .map(|c| c.brand().trim().to_string())
+        .collect();
+    let cpu_brand = cpus
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "unknown".to_string());
     let cpu_cores = sys.cpus().len();
-    let cpu_vendor = sys.cpus().first().map(|c| c.vendor_id().trim().to_string()).unwrap_or_default();
+    let cpu_vendor = sys
+        .cpus()
+        .first()
+        .map(|c| c.vendor_id().trim().to_string())
+        .unwrap_or_default();
     let cpu_frequency_mhz = sys.cpus().first().map(|c| c.frequency()).unwrap_or(0);
     let total_memory_gb = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0;
 
@@ -140,18 +202,36 @@ fn collect_system_info() -> serde_json::Value {
         unsafe {
             let mut features: Vec<&'static str> = Vec::new();
             let leaf1 = __cpuid(1);
-            if leaf1.ecx & (1 << 20) != 0 { features.push("sse4.2"); }
-            if leaf1.ecx & (1 << 28) != 0 { features.push("avx"); }
-            if leaf1.ecx & (1 << 12) != 0 { features.push("fma"); }
+            if leaf1.ecx & (1 << 20) != 0 {
+                features.push("sse4.2");
+            }
+            if leaf1.ecx & (1 << 28) != 0 {
+                features.push("avx");
+            }
+            if leaf1.ecx & (1 << 12) != 0 {
+                features.push("fma");
+            }
             let max_leaf = __cpuid(0).eax;
             if max_leaf >= 7 {
                 let leaf7 = __cpuid(7);
-                if leaf7.ebx & (1 << 5)  != 0 { features.push("avx2"); }
-                if leaf7.ebx & (1 << 16) != 0 { features.push("avx512f"); }
-                if leaf7.ebx & (1 << 30) != 0 { features.push("avx512bw"); }
-                if leaf7.ebx & (1 << 31) != 0 { features.push("avx512vl"); }
-                if leaf7.ebx & (1 << 17) != 0 { features.push("avx512dq"); }
-                if leaf7.ecx & (1 << 11) != 0 { features.push("avx512vnni"); }
+                if leaf7.ebx & (1 << 5) != 0 {
+                    features.push("avx2");
+                }
+                if leaf7.ebx & (1 << 16) != 0 {
+                    features.push("avx512f");
+                }
+                if leaf7.ebx & (1 << 30) != 0 {
+                    features.push("avx512bw");
+                }
+                if leaf7.ebx & (1 << 31) != 0 {
+                    features.push("avx512vl");
+                }
+                if leaf7.ebx & (1 << 17) != 0 {
+                    features.push("avx512dq");
+                }
+                if leaf7.ecx & (1 << 11) != 0 {
+                    features.push("avx512vnni");
+                }
             }
             let has512 = features.iter().any(|f| f.starts_with("avx512"));
             (features, has512)
@@ -252,20 +332,13 @@ fn main() {
         std::env::set_var("RUST_LOG", "info");
     }
 
-    let log_path = if let Some(app_dir) = resolve_app_data_dir() {
-        let log_dir = app_dir.join("logs");
-        let _ = fs::create_dir_all(&log_dir);
-        // Retain the last 30 log files so recent history is available.
-        cleanup_old_logs(&log_dir, 30);
-        let ts = chrono::Local::now().format("%Y%m%d_%H%M%S");
-        log_dir.join(format!("app_{}.log", ts))
-    } else {
-        // Last-resort fallback: a log file in the current directory.
-        let ts = chrono::Local::now().format("%Y%m%d_%H%M%S");
-        PathBuf::from(format!("app_{}.log", ts))
-    };
+    let log_path = resolve_log_path();
 
-    match fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+    match fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
         Ok(file) => {
             let sys_info = collect_system_info();
             write_log_header(&file, &sys_info, &log_path);
@@ -281,21 +354,19 @@ fn main() {
         Err(e) => {
             // Fallback: env_logger to stderr only
             eprintln!("[WARN] Could not open log file {:?}: {}", log_path, e);
-            env_logger::Builder::from_env(
-                env_logger::Env::default().default_filter_or("info"),
-            )
-            .format(|buf, record| {
-                let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-                writeln!(
-                    buf,
-                    "[{}] [{}] [{}] {}",
-                    ts,
-                    record.level(),
-                    record.module_path().unwrap_or("unknown"),
-                    record.args()
-                )
-            })
-            .init();
+            env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+                .format(|buf, record| {
+                    let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+                    writeln!(
+                        buf,
+                        "[{}] [{}] [{}] {}",
+                        ts,
+                        record.level(),
+                        record.module_path().unwrap_or("unknown"),
+                        record.args()
+                    )
+                })
+                .init();
         }
     }
 

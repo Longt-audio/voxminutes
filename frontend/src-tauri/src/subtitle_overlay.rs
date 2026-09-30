@@ -12,7 +12,19 @@ const STORE_KEY: &str = "state";
 const DEFAULT_WIDTH: f64 = 800.0;
 const DEFAULT_HEIGHT: f64 = 240.0;
 const TOP_MARGIN: f64 = 40.0;
-const MAX_SUBTITLE_SEGMENTS: usize = 4;
+
+/// 悬浮窗句柄保留的**段数上限**（2026-09-29：4 → 50）。
+///
+/// 原来只留 4 段且超限直接 `remove(0)` 销毁，所以「往上滚看之前的」根本无从谈起
+/// （用户反馈「只显示最近几句」）。现在按 ~7.5 段/分钟计，50 段 ≈ 最近 7 分钟，
+/// 内存也就 ~25KB，与 5Hz 轮询的 2KB/次相比完全不是瓶颈。
+/// 默认**显示**几行由页面端设置决定（默认 5 行），这里只管缓冲能回溯多久。
+const MAX_SUBTITLE_SEGMENTS: usize = 50;
+
+/// 窗口高度可由页面按「行数 × 实测行高」调用 `set_subtitle_overlay_height` 调整，
+/// 这里给出上下限（原上限 480 只够约 7 行带译文的字幕）。
+const MIN_WINDOW_HEIGHT: f64 = 120.0;
+const MAX_WINDOW_HEIGHT: f64 = 900.0;
 
 // ── In-memory subtitle segment buffer ────────────────────────────────────────
 
@@ -41,9 +53,12 @@ pub struct SubtitleTranslationInput {
 static SUBTITLE_SEGMENTS: LazyLock<Mutex<Vec<SubtitleSegment>>> =
     LazyLock::new(|| Mutex::new(Vec::new()));
 
-fn upsert_subtitle_segment(input: SubtitleSegmentInput) {
+pub(crate) fn upsert_subtitle_segment(input: SubtitleSegmentInput) {
     let mut segments = SUBTITLE_SEGMENTS.lock().unwrap();
-    if let Some(idx) = segments.iter().position(|s| s.sequence_id == input.sequence_id) {
+    if let Some(idx) = segments
+        .iter()
+        .position(|s| s.sequence_id == input.sequence_id)
+    {
         segments[idx].text = input.text;
         segments[idx].is_partial = input.is_partial;
     } else {
@@ -60,9 +75,12 @@ fn upsert_subtitle_segment(input: SubtitleSegmentInput) {
     }
 }
 
-fn upsert_subtitle_translation(input: SubtitleTranslationInput) {
+pub(crate) fn upsert_subtitle_translation(input: SubtitleTranslationInput) {
     let mut segments = SUBTITLE_SEGMENTS.lock().unwrap();
-    if let Some(idx) = segments.iter().position(|s| s.sequence_id == input.sequence_id) {
+    if let Some(idx) = segments
+        .iter()
+        .position(|s| s.sequence_id == input.sequence_id)
+    {
         segments[idx].translation = Some(input.translated_text);
     } else {
         segments.push(SubtitleSegment {
@@ -211,22 +229,22 @@ async fn load_state<R: Runtime>(app: &AppHandle<R>) -> SubtitleOverlayState {
 
 async fn save_state<R: Runtime>(app: &AppHandle<R>, state: &SubtitleOverlayState) {
     match app.store(STORE_NAME) {
-        Ok(store) => {
-            match serde_json::to_value(state) {
-                Ok(value) => {
-                    store.set(STORE_KEY, value);
-                    if let Err(e) = store.save() {
-                        log_warn!("Failed to persist subtitle overlay state: {}", e);
-                    }
+        Ok(store) => match serde_json::to_value(state) {
+            Ok(value) => {
+                store.set(STORE_KEY, value);
+                if let Err(e) = store.save() {
+                    log_warn!("Failed to persist subtitle overlay state: {}", e);
                 }
-                Err(e) => log_warn!("Failed to serialize subtitle overlay state: {}", e),
             }
-        }
+            Err(e) => log_warn!("Failed to serialize subtitle overlay state: {}", e),
+        },
         Err(e) => log_warn!("Failed to access subtitle overlay store: {}", e),
     }
 }
 
-async fn get_or_create_window<R: Runtime>(app: &AppHandle<R>) -> Result<tauri::WebviewWindow<R>, String> {
+async fn get_or_create_window<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<tauri::WebviewWindow<R>, String> {
     if let Some(window) = app.get_webview_window(WINDOW_LABEL) {
         return Ok(window);
     }
@@ -241,28 +259,30 @@ async fn get_or_create_window<R: Runtime>(app: &AppHandle<R>) -> Result<tauri::W
     state.x = x;
     state.y = y;
 
-    let window = WebviewWindowBuilder::new(
-        app,
-        WINDOW_LABEL,
-        tauri::WebviewUrl::App(WINDOW_URL.into()),
-    )
-    .title("")
-    .inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT)
-    .min_inner_size(400.0, 160.0)
-    .max_inner_size(1200.0, 480.0)
-    .resizable(true)
-    .maximizable(false)
-    .minimizable(false)
-    .closable(true)
-    .skip_taskbar(true)
-    .always_on_top(true)
-    .transparent(true)
-    .decorations(false)
-    .shadow(false)
-    .position(x, y)
-    .visible(false)
-    .build()
-    .map_err(|e| format!("Failed to create subtitle overlay window: {}", e))?;
+    let window =
+        WebviewWindowBuilder::new(app, WINDOW_LABEL, tauri::WebviewUrl::App(WINDOW_URL.into()))
+            .title("")
+            .inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT)
+            .min_inner_size(400.0, MIN_WINDOW_HEIGHT)
+            .max_inner_size(1200.0, MAX_WINDOW_HEIGHT)
+            .resizable(true)
+            .maximizable(false)
+            .minimizable(false)
+            .closable(true)
+            .skip_taskbar(true)
+            .always_on_top(true)
+            .transparent(true)
+            .decorations(false)
+            .shadow(false)
+            // 非前台时第一次点击也能被接收（2026-09-29）：不设这一项时，
+            // 窗口不在前台时点滚动条/按钮会被系统吞掉（悬浮球为此专门修过，
+            // 见 floating_ball.rs 的注释）—— 现在悬浮窗要支持上滑翻看历史，
+            // 滚动条必须一次点中。
+            .accept_first_mouse(true)
+            .position(x, y)
+            .visible(false)
+            .build()
+            .map_err(|e| format!("Failed to create subtitle overlay window: {}", e))?;
 
     save_state(app, &state).await;
     Ok(window)
@@ -283,10 +303,15 @@ pub async fn show_subtitle_overlay_internal<R: Runtime>(app: &AppHandle<R>) -> R
         state.y = y;
         state.visible = true;
 
-        window.show().map_err(|e| format!("Failed to show subtitle overlay window: {}", e))?;
+        window
+            .show()
+            .map_err(|e| format!("Failed to show subtitle overlay window: {}", e))?;
 
         save_state(app, &state).await;
-        let _ = app.emit("subtitle-window-state", serde_json::json!({ "visible": true }));
+        let _ = app.emit(
+            "subtitle-window-state",
+            serde_json::json!({ "visible": true }),
+        );
         log_info!("Subtitle overlay window shown at ({}, {})", x, y);
     }
 
@@ -306,11 +331,19 @@ pub async fn hide_subtitle_overlay_internal<R: Runtime>(app: &AppHandle<R>) -> R
             save_state(app, &state).await;
         }
 
-        window.hide().map_err(|e| format!("Failed to hide subtitle overlay window: {}", e))?;
-        let _ = app.emit("subtitle-window-state", serde_json::json!({ "visible": false }));
+        window
+            .hide()
+            .map_err(|e| format!("Failed to hide subtitle overlay window: {}", e))?;
+        let _ = app.emit(
+            "subtitle-window-state",
+            serde_json::json!({ "visible": false }),
+        );
         log_info!("Subtitle overlay window hidden");
     } else {
-        let _ = app.emit("subtitle-window-state", serde_json::json!({ "visible": false }));
+        let _ = app.emit(
+            "subtitle-window-state",
+            serde_json::json!({ "visible": false }),
+        );
     }
 
     Ok(())
@@ -342,6 +375,36 @@ pub async fn toggle_subtitle_window<R: Runtime>(app: AppHandle<R>) -> Result<boo
 pub async fn get_subtitle_window_state<R: Runtime>(app: AppHandle<R>) -> Result<bool, String> {
     let state = load_state(&app).await;
     Ok(state.visible)
+}
+
+/// 按「显示行数」调整悬浮窗高度（2026-09-29）。
+///
+/// 为什么由页面端算好高度再传进来：可见行数取决于字号、是否带译文等 CSS 变量，
+/// 只有页面自己能量准（`lines × 实测行高 + chrome`）。而页面端**没有**
+/// `core:window:allow-set-size` 权限，所以由这个命令代劳。
+/// 高度会按上下限夹取；窗口位置不动（左上角锚定，向下长高）。
+#[tauri::command]
+pub async fn set_subtitle_overlay_height<R: Runtime>(
+    app: AppHandle<R>,
+    height: f64,
+) -> Result<f64, String> {
+    let clamped = height.clamp(MIN_WINDOW_HEIGHT, MAX_WINDOW_HEIGHT);
+    let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
+        // 窗口还没建（首次显示前）：只返回夹取后的值，页面下次轮询会再调一次
+        return Ok(clamped);
+    };
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let width = window
+        .inner_size()
+        .map(|s| s.width as f64 / scale)
+        .unwrap_or(DEFAULT_WIDTH);
+    window
+        .set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width,
+            height: clamped,
+        }))
+        .map_err(|e| format!("Failed to resize subtitle overlay: {}", e))?;
+    Ok(clamped)
 }
 
 #[tauri::command]
