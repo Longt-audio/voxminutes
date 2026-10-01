@@ -7,6 +7,7 @@ import { fetchRemoteMessages, openExternalUrl, type RemoteLatestVersion } from '
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { LATEST_DOWNLOAD_URL } from '@/lib/site'
+import { progressPercent, useAppUpdater } from '@/hooks/useAppUpdater'
 import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
 import { pickLangSegment } from '@/lib/langSegment'
@@ -100,6 +101,18 @@ export function UpdateBanner() {
   // 已关闭的版本不再显示；新版本出现则重新显示；「不再提示」后彻底不显示
   const show =
     !neverRemind && latest && current && isNewer(latest.version, current) && dismissedVersion !== latest.version
+  // ⚠️ 这里必须在 early return 之前调用 hook（React 规则）。
+  // autoCheck：横幅可见时自动查一次，这样「一键更新」按钮点下去才有 Update 资源可装
+  // （否则用户得先去设置页点一次「检查更新」，体验割裂）。
+  const updater = useAppUpdater({ autoCheck: false })
+  const autoCheckedRef = useRef(false)
+  useEffect(() => {
+    if (show && !autoCheckedRef.current) {
+      autoCheckedRef.current = true
+      void updater.checkNow()
+    }
+  }, [show, updater])
+
   if (!show || !latest) return null
 
   return (
@@ -113,6 +126,31 @@ export function UpdateBanner() {
             <span className="text-emerald-800/80"> · {pickLangSegment(latest.release_notes, lang)}</span>
           )}
         </span>
+        {/* 一键更新（走 Tauri updater：下载 → 静默安装 → 自动重启）。
+            失败或不可用时，下面的「下载」按钮与官网仍是兜底出口。 */}
+        {updater.phase.kind === 'available' && (
+          <button
+            type="button"
+            className="shrink-0 whitespace-nowrap rounded-md bg-emerald-600 px-2.5 py-1 font-medium text-white hover:bg-emerald-700"
+            onClick={() => void updater.installNow()}
+          >
+            {t.setUpdNow}
+          </button>
+        )}
+        {updater.phase.kind === 'downloading' && (
+          <span className="shrink-0 whitespace-nowrap tabular-nums text-emerald-800">
+            {t.setUpdDownloading.replace(
+              '{percent}',
+              String(progressPercent(updater.phase.received, updater.phase.total) ?? 0)
+            )}
+          </span>
+        )}
+        {updater.phase.kind === 'installing' && (
+          <span className="shrink-0 whitespace-nowrap text-emerald-800">{t.setUpdInstalling}</span>
+        )}
+        {updater.phase.kind === 'error' && (
+          <span className="shrink-0 whitespace-nowrap text-amber-800">{t.setUpdManualHint}</span>
+        )}
         {(latest.download_url || LATEST_DOWNLOAD_URL) && (
           // 必须走 Rust 的 open_external_url：WebView2 / WKWebView 里
           // `<a target="_blank">` 会触发 NewWindowRequested，而 Tauri 没有注册

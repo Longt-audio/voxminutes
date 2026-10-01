@@ -25,6 +25,18 @@ export interface SettingsMessages {
   setAboutCheckFailed: string
   setAboutNewVersion: string
   setAboutDownload: string
+  /** 自动更新：发现新版本（{version} 会被替换） */
+  setUpdFound: string
+  /** 自动更新：立即更新按钮 */
+  setUpdNow: string
+  /** 自动更新：下载中（{percent} 会被替换） */
+  setUpdDownloading: string
+  /** 自动更新：正在安装并会重启 */
+  setUpdInstalling: string
+  /** 自动更新：失败（{error} 会被替换） */
+  setUpdFailed: string
+  /** 自动更新：失败后的兜底提示（引导手动下载或去官网） */
+  setUpdManualHint: string
   setAboutWebsite: string
   setAboutWebsiteSoon: string
   setTabApi: string
@@ -183,6 +195,12 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setAboutCheckFailed: "Check failed (remote service not configured or unreachable)",
     setAboutNewVersion: "New version v{version} available",
     setAboutDownload: "Download latest",
+    setUpdFound: "Version {version} is available",
+    setUpdNow: "Update now",
+    setUpdDownloading: "Downloading {percent}%",
+    setUpdInstalling: "Installing — the app will restart automatically…",
+    setUpdFailed: "Update failed: {error}",
+    setUpdManualHint: "You can install manually with “Download latest” instead.",
     setAboutWebsite: "Visit website",
     setAboutWebsiteSoon: "Website coming soon",
     setTabApi: "API",
@@ -331,6 +349,12 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setAboutCheckFailed: "检查失败（未配置远程服务或网络不可达）",
     setAboutNewVersion: "发现新版本 v{version}",
     setAboutDownload: "下载最新版",
+    setUpdFound: "发现新版本 {version}",
+    setUpdNow: "立即更新",
+    setUpdDownloading: "正在下载 {percent}%",
+    setUpdInstalling: "正在安装，完成后会自动重启…",
+    setUpdFailed: "更新失败：{error}",
+    setUpdManualHint: "可以改用「下载最新版」手动安装，或到官网下载。",
     setAboutWebsite: "访问官网",
     setAboutWebsiteSoon: "官网即将上线",
     setTabApi: "API",
@@ -479,6 +503,12 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setAboutCheckFailed: "확인 실패 (원격 서비스 미설정 또는 네트워크 불가)",
     setAboutNewVersion: "새 버전 v{version} 사용 가능",
     setAboutDownload: "최신 버전 다운로드",
+    setUpdFound: "새 버전 {version} 사용 가능",
+    setUpdNow: "지금 업데이트",
+    setUpdDownloading: "다운로드 중 {percent}%",
+    setUpdInstalling: "설치 중입니다. 완료되면 자동으로 다시 시작됩니다…",
+    setUpdFailed: "업데이트 실패: {error}",
+    setUpdManualHint: "‘최신 버전 다운로드’로 직접 설치하거나 공식 사이트에서 받으세요.",
     setAboutWebsite: "웹사이트 방문",
     setAboutWebsiteSoon: "웹사이트가 곧 오픈됩니다",
     setTabApi: "API",
@@ -627,6 +657,12 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setAboutCheckFailed: "確認に失敗しました（リモートサービス未設定または接続不可）",
     setAboutNewVersion: "新しいバージョン v{version} があります",
     setAboutDownload: "最新版をダウンロード",
+    setUpdFound: "新しいバージョン {version} があります",
+    setUpdNow: "今すぐ更新",
+    setUpdDownloading: "ダウンロード中 {percent}%",
+    setUpdInstalling: "インストール中です。完了後に自動で再起動します…",
+    setUpdFailed: "更新に失敗しました: {error}",
+    setUpdManualHint: "「最新版をダウンロード」で手動インストールするか、公式サイトから入手してください。",
     setAboutWebsite: "公式サイトへ",
     setAboutWebsiteSoon: "公式サイトは近日公開予定",
     setTabApi: "API",
