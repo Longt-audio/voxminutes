@@ -1408,15 +1408,41 @@ pub fn run() {
             audio::transcription::load_remote_asr_config_from_disk();
 
             // 恢复远程服务总开关（存于 tauri-plugin-store 的 settings.json）
+            //
+            // ⚠️ 默认值策略（2026-10-01 按用户要求改为「默认开启」）：
+            //   产品负责人明确要求：**新用户开箱即用走远程**，不要让他们自己去找开关。
+            //   而 0.2.0 之前的默认是 false —— 更糟的是，那份 false 会被**写进 store**，
+            //   之后无论默认值怎么改，老用户读到的都是自己那份 false，永远看不到新默认。
+            //   所以这里做一次**一次性迁移**：用 remote.enabled.defaulted_v2 做标记，
+            //   第一次跑到这段时统一把开关置为 true（只做一次，之后用户的修改一律尊重）。
+            //   —— 旧机器上那份「false」多半是历史遗留（例如 09-30 网络故障时反复拨开关），
+            //      不代表用户的真实意愿；一次性重置比让所有人手工打开更符合预期。
             {
                 use tauri_plugin_store::StoreExt;
                 if let Ok(store) = _app.store("settings.json") {
-                    let enabled = store
-                        .get("remote.enabled")
+                    const MIGRATION_KEY: &str = "remote.enabled.defaulted_v2";
+                    let migrated = store
+                        .get(MIGRATION_KEY)
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
+                    let enabled = if migrated {
+                        // 迁移已完成：完全按用户当前设置来（缺失时默认 true）
+                        store
+                            .get("remote.enabled")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(true)
+                    } else {
+                        // 第一次运行本版本：统一置为 true 并打标记
+                        let _ = store.set("remote.enabled", serde_json::json!(true));
+                        let _ = store.set(MIGRATION_KEY, serde_json::json!(true));
+                        let _ = store.save();
+                        log::info!(
+                            "首次运行本版本：远程服务开关已按新策略默认置为开启（一次性迁移，之后尊重用户修改）"
+                        );
+                        true
+                    };
                     audio::transcription::set_remote_enabled(enabled);
-                    log::info!("Restored remote.enabled = {}", enabled);
+                    log::info!("Restored remote.enabled = {} (migrated={})", enabled, migrated);
                 }
             }
 
