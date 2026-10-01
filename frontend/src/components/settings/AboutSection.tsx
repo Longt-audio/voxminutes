@@ -11,6 +11,7 @@ import { fetchRemoteMessages, openExternalUrl } from '@/services/ipc'
 import { pickLangSegment } from '@/lib/langSegment'
 import { OFFICIAL_WEBSITE_URL, LATEST_DOWNLOAD_URL, privacyPolicyUrl, termsOfServiceUrl } from '@/lib/site'
 import { progressPercent, useAppUpdater } from '@/hooks/useAppUpdater'
+import { getBuildInfo } from '@/services/ipc'
 
 // 官网地址已挪到 @/lib/site 共享（欢迎弹窗 P2 也用）；保留再导出兼容旧引用
 export { OFFICIAL_WEBSITE_URL }
@@ -33,9 +34,16 @@ export function AboutSection() {
   const t = useMessages()
   const lang = useLanguageStore((s) => s.language)
   const [version, setVersion] = useState('')
+  const [builtAt, setBuiltAt] = useState<Date | null>(null)
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => {})
+    // 构建/安装时间：版本号不变时用来分辨「装的是哪一版」
+    getBuildInfo()
+      .then((b) => {
+        if (b.exeModifiedUnix) setBuiltAt(new Date(b.exeModifiedUnix * 1000))
+      })
+      .catch(() => {})
   }, [])
 
   // 自动更新（2026-09-30）：走 Tauri updater —— 真正的下载 + 静默安装 + 自动重启。
@@ -55,10 +63,20 @@ export function AboutSection() {
   return (
     <SettingsSection title={t.setAboutTitle} description={t.setAboutDesc}>
       <div className="flex flex-col gap-4">
-        {/* 版本号 */}
-        <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2.5">
-          <span className="text-xs text-muted-foreground">{t.setAboutVersion}</span>
-          <span className="text-sm font-medium tabular-nums">VoxMinutes v{version || '—'}</span>
+        {/* 版本号 + 构建/安装时间。
+            ⚠️ 时间这一项**必须留着**（2026-10-01 用户要求）：
+            版本号长期停留在 0.2.0，光看版本号无法分辨「装的是哪一版」，
+            之前就因此产生过「是不是旧版本没改好」的误会。 */}
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2.5">
+          <span className="shrink-0 text-xs text-muted-foreground">{t.setAboutVersion}</span>
+          <span className="min-w-0 text-right text-sm font-medium tabular-nums">
+            VoxMinutes v{version || '—'}
+            {builtAt && (
+              <span className="ml-2 font-normal text-muted-foreground">
+                {t.setAboutBuiltAt.replace('{time}', builtAt.toLocaleString())}
+              </span>
+            )}
+          </span>
         </div>
 
         {/* 法律条款（常驻入口）：首次启动的同意提示只出现一次，

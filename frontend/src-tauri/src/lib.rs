@@ -1615,6 +1615,7 @@ pub fn run() {
             get_log_dir,
             collect_manual_logs,
             diagnostics::open_log_folder,
+            diagnostics::get_build_info,
             tts::tts_synthesize,
             tts::save_tts_audio,
             remote_messages::fetch_remote_messages,
