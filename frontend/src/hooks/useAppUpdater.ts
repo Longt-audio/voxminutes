@@ -87,21 +87,21 @@ export function useAppUpdater(options?: { autoCheck?: boolean }): AppUpdater {
     let total: number | undefined
     setPhase({ kind: 'downloading', version, received: 0 })
     try {
-      await u.downloadAndInstall(
-        (ev) => {
-          if (ev.event === 'Started') {
-            total = ev.data.contentLength
-            setPhase({ kind: 'downloading', version, received: 0, total })
-          } else if (ev.event === 'Progress') {
-            received += ev.data.chunkLength
-            setPhase({ kind: 'downloading', version, received, total })
-          } else if (ev.event === 'Finished') {
-            // 下载完成 → 进入安装（NSIS 静默安装，随后应用会重启）
-            setPhase({ kind: 'installing', version })
-          }
-        },
-        { restartAfterInstall: false }
-      )
+      // ⚠️ 这里**不能**传 { restartAfterInstall } —— 该选项在本项目锁定的
+      // 2.10.x（与 Rust crate tauri-plugin-updater 2.10.1 对齐的那版）里不存在，
+      // 只在更高版本的 DownloadOptions 里才有。显式重启统一交给下面的 relaunch()。
+      await u.downloadAndInstall((ev) => {
+        if (ev.event === 'Started') {
+          total = ev.data.contentLength
+          setPhase({ kind: 'downloading', version, received: 0, total })
+        } else if (ev.event === 'Progress') {
+          received += ev.data.chunkLength
+          setPhase({ kind: 'downloading', version, received, total })
+        } else if (ev.event === 'Finished') {
+          // 下载完成 → 进入安装（NSIS 静默安装，随后应用会重启）
+          setPhase({ kind: 'installing', version })
+        }
+      })
       // Windows 上 NSIS 安装器通常已经把进程结束了；能走到这里说明还活着，
       // 主动重启一次，保证用户看到的是新版本。
       await relaunch()
