@@ -1261,6 +1261,11 @@ export async function openLogFolder(): Promise<string> {
   return invoke<string>('open_log_folder')
 }
 
+/** 构建/安装信息：版本号 + 可执行文件落地时间（用于分辨「装的是哪一版」）。 */
+export async function getBuildInfo(): Promise<{ version: string; exeModifiedUnix: number | null }> {
+  return invoke('get_build_info')
+}
+
 /** 读取用户手动挑选的日志文件（同样脱敏 + 单文件 ≤160KB），头部标注「用户手动附加」。 */
 export async function collectManualLogs(paths: string[]): Promise<string> {
   return invoke('collect_manual_logs', { paths })

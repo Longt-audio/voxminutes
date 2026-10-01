@@ -15,6 +15,8 @@ export interface SettingsMessages {
   setAboutTitle: string
   setAboutDesc: string
   setAboutVersion: string
+  /** 构建/安装时间（{time} 会被替换）；版本号不变时用来分辨装的是哪一版 */
+  setAboutBuiltAt: string
   setAboutChangelogTitle: string
   setAboutChangelogPlaceholder: string
   setAboutCheckUpdate: string
@@ -185,6 +187,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setCustomApiDesc: "Configure your own OpenAI-compatible or Anthropic API for meeting summaries and real-time translation. Requests go through your own API and do not consume credits.",
     setAboutTitle: "About VoxMinutes",
     setAboutDesc: "Version info and updates",
+    setAboutBuiltAt: "built {time}",
     setAboutVersion: "Current version",
     setAboutChangelogTitle: "What's new in this version",
     setAboutChangelogPlaceholder: "(Placeholder — to be finalized before release)",
@@ -339,6 +342,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setCustomApiDesc: "配置你自己的 OpenAI 兼容或 Anthropic API，用于会议总结和实时翻译。走你自己的 API，不消耗积分。",
     setAboutTitle: "关于 VoxMinutes",
     setAboutDesc: "版本信息与更新",
+    setAboutBuiltAt: "构建于 {time}",
     setAboutVersion: "当前版本",
     setAboutChangelogTitle: "本版本新增功能",
     setAboutChangelogPlaceholder: "（占位：发布前在此更新本版本的新功能列表）",
@@ -493,6 +497,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setCustomApiDesc: "회의 요약과 실시간 번역에 사용할 OpenAI 호환 또는 Anthropic API를 직접 설정합니다. 사용자의 API를 통해 처리되며 크레딧이 소모되지 않습니다.",
     setAboutTitle: "VoxMinutes 정보",
     setAboutDesc: "버전 정보 및 업데이트",
+    setAboutBuiltAt: "빌드 {time}",
     setAboutVersion: "현재 버전",
     setAboutChangelogTitle: "이 버전의 새 기능",
     setAboutChangelogPlaceholder: "(플레이스홀더 — 출시 전 업데이트 예정)",
@@ -647,6 +652,7 @@ export const SETTINGS_MESSAGES: Record<Language, SettingsMessages> = {
     setCustomApiDesc: "会議の要約とリアルタイム翻訳に使う OpenAI 互換または Anthropic API を自分で設定します。自分の API 経由のため、クレジットは消費されません。",
     setAboutTitle: "VoxMinutes について",
     setAboutDesc: "バージョン情報とアップデート",
+    setAboutBuiltAt: "ビルド {time}",
     setAboutVersion: "現在のバージョン",
     setAboutChangelogTitle: "このバージョンの新機能",
     setAboutChangelogPlaceholder: "（プレースホルダー — リリース前に更新）",

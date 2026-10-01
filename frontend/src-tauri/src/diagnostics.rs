@@ -272,6 +272,31 @@ pub async fn open_log_folder() -> Result<String, String> {
     Ok(path)
 }
 
+/// 构建 / 安装信息：版本号 + 可执行文件的修改时间。
+///
+/// 为什么需要（2026-10-01 用户要求）：
+///   在此之前我连打了 6 个构建、**版本号全是 0.2.0**，用户无法分辨自己装的是哪一版，
+///   我也只能靠翻日志里的指纹去猜 —— 直接导致一场「是不是旧版本没改好」的误会。
+///   用户决定不递增版本号（避免版本号乱跳），所以这里提供一个**构建/安装时间**
+///   作为区分依据，显示在「设置 → 关于我们」。
+///
+/// 用可执行文件自身的 mtime，而不是 build.rs 注入的时间戳：
+///   · 不必改 build.rs —— 也就没有「构建脚本不重跑导致时间戳过期」的坑；
+///   · 它反映的正是「这台机器上这份文件什么时候落地的」，排查时更直观。
+#[tauri::command]
+pub async fn get_build_info() -> Result<serde_json::Value, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let modified_unix = std::fs::metadata(&exe)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs());
+    Ok(serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "exeModifiedUnix": modified_unix,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
