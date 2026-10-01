@@ -758,7 +758,7 @@ export function RecorderInfo() {
           用 -webkit-box + line-clamp 两行截断（Tailwind 3.4 的 line-clamp-2 也等价），
           完整文案挂在 title 上，窗口很窄时也能看到全文。 */}
       {isMicMuted && !hintDismissed && (
-        <div className="flex min-w-0 flex-1 basis-24 max-w-[340px] items-center gap-1">
+        <div className="flex min-w-0 flex-1 basis-40 max-w-[420px] items-center gap-2">
           <button
             type="button"
             onClick={handleUnmuteMic}
@@ -767,14 +767,17 @@ export function RecorderInfo() {
           >
             {t.recMicMutedHint}
           </button>
-          {/* 关掉后写入设置，永久不再显示（用户 2026-09-30 要求） */}
+          {/* 「不再显示」用**明确的文字**而不是小 ✕（2026-10-01 改）：
+              上一版是 10px 半透明的 ✕，用户实际使用中**完全没注意到**，
+              反馈「让你加的关闭功能也没有」。文字按钮一眼可见，不会再被漏掉。
+              点击后写入设置 recorder.micHintDismissed，永久不再显示。 */}
           <button
             type="button"
-            title={t.recMicMutedHintDismiss}
             onClick={dismissMicHint}
-            className="shrink-0 rounded px-1 text-[10px] leading-none text-muted-foreground/50 hover:bg-muted hover:text-muted-foreground"
+            title={t.recMicMutedHintDismiss}
+            className="shrink-0 whitespace-nowrap rounded border border-border/70 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            ✕
+            {t.recMicMutedHintDismiss}
           </button>
         </div>
       )}
