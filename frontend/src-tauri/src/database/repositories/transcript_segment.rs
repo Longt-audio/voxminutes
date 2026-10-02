@@ -76,12 +76,26 @@ impl TranscriptSegmentsRepository {
             .execute(&mut *tx)
             .await?;
         for segment in segments {
+            // ⚠️⚠️ 存储 id 必须带 recording_id 命名空间（2026-10-02 真机 bug）
+            //
+            // 背景：`transcript_segments.id` 是**全局主键**，而段落 id 生成自
+            // `format!("seg_{}", sequence_id)`，sequence_id 来自**进程级**计数器
+            // `FLOW_SEQUENCE = AtomicU64::new(0)`。
+            // → **App 每次重启计数器归零**，下一场录音又从 `seg_0` 开始；
+            //   而上面这条 DELETE 只删**本场录音**的行，上一场的 `seg_0` 还在库里
+            //   → `UNIQUE constraint failed: transcript_segments.id`，
+            //     整场录音的段落全部写不进历史记录（用户实测：3 次失败）。
+            //
+            // 判据：`WHERE recording_id = ?` 只保证"本场"幂等，防不住跨场撞主键。
+            // 修法：存入时加 `{recording_id}::` 前缀。读路径（`SELECT *`）会原样取回这个
+            // id，前端拿它调 `update_segment_text`，所以读写是一致的 ✓
+            let stored_id = format!("{}::{}", recording_id, segment.id);
             sqlx::query(
                 "INSERT INTO transcript_segments
                  (id, recording_id, text, start_ms, end_ms, speaker, source, translation, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
-            .bind(&segment.id)
+            .bind(&stored_id)
             .bind(recording_id)
             .bind(&segment.text)
             .bind(segment.start_ms)
