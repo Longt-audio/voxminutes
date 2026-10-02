@@ -121,6 +121,19 @@ pub async fn start_audio_test<R: Runtime>(
 
     // 1. Persist the selected model as the active transcript config so the
     //    transcription worker picks it up.
+    //
+    // ⚠️ 归一化（2026-10-02 真机 bug）：前端 AsrModelPicker 会把「远程」归一化成
+    //    字面量 `"remote"`（见 AsrModelPicker.normalizeAsrModelName），
+    //    而这里原先只用 `starts_with("qwen3-asr-remote")` 判断 —— `"remote"` 判不中，
+    //    于是 provider 落到 `"sherpaonnx"`，存出 `sherpaonnx + "remote"` 这种错配。
+    //    紧接着的 validate_transcription_model_ready 会去加载一个名叫 "remote" 的
+    //    本地模型 → 必然失败 → 直接 return Err → **测试音频永远不会播放**
+    //    （用户反馈：「语音模型测试里面的测试音频都没有播放」「没有出来任何东西」）。
+    let model_name = if model_name == "remote" {
+        "qwen3-asr-remote".to_string()
+    } else {
+        model_name
+    };
     let provider = if model_name.starts_with("x-asr-") {
         "x-asr"
     } else if model_name.starts_with("qwen3-asr-remote") {
