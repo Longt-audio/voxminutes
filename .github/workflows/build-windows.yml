@@ -1,5 +1,10 @@
 # Windows 打包（nsis 安装包）
-# 触发：手动 workflow_dispatch，或推送 v* 标签
+# 触发：**仅手动 workflow_dispatch**（2026-10-02 起去掉了 v* 标签触发）
+#
+# ⚠️ 为什么去掉标签触发：本文件同时存在于**公开仓库**（Longt-audio/voxminutes），
+#    而公开仓库**没有** TAURI_SIGNING_PRIVATE_KEY 等 secrets → 一旦 push v* 标签，
+#    公开仓库也会跑一次这个工作流并失败（红叉，还白等 40 分钟）。
+#    构建统一在私有构建仓库 Longt-audio/voxminutes-build 里用 dispatch 触发。
 #
 # 本地等价流程见 frontend/scripts/prepare-windows-sidecars.ps1（装 ffmpeg.exe + llama-helper.exe）。
 #
@@ -50,9 +55,6 @@ on:
         description: '用 lld 链接器加速（若链接失败可关掉重跑）'
         type: boolean
         default: true
-  push:
-    tags:
-      - 'v*'
 
 jobs:
   build:
