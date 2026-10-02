@@ -309,6 +309,19 @@ impl RemoteAsrStreamingProvider {
         // 流式文本管线（停顿分段 + 翻译窗口 + 草稿翻译）。跨重连保持：
         // 网关新会话的累计文本变短时，管线按最长公共前缀自动对齐。
         let mut flow = super::flow::FlowPipeline::new();
+        // ⚠️ 只为**豆包流式**开启「标点错位纠正」（2026-10-02 真机实测）。
+        //
+        // 豆包的 `definite` 分句把标点划到**下一句开头**，按它的边界直接闭合会让
+        // 段落长成这样（用户实测）：
+        //   00:18 …现场的气氛怎么样      ← 段尾没「？」
+        //   00:45 ？好的主持人…           ← 段首是「？」
+        // 而 qwen / deepgram 的 final 本身是完整句子（标点在段尾），**不需要**这个处理，
+        // 且用户明确反馈「其他 asr 状态还可以」——所以严格按模型名收窄，不动其他上游。
+        let cur_model = crate::audio::transcription::get_remote_asr_model();
+        flow.set_upstream_final_punct_shifted(cur_model.contains("doubao"));
+        if cur_model.contains("doubao") {
+            log::info!("豆包流式：已启用「句末标点优先」切分（修正标点错位）");
+        }
         let mut channel_closed = false;
         // 退避期缓冲上限：16kHz f32 每 chunk ≈0.6s，25 chunk ≈ 15 秒
         const MAX_PENDING_CHUNKS: usize = 25;
