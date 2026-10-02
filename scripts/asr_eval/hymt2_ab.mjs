@@ -3,10 +3,15 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
-const HELPER = '/Users/longteng/vox/voxminutes/frontend/src-tauri/binaries/llama-helper-aarch64-apple-darwin';
-const MODEL = '/Users/longteng/Library/Application Support/com.voxminutes.app/models/hy-mt2-1.8b/Hy-MT2-1.8B-Q4_K_M.gguf';
+const HOME = process.env.HOME || process.env.USERPROFILE || '';
+// 可用环境变量覆盖；默认按「仓库内 binaries」与「App 的用户数据目录」推断
+const HELPER = process.env.VOX_LLAMA_HELPER
+  || 'frontend/src-tauri/binaries/llama-helper-aarch64-apple-darwin';
+const MODEL = process.env.VOX_HYMT2_MODEL
+  || `${HOME}/Library/Application Support/com.voxminutes.app/models/hy-mt2-1.8b/Hy-MT2-1.8B-Q4_K_M.gguf`;
 if (!existsSync(HELPER) || !existsSync(MODEL)) {
   console.log('缺少 helper 或模型文件，跳过：', HELPER, MODEL);
+  console.log('提示：可用 VOX_LLAMA_HELPER / VOX_HYMT2_MODEL 指定实际路径。');
   process.exit(0);
 }
 
