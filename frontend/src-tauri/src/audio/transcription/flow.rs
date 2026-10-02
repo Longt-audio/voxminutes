@@ -154,9 +154,21 @@ pub struct FlowPipeline {
     last_emitted_tail: String,
     last_draft_text: String,
     last_draft_at: Instant,
+    /// 上游 final 的边界是否**与句末标点错位**（豆包流式 = true）。
+    ///
+    /// 见 `find_last_sentence_boundary` 的注释：豆包把标点划到下一句开头，
+    /// 按它的 definite 边界直接闭合会让段落以标点开头。开启后提交前会先在
+    /// 最后一个句末标点处切一刀。**只对豆包开启**，其他上游不受影响。
+    upstream_final_punct_shifted: bool,
 }
 
 impl FlowPipeline {
+    /// 标记「上游 final 边界与句末标点错位」（豆包流式专用，见字段注释）。
+    /// 在创建管线后立刻调用，运行期不变。
+    pub fn set_upstream_final_punct_shifted(&mut self, v: bool) {
+        self.upstream_final_punct_shifted = v;
+    }
+
     pub fn new() -> Self {
         Self {
             committed: String::new(),
@@ -175,6 +187,7 @@ impl FlowPipeline {
             last_emitted_tail: String::new(),
             last_draft_text: String::new(),
             last_draft_at: Instant::now() - DRAFT_MIN_INTERVAL,
+            upstream_final_punct_shifted: false,
         }
     }
 
@@ -318,7 +331,15 @@ impl FlowPipeline {
             let upstream_boundary = if semantic_boundary
                 && text_length_units(stable_tail) >= MIN_SEGMENT_UNITS
             {
-                Some(stable_tail.len())
+                if self.upstream_final_punct_shifted {
+                    // 豆包：标点归属下一句 → 先在最后一个句末标点处切，把标点留在本段。
+                    // 找不到标点（上游就是不给）才退回整个稳定尾巴，
+                    // 这样不会丢掉「按上游 final 及时提交、不等 12 秒长度兜底」的收益。
+                    find_last_sentence_boundary(stable_tail, MIN_SEGMENT_UNITS)
+                        .or(Some(stable_tail.len()))
+                } else {
+                    Some(stable_tail.len())
+                }
             } else {
                 None
             };
@@ -683,6 +704,71 @@ fn find_commit_boundary(text: &str, min_units: usize) -> Option<usize> {
     None
 }
 
+/// 找 `text` 里**最后一个**句末标点之后的切点（其前缀至少 `min_units` 个单位）。
+///
+/// 为什么需要（2026-10-02 真机）：**豆包流式**的 `definite` 分句把标点划到了
+/// **下一句的开头**，实测识别结果长这样：
+///
+/// ```text
+/// 00:18  …马上来连线他，子清，现场的气氛怎么样     ← 段尾没有「？」
+/// 00:45  ？好的主持人，现在在我身后…               ← 段首是「？」
+/// 01:16  送旅客375万人次。                        ← 「预计」被留在上一段
+/// 01:22  。浩言，现场的情况怎么样                   ← 段首是「。」
+/// ```
+///
+/// 而 qwen / deepgram 的 final 本身是完整句子（标点在段尾），没有这个问题。
+///
+/// 所以对豆包：**提交前先在最后一个句末标点处切一刀**，把标点留在本段；
+/// 找不到标点才退回「整个稳定尾巴」，保住「按上游 final 及时提交、不等 12 秒」的收益。
+fn find_last_sentence_boundary(text: &str, min_units: usize) -> Option<usize> {
+    let char_indices: Vec<(usize, char)> = text.char_indices().collect();
+    let len = char_indices.len();
+    let mut units = 0usize;
+    let mut in_word = false;
+    let mut last: Option<usize> = None;
+
+    for (i, (_, c)) in char_indices.iter().enumerate() {
+        if (*c as u32) >= 0x4E00 {
+            units += 1;
+            in_word = false;
+        } else if c.is_whitespace() {
+            in_word = false;
+        } else if !in_word {
+            units += 1;
+            in_word = true;
+        }
+
+        if !matches!(c, '。' | '！' | '？' | '.' | '!' | '?') {
+            continue;
+        }
+        // 与 find_commit_boundary 相同的「不能切在小数点/缩写里」判据
+        let boundary_ok = match char_indices.get(i + 1).map(|(_, c)| *c) {
+            None => true,
+            Some(n) => {
+                n.is_whitespace()
+                    || matches!(n, '"' | '\u{300D}' | '\u{FF09}' | '\u{3011}' | '」' | '）' | '】')
+                    || (n as u32) >= 0x4e00
+            }
+        };
+        if !boundary_ok {
+            continue;
+        }
+        let mut end_idx = i + 1;
+        while end_idx < len && matches!(char_indices[end_idx].1, ' ' | '\n' | '\r') {
+            end_idx += 1;
+        }
+        let boundary = if end_idx < len {
+            char_indices[end_idx].0
+        } else {
+            text.len()
+        };
+        if units >= min_units {
+            last = Some(boundary); // 记录**最后**一个合格切点，不提前 return
+        }
+    }
+    last
+}
+
 /// 找**第一个**弱边界（空格 / 逗号类）且其前缀至少 `min_units` 个单位的位置。
 ///
 /// 与 `find_length_boundary`（返回**最后**一个弱边界）不同：兜底闭合要的是尽量靠前的
@@ -798,6 +884,37 @@ fn is_cjk(c: char) -> bool {
 
 #[cfg(test)]
 mod tests {
+    /// 豆包「标点错位」修正（2026-10-02 真机实测的原文）。
+    #[test]
+    fn last_sentence_boundary_fixes_doubao_punct_shift() {
+        // 用户实测：豆包 definite 提交到「怎么样」就断了，而「？」在下一条里
+        let t = "上午，多地举行升国旗仪式，庆祝中华人民共和国成立77周年。过生日不仅有祖国母亲，还有广府大熊猫，国庆我们的记者王子清呢，就在蒙受庆生的现场，马上来连线他，子清，现场的气氛怎么样";
+        let b = find_last_sentence_boundary(t, MIN_SEGMENT_UNITS).expect("应能找到句末标点");
+        assert!(t[..b].ends_with('。'), "切点应落在最后一个句号之后，实际: {:?}", &t[..b][t[..b].len().saturating_sub(12)..]);
+        // 切点之后（未提交部分）不应包含标点
+        assert!(!t[b..].contains('。'));
+    }
+
+    /// 没有句末标点时返回 None（调用方会退回「整个稳定尾巴」，行为不变）。
+    #[test]
+    fn last_sentence_boundary_none_without_punct() {
+        assert_eq!(find_last_sentence_boundary("这是一段没有任何句末标点的文字", MIN_SEGMENT_UNITS), None);
+    }
+
+    /// 太短（不足 min_units）不给切点，避免切出碎片。
+    #[test]
+    fn last_sentence_boundary_respects_min_units() {
+        assert_eq!(find_last_sentence_boundary("好。", 8), None);
+        assert!(find_last_sentence_boundary("这是一句足够长的完整句子。", 8).is_some());
+    }
+
+    /// 小数点/英文缩写不能当句末标点。
+    #[test]
+    fn last_sentence_boundary_skips_decimal_point() {
+        let t = "这个数字是 3.14 左右，比较接近圆周率，我们继续往下说一些内容";
+        assert_eq!(find_last_sentence_boundary(t, MIN_SEGMENT_UNITS), None);
+    }
+
     use super::*;
 
     /// 2026-09-22 线上 panic 回归：`committed.len() > stable_len` 时必须返回 None，
