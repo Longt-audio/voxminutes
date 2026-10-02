@@ -14,6 +14,7 @@ import {
   fetchNoticeDocuments,
   fetchWelcome,
   openExternalUrl,
+  getBuildInfo,
   type NoticeDocument,
   type WelcomeMessage,
 } from '@/services/ipc'
@@ -39,6 +40,8 @@ export const OPEN_WELCOME_EVENT = 'vox:open-welcome'
 
 /** 设置键：勾选「以后不再打开」= 设置这个键 */
 const DISABLED_KEY = 'welcome.disabled'
+/** 上次完成引导时的构建标识（exe mtime）；用于「新装/新版本必弹一次」 */
+const SEEN_BUILD_KEY = 'welcome.seen_build'
 
 /** 欢迎弹窗共三页：0 欢迎词+语言选择 / 1 公告+远程设置+不再打开 / 2 本地模型 */
 const TOTAL_STEPS = 3
@@ -115,6 +118,8 @@ export function WelcomeDialog() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** 首次运行（向导从未走完）→ 远程服务默认打开，见 init() 的说明 */
   const firstRunRef = useRef(false)
+  /** 本次构建的标识（exe mtime），finish 时写入设置 */
+  const seenBuildRef = useRef('')
 
   // 加载远程配置（自动保存基线）。挂载时 + 每次打开弹窗时 + 收到他处保存事件时都要刷新，
   // 否则会出现「在用户中心填了授权码，欢迎弹窗里还是空的」。
@@ -151,13 +156,31 @@ export function WelcomeDialog() {
       try {
         const settings = await apiGetSettings()
         const disabled = !!settings[DISABLED_KEY]
+        // ── 「新装/新版本必须弹一次」（2026-10-02 用户要求）────────────────────
+        // 背景：welcome.disabled / onboarding.completed 都存在**用户数据目录的数据库**里，
+        // 而**重装软件不会清用户数据** —— 于是用户"新装了软件"却看不到欢迎弹窗
+        // （真机反馈：「新装了软件之后，没有弹出欢迎窗口，可能是我之前装过？」）。
+        //
+        // 判据用**可执行文件的修改时间**：
+        //   · 重装 / 升级 → exe 被重写 → mtime 变 → 弹 ✓
+        //   · 同一版本正常重启 → mtime 不变 → 不弹 ✓
+        // 不用"自己写标记文件"是因为 NSIS 升级时目录行为不确定，而 exe mtime 一定变。
+        let buildChanged = false
+        try {
+            const info = await getBuildInfo()
+            const cur = String(info.exeModifiedUnix ?? '')
+            buildChanged = !!cur && settings[SEEN_BUILD_KEY] !== cur
+            if (buildChanged) seenBuildRef.current = cur
+        } catch {
+            // 取不到就退回旧行为（只认 disabled）
+        }
         // 「首次运行」= 向导还没走完过。只有首次运行时才把远程服务默认打开
         // （2026-09-30 用户要求：新用户开箱即用推荐走远程，不必自己去找开关）。
         // 老用户/已走过向导的人**不动**这个开关，避免覆盖他们手动关掉的设置。
         firstRunRef.current = !settings['onboarding.completed']
         if (disposed) return
         setDontShow(disabled)
-        if (!disabled) setOpen(true)
+        if (!disabled || buildChanged) setOpen(true)
       } catch {
         // 后端不可用时静默，不打扰用户
       }
@@ -256,6 +279,10 @@ export function WelcomeDialog() {
   const finish = useCallback(() => {
     apiSaveSetting('onboarding.completed', 'true').catch(() => {})
     apiSaveSetting(DISABLED_KEY, 'true').catch(() => {})
+    // 记住"这个构建已经引导过了"：换构建（重装/升级）时会再次弹出
+    if (seenBuildRef.current) {
+      apiSaveSetting(SEEN_BUILD_KEY, seenBuildRef.current).catch(() => {})
+    }
     setDontShow(true)
     setOpen(false)
     setStep(0)

@@ -194,7 +194,8 @@ impl XAsrProvider {
 
                             if let Some(result) = self.engine.recognizer.get_result(&stream) {
                                 if !result.text.is_empty() {
-                                    flow.push_text(&app, &result.text, true);
+                                    // 本地 X-ASR：文本已定稿（true），但**它的段是 VAD 切的、不能当语义边界**（false）
+                                    flow.push_text(&app, &result.text, true, false);
                                 }
                             }
                         }
@@ -211,7 +212,8 @@ impl XAsrProvider {
                                     self.engine.recognizer.decode(&stream);
                                 }
                                 if let Some(result) = self.engine.recognizer.get_result(&stream) {
-                                    flow.push_text(&app, &result.text, true);
+                                    // 本地 X-ASR：文本已定稿（true），但**它的段是 VAD 切的、不能当语义边界**（false）
+                                    flow.push_text(&app, &result.text, true, false);
                                 }
 
                                 info!("🎙️ X-ASR audio input finished, waiting for final results");
@@ -225,7 +227,8 @@ impl XAsrProvider {
                     if should_poll {
                         if let Some(result) = self.engine.recognizer.get_result(&stream) {
                             if !result.text.is_empty() {
-                                flow.push_text(&app, &result.text, true);
+                                // 本地 X-ASR：文本已定稿（true），但**它的段是 VAD 切的、不能当语义边界**（false）
+                                    flow.push_text(&app, &result.text, true, false);
                             }
                         }
                     }

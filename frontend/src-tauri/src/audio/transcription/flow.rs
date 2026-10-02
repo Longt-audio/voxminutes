@@ -209,14 +209,30 @@ impl FlowPipeline {
     }
 
     /// 推进会话累计文本：闭合完整单元（送翻译）+ 原位刷新活跃单元 + 节流草稿翻译。
-    /// upstream_final=true 表示上游把当前累计文本整体定稿（Deepgram is_final、
-    /// 豆包 definite、FunASR sentence_end、千问 .completed）：单元闭合只允许
-    /// 发生在该稳定范围内，避免上游修订草稿句造成「修订重复」。
+    ///
+    /// ⚠️⚠️ 这两个 bool 是**两个完全不同的含义**，2026-10-02 之前它们被合并成一个
+    /// `upstream_final`，导致「改远程」把「本地」一起改坏了，务必分清：
+    ///
+    /// · `upstream_final` —— **这段文本已经定稿**
+    ///     true 表示上游把当前累计文本整体定稿（Deepgram is_final、豆包 definite、
+    ///     FunASR sentence_end、千问 .completed；**本地 X-ASR/sherpa 的每次结果也算**）。
+    ///     作用：推进 `stable_len`，让单元闭合只发生在稳定范围内，
+    ///     避免上游修订草稿句造成「修订重复」。
+    ///
+    /// · `semantic_boundary` —— **这个 final 是一个语义边界，可以在此断开新段/新段**
+    ///     只有**上游按静音切分（endpointing）产生的 final** 才算，
+    ///     例如 deepgram 的 `is_final`（endpointing:300ms，约 2.5~3.5s 一次）。
+    ///     作用：驱动分段节奏，让段落跟着上游的语义边界走而不是干等长度兜底。
+    ///
+    /// **为什么必须分开**：本地 X-ASR 的结果是**按 VAD 切**的（480ms 粒度），
+    /// 如果也当语义边界，每个小段都会被闭合 —— 用户实测到的就是
+    /// 「X-ASR 切得很碎，和上一个版本体验差很多」（2026-10-02 真机反馈）。
     pub fn push_text<R: Runtime>(
         &mut self,
         app: &AppHandle<R>,
         cumulative: &str,
         upstream_final: bool,
+        semantic_boundary: bool,
     ) {
         if upstream_final {
             self.stable_len = cumulative.len();
@@ -299,7 +315,7 @@ impl FlowPipeline {
             // 判据用「上游这次给的是 final」+ 最小长度（MIN_SEGMENT_UNITS），
             // 避免上游把 final 切得很碎时产生大量碎片段。
             // 对豆包无副作用：它 58 秒才给 1 次 definite，本来就走不到这条分支。
-            let upstream_boundary = if upstream_final
+            let upstream_boundary = if semantic_boundary
                 && text_length_units(stable_tail) >= MIN_SEGMENT_UNITS
             {
                 Some(stable_tail.len())

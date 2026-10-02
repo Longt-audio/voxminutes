@@ -508,7 +508,9 @@ impl RemoteAsrStreamingProvider {
                                                     texts_received
                                                 );
                                                 // final = 上游定稿边界；管线只在稳定文本内闭合单元
-                                                flow.push_text(&app, payload, kind == "final");
+                                                // 远程流式：final 既是「定稿」也是「语义边界」——上游的 final 是按
+                                                // 静音 endpointing 切出来的，本来就该作为分段依据
+                                                flow.push_text(&app, payload, kind == "final", kind == "final");
                                             }
                                             "error" => {
                                                 let m = v.get("message").and_then(|m| m.as_str()).unwrap_or("");
