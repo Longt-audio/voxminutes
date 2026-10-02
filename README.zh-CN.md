@@ -28,7 +28,7 @@
 
 ---
 
-> ## 🚀 新版本本周发布 · Coming This Week
+> ## 🚀 v0.2.0 已发布 · Now Available
 >
 > **已下载的用户记得回来更新！** v0.2.0 三大新功能：
 >
@@ -36,9 +36,7 @@
 > - 💬 **桌面字幕** — 实时转录增加悬浮桌面字幕，看外语会议像看带字幕的视频
 > - 🔊 **翻译 TTS** — 翻译结果支持语音朗读，转写+翻译+朗读一条龙
 >
-> 👉 **[点我获取最新版本](https://github.com/Longt-audio/voxminutes/releases/latest)** · 发布后第一时间可用
-
----
+> 👉 **[点我获取最新版本](https://github.com/Longt-audio/voxminutes/releases/latest)** · 现已可下载
 
 ---
 

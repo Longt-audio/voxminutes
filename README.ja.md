@@ -28,7 +28,7 @@
 
 ---
 
-> ## 🚀 今週新バージョンリリース · New Version This Week
+> ## 🚀 v0.2.0 リリース · Now Available
 >
 > **すでにダウンロード済みの方は、ぜひアップデートを！** v0.2.0 三大新機能：
 >
@@ -36,9 +36,7 @@
 > - 💬 **デスクトップ字幕** — リアルタイム文字起こしがデスクトップ字幕として表示、字幕付き動画のように会議を見られる
 > - 🔊 **翻訳 TTS** — 翻訳結果の音声読み上げ対応：文字起こし → 翻訳 → リスニング
 >
-> 👉 **[最新版を入手](https://github.com/Longt-audio/voxminutes/releases/latest)** · 今週リリース
-
----
+> 👉 **[最新版を入手](https://github.com/Longt-audio/voxminutes/releases/latest)** · ダウンロード可能
 
 ---
 
