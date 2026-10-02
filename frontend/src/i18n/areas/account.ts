@@ -28,6 +28,8 @@ export interface AccountMessages {
   /** 日志附加范围下拉：最近一天 */
   accDiagRangeDay: string
   accContact: string
+  /** 反馈页：留邮箱的说明（用户 2026-10-02 要求只收邮箱 + 说明奖励） */
+  accContactHint: string
   accSubmit: string
   accLogHint: string
   accFeedbackEmpty: string
@@ -144,7 +146,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accDiagRange2: 'Last 2 runs (default)',
     accDiagRange5: 'Last 5 runs',
     accDiagRangeDay: 'Last 24 hours',
-    accContact: 'Contact (email, optional)',
+    accContact: 'Your email',
+    accContactHint: 'Please leave your email — it is the only way we can reply, and accepted issues earn 20 bonus credits.',
     accSubmit: 'Submit',
     accLogHint: 'With the box checked we attach the most recent app log (license keys and usernames are stripped) so we can see what actually happened. Uncheck it if you prefer not to send logs.',
     accFeedbackEmpty: 'Please enter feedback content',
@@ -205,7 +208,7 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accClaimBtn: 'Claim 100 free credits',
     // ⚠️ 「90 days」是必写项：Phase 1 没有邮箱/手机号，无法在到期前提醒用户，
     //    所以领取处必须明示有效期（见 PHASE_0_1_IMPLEMENTATION_PLAN.md 修正 4）。
-    accClaimDesc: 'Register this device to get 100 credits (valid for 90 days) — about 3 hours of meeting transcription, or 2.5 hours of live captions.',
+    accClaimDesc: 'Register this device to get 100 credits free (valid for 90 days). This build is still being polished — if something breaks, please tell us. Accepted issues earn you 20 more credits.',
     accClaiming: 'Claiming…',
     accClaimOk: 'Activated — {credits} credits granted',
     accClaimRestored: 'Your account has been restored',
@@ -237,7 +240,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accDiagRange2: '最近 2 次运行（默认）',
     accDiagRange5: '最近 5 次运行',
     accDiagRangeDay: '最近一天',
-    accContact: '联系方式（邮箱，可选）',
+    accContact: '你的邮箱',
+    accContactHint: '请留下邮箱 —— 这是我们回复你的唯一方式；问题被采纳会额外赠送 20 积分。',
     accSubmit: '提交',
     accLogHint: '勾选后会自动附上最近的运行日志（授权码与用户名已脱敏），我们才能看到问题现场；不想发日志可以取消勾选。',
     accFeedbackEmpty: '请输入反馈内容',
@@ -297,7 +301,7 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accRetry: '重试',
     accClaimBtn: '免费领取 100 积分',
     // ⚠️ 「90 天内有效」是必写项，不是可选文案（见 PHASE_0_1_IMPLEMENTATION_PLAN.md 修正 4）
-    accClaimDesc: '新设备注册即送 100 积分（90 天内有效），约可转写 3 小时会议录音，或 2.5 小时实时字幕。',
+    accClaimDesc: '新设备注册即送 100 积分（90 天内有效）。这个版本还在打磨，遇到问题欢迎反馈 —— 问题被采纳，我们再送 20 积分。',
     accClaiming: '领取中…',
     accClaimOk: '已激活，已赠送 {credits} 积分',
     accClaimRestored: '已恢复你的账号',
@@ -329,7 +333,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accDiagRange2: '최근 2회 실행(기본)',
     accDiagRange5: '최근 5회 실행',
     accDiagRangeDay: '최근 24시간',
-    accContact: '연락처(이메일, 선택)',
+    accContact: '이메일',
+    accContactHint: '이메일을 남겨주세요 — 답변드릴 수 있는 유일한 방법이며, 채택된 문제에는 20 크레딧을 추가로 드립니다.',
     accSubmit: '제출',
     accLogHint: '체크하면 최근 실행 로그를 자동으로 첨부합니다(라이선스 키와 사용자 이름은 마스킹됨). 로그를 보내지 않으려면 체크를 해제하세요.',
     accFeedbackEmpty: '피드백 내용을 입력하세요',
@@ -388,7 +393,7 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accRetest: '다시 테스트',
     accRetry: '재시도',
     accClaimBtn: '100 크레딧 무료 받기',
-    accClaimDesc: '새 기기를 등록하면 100 크레딧(90일 유효)을 드립니다. 회의 녹음 약 3시간 또는 실시간 자막 2.5시간 분량입니다.',
+    accClaimDesc: '새 기기를 등록하면 100 크레딧(90일간 유효)을 드립니다. 이 버전은 아직 다듬는 중입니다 — 문제를 발견하면 알려주세요. 채택된 문제에는 20 크레딧을 더 드립니다.',
     accClaiming: '받는 중…',
     accClaimOk: '활성화됨 — {credits} 크레딧 지급',
     accClaimRestored: '계정이 복구되었습니다',
@@ -420,7 +425,8 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accDiagRange2: '直近 2 回の実行（デフォルト）',
     accDiagRange5: '直近 5 回の実行',
     accDiagRangeDay: '最近 24 時間',
-    accContact: '連絡先(メール、任意)',
+    accContact: 'メールアドレス',
+    accContactHint: 'メールアドレスをご記入ください —— ご返信できる唯一の方法です。採用された問題には 20 クレジットを追加進呈します。',
     accSubmit: '送信',
     accLogHint: 'チェックすると直近の実行ログを自動で添付します（ライセンスキーとユーザー名はマスク済み）。送りたくない場合はチェックを外してください。',
     accFeedbackEmpty: 'フィードバック内容を入力してください',
@@ -479,7 +485,7 @@ export const ACCOUNT_MESSAGES: Record<Language, AccountMessages> = {
     accRetest: '再テスト',
     accRetry: '再試行',
     accClaimBtn: '100 クレジットを無料で受け取る',
-    accClaimDesc: '新しいデバイスを登録すると 100 クレジット（90日間有効）を付与。会議録音 約3時間、またはリアルタイム字幕 2.5時間分です。',
+    accClaimDesc: '新しい端末の登録で 100 クレジット進呈（90日間有効）。このバージョンはまだ調整中です —— 不具合を見つけたらぜひお知らせください。採用された問題にはさらに 20 クレジット進呈します。',
     accClaiming: '受け取り中…',
     accClaimOk: '有効化しました — {credits} クレジットを付与',
     accClaimRestored: 'アカウントを復元しました',

@@ -328,10 +328,18 @@ export function RecorderControls() {
     // 结果是「在确认弹窗里换了模型但没真按开始录音」= 选择丢失（用户 2026-09-30 反馈）。
     // 这里改成确认时就写，做到「没开始录音也记住」。
     if (setup.modelName) {
-      const isRemote = setup.modelName.startsWith(REMOTE_ASR_PLACEHOLDER)
+      // ⚠️ 必须先归一化（2026-10-02 真机 bug）：
+      //   AsrModelPicker 会把模型名归一化成字面量 'remote'
+      //   （见 AsrModelPicker.normalizeAsrModelName），而这里原先直接拿它去
+      //   startsWith('qwen3-asr-remote') → **判成非远程** → 存成
+      //   provider='sherpaonnx', model='remote' 这种错配，
+      //   下次启动本地引擎就会去加载一个名叫 "remote" 的本地模型，必然失败。
+      //   日志实证：api_save_transcript_config called (native): provider='sherpaonnx', model='remote'
+      const normalized = setup.modelName === 'remote' ? REMOTE_ASR_PLACEHOLDER : setup.modelName
+      const isRemote = normalized.startsWith(REMOTE_ASR_PLACEHOLDER)
       apiSaveTranscriptConfig(
-        isRemote ? 'remote-qwen3-asr' : setup.modelName.startsWith('x-asr-') ? 'x-asr' : 'sherpaonnx',
-        setup.modelName,
+        isRemote ? 'remote-qwen3-asr' : normalized.startsWith('x-asr-') ? 'x-asr' : 'sherpaonnx',
+        normalized,
         null,
         isRemote ? remoteAsr.value || null : null
       ).catch(() => {})

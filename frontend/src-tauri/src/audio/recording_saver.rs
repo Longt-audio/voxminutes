@@ -353,6 +353,13 @@ impl RecordingSaver {
                     save_audio
                 );
 
+                // 2026-10-02 加的诊断：真机出现「No audio checkpoints to merge」时，
+                // 完全看不出到底有没有音频块进来、进来多少 —— 这里把计数打出来。
+                // 判读：task ended 时 chunks_received=0 → 上游根本没喂（管线/设备问题）；
+                //       有计数但 checkpoints=0 → 块太小、始终没到 30 秒阈值。
+                let mut chunks_received: u64 = 0;
+                let mut samples_received: u64 = 0;
+
                 while let Some(chunk) = receiver.recv().await {
                     // Check if we should continue
                     let should_continue = if let Ok(is_saving) = is_saving_clone.lock() {
@@ -364,6 +371,9 @@ impl RecordingSaver {
                     if !should_continue {
                         break;
                     }
+
+                    chunks_received += 1;
+                    samples_received += chunk.data.len() as u64;
 
                     // Only process audio chunks if auto_save is enabled
                     if save_audio {
@@ -382,7 +392,13 @@ impl RecordingSaver {
                     }
                 }
 
-                info!("Recording saver accumulation task ended");
+                info!(
+                    "Recording saver accumulation task ended — 收到 {} 个音频块 / {} 个采样点（{:.1}s），save_audio={}",
+                    chunks_received,
+                    samples_received,
+                    samples_received as f64 / 48000.0,
+                    save_audio
+                );
             });
         }
 

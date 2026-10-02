@@ -500,20 +500,102 @@ fn save_remote_asr_config_to_disk(config: &RemoteAsrPersistedConfig) -> Result<(
 const KEYRING_SERVICE: &str = "voxminutes";
 const KEYRING_USER: &str = "remote-license";
 
+/// 授权码的文件兜底路径（`<app_data>/remote_license`）。
+///
+/// 为什么需要（2026-10-02 真机）：Windows 凭据管理器上的授权码**读不回来** ——
+/// 每次启动日志都是「尚未保存授权码（首次运行属正常）」，于是客户端每次都把自己
+/// 当新用户：用户中心不显示余额、要重新点「领取积分」、远程识别报缺少授权码。
+/// 用户实测反馈：「第二次打开的时候，点开用户中心，并没有直接显示积分余额，
+/// 而是还需要点一下什么领取积分」。
+///
+/// 取舍：授权码会以**明文**存在用户数据目录（与 `remote_asr_config.json` 同级）。
+/// 这是**故意**的降级 —— 桌面软件里明文存 API key 很常见（该目录本身就是用户私有），
+/// 而「每次启动失忆」对可用性的伤害远大于此。keychain 仍是首选，文件只是兜底。
+fn license_fallback_path() -> Option<std::path::PathBuf> {
+    get_remote_asr_config_path().map(|p| p.with_file_name("remote_license"))
+}
+
+fn save_license_to_file(license: &str) {
+    let Some(path) = license_fallback_path() else { return };
+    let r = if license.is_empty() {
+        std::fs::remove_file(&path).or_else(|e| {
+            // 文件本来就不存在不算错
+            if e.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(e) }
+        })
+    } else {
+        std::fs::write(&path, license)
+    };
+    match r {
+        Ok(()) => log::info!(
+            "License fallback file {} ({} 字符)",
+            if license.is_empty() { "removed" } else { "written" },
+            license.len()
+        ),
+        Err(e) => warn!("Failed to write license fallback file: {}", e),
+    }
+}
+
+fn load_license_from_file() -> String {
+    let Some(path) = license_fallback_path() else { return String::new() };
+    match std::fs::read_to_string(&path) {
+        Ok(s) => s.trim().to_string(),
+        Err(_) => String::new(),
+    }
+}
+
 fn save_license_to_keyring(license: &str) {
     match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
         Ok(entry) => {
             if license.is_empty() {
-                let _ = entry.delete_credential();
+                // ⚠️⚠️ 2026-10-02 修正：这里**以前是 delete_credential()**。
+                // 那是个自毁开关 —— 只要前端某次拿空授权码调一次
+                // set_remote_config（例如设置页在授权码框还是空的时候点了保存，
+                // 或者启动早期配置尚未加载完就触发了一次保存），
+                // 之前存好的授权码就被**静默删掉**了，而且日志里只有一句
+                // 「尚未保存授权码」看起来完全正常。
+                // 现在改成：空值**不动 keychain**，只清文件兜底（那是显式的登出语义）。
+                log::info!("Keychain: 收到空授权码，保留已有条目（不再删除）");
             } else if let Err(e) = entry.set_password(license) {
                 warn!("Failed to save license to keychain: {}", e);
+            } else {
+                log::info!("Keychain: 授权码已保存（{} 字符）", license.len());
             }
         }
         Err(e) => warn!("Keychain unavailable, license not persisted: {}", e),
     }
+    // keychain 之外始终维护一份文件兜底
+    save_license_to_file(license);
 }
 
 fn load_license_from_keyring() -> String {
+    // ── 先读 keychain；读不到（或为空）时回落到文件兜底，并尝试自愈写回 keychain ──
+    let from_keychain = read_license_from_keychain_only();
+    if !from_keychain.is_empty() {
+        // keychain 有值：顺手把文件兜底也补齐（换机器/重装后能靠它恢复）
+        if load_license_from_file() != from_keychain {
+            save_license_to_file(&from_keychain);
+        }
+        return from_keychain;
+    }
+    let from_file = load_license_from_file();
+    if !from_file.is_empty() {
+        log::info!(
+            "Keychain 无授权码，已从文件兜底恢复（{} 字符）—— 本次会尝试写回 keychain",
+            from_file.len()
+        );
+        // 自愈：写回 keychain，下次就能直接读到
+        if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+            match entry.set_password(&from_file) {
+                Ok(()) => log::info!("Keychain: 已自愈写回授权码"),
+                Err(e) => warn!("Keychain: 自愈写回失败（不影响本次会话）: {}", e),
+            }
+        }
+    }
+    from_file
+}
+
+/// 只读 keychain（不含文件兜底），带完整日志。
+fn read_license_from_keychain_only() -> String {
     match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
         Ok(entry) => match entry.get_password() {
             Ok(p) => p,

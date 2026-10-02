@@ -174,10 +174,15 @@ export function FeedbackSection() {
       </div>
       <input
         className="mt-2 w-full rounded-md border border-input bg-background p-2 text-sm"
+        type="email"
         value={contact}
         onChange={(e) => setContact(e.target.value)}
         placeholder={t.accContact}
       />
+      {/* 2026-10-02 用户要求：反馈只收邮箱，并说明「为什么值得留」——
+          ① 邮箱是唯一能回复到人的方式（此前后台大量反馈没留联系方式，想回复都找不到人）
+          ② 问题被采纳额外送 20 积分（积分由管理员通过邮箱发放） */}
+      <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{t.accContactHint}</p>
       {/* 自动附加日志 + 范围下拉（最近 1/2/5 次运行、最近一天） */}
       <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
         <label className="flex min-w-0 items-center gap-2">

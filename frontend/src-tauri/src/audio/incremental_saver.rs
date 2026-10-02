@@ -133,6 +133,19 @@ impl IncrementalAudioSaver {
         }
 
         if self.checkpoint_count == 0 {
+            // 2026-10-02：把判定依据打全，便于区分「没有音频」和「音频不够一个检查点」。
+            // 一个检查点的阈值是 30 秒（sample_rate × 30），不足就一直留在 buffer 里，
+            // 正常路径会在上面的 `if !checkpoint_buffer.is_empty()` 落成最后一个检查点；
+            // 走到这里说明 **buffer 也是空的 ⇒ 整场没有任何音频块进来**。
+            let buffered: usize = self.checkpoint_buffer.iter().map(|c| c.data.len()).sum();
+            error!(
+                "❌ 音频检查点数为 0（无法合并）：buffer 残留 {} 块 / {} 采样点（{:.2}s），阈值 {} 采样点（{:.0}s）",
+                self.checkpoint_buffer.len(),
+                buffered,
+                buffered as f64 / self.sample_rate as f64,
+                self.checkpoint_interval_samples,
+                self.checkpoint_interval_samples as f64 / self.sample_rate as f64
+            );
             return Err(anyhow!(
                 "No audio checkpoints to merge - recording may have failed"
             ));
