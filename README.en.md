@@ -34,6 +34,20 @@
 
 ---
 
+> ## 🚀 New Version This Week · 新版本本周发布
+>
+> **Already downloaded? Come back for the update!** v0.2.0 brings three major features:
+>
+> - 🪙 **Credits System** — Built-in credits to unlock remote cloud models (bigger models, faster speed)
+> - 💬 **Desktop Subtitles** — Real-time transcription now floats as desktop subtitles, like watching a subtitled video
+> - 🔊 **Translation TTS** — Translations can now be read aloud: transcribe → translate → listen
+>
+> 👉 **[Get the latest release](https://github.com/Longt-audio/voxminutes/releases/latest)** · Available this week
+
+---
+
+---
+
 ## Quick Links
 
 [Features](#features) · [Why VoxMinutes](#why-voxminutes) · [Models](#model-support) · [Download & install](#download--install) · [Build from source](#build-from-source) · [Tech stack](#tech-stack) · [Roadmap](#roadmap) · [Privacy](#privacy) · [Contributing](#contributing)

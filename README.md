@@ -8,7 +8,7 @@
 
 <sub>Your local meeting assistant · 100% free · Records system audio & mic together · Real-time transcription, translation (13 languages) & summaries — all on your device</sub>
 
-<sub>로컬 회의 어시스턴트 · 완전 묾료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다</sub>
+<sub>로컬 회의 어시스턴트 · 완전 무료 · 시스템 오디오와 마이크 동시 녹음 · 실시간 받아쓰기, 번역, 요약 — 데이터는 기기 밖으로 나가지 않습니다</sub>
 
 <sub>ローカル会議アシスタント · 完全無料 · システム音声とマイクを同時録音 · リアルタイム文字起こし・翻訳・要約。データはデバイスの外に出ません</sub>
 
@@ -31,6 +31,20 @@
 *👆 动图演示：双路录音、实时转写、实时翻译与 AI 会议纪要。想看带声音的完整演示？[60 秒视频](docs/promotion-v2/videos/voxminutes-v2-horizontal.mp4) 或 [30 秒精华版](docs/promotion-v2/videos/voxminutes-v2-horizontal-short.mp4)。*
 
 </div>
+
+---
+
+> ## 🚀 新版本本周发布 · Coming This Week
+>
+> **已下载的用户记得回来更新！** v0.2.0 三大新功能：
+>
+> - 🪙 **积分系统** — 内置积分体系，可兑换使用远程云模型（更大的模型、更快的速度）
+> - 💬 **桌面字幕** — 实时转录增加悬浮桌面字幕，看外语会议像看带字幕的视频
+> - 🔊 **翻译 TTS** — 翻译结果支持语音朗读，转写+翻译+朗读一条龙
+>
+> 👉 **[点我获取最新版本](https://github.com/Longt-audio/voxminutes/releases/latest)** · 发布后第一时间可用
+
+---
 
 ---
 
