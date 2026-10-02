@@ -141,3 +141,33 @@ frontend/src-tauri/binaries/
 # tauri icon 生成的移动端图标（桌面应用不用）
 frontend/src-tauri/icons/android/
 frontend/src-tauri/icons/ios/
+
+# ════════════════════════════════════════════════════════════════════════════
+# 运营 / 账务 / 基础设施（**绝对不要提交到公开仓库**）
+# ────────────────────────────────────────────────────────────────────────────
+# 2026-10-02：这批文件曾被 git 跟踪（都在未推送的提交里），已从全部历史中摘除
+# 并在此忽略。它们在本地磁盘上**必须保留**（是运营资产，不是垃圾）。
+#
+# 为什么不能公开：
+#   · 卡密/         → 真实兑换码。2026-10-02 核实线上网关：149 张 unused，
+#                     公开等于把 96,000 积分（≈¥4,800 面值）白送
+#   · 发卡站备份/   → 独角数卡整库导出（后台口令哈希、虎皮椒 merchant_key 明文、
+#                     订单、卡密）+ .env/docker-compose（DB 与 MySQL root 密码明文）
+#   · POINTS_SYSTEM_DESIGN / PHASE_0_1_IMPLEMENTATION_PLAN /
+#     ACCOUNT_REGISTRATION_PLAN* → 防刷六道闸、风控参数、**加价倍率（成本×2）**
+#   · manage-dujiaoka.sh / 买域名和VPS.md 等 → VPS IP 与运维入口
+# ════════════════════════════════════════════════════════════════════════════
+卡密/
+发卡站备份/
+manage-dujiaoka.sh
+买域名和VPS.md
+发卡平台部署.md
+发卡站上架指引.md
+注册卡片.md
+上线准备清单.md
+上线前总检查清单.md
+自动更新与签名密钥说明.md
+ACCOUNT_REGISTRATION_PLAN.md
+ACCOUNT_REGISTRATION_PLAN_REVIEW.md
+PHASE_0_1_IMPLEMENTATION_PLAN.md
+POINTS_SYSTEM_DESIGN.md
