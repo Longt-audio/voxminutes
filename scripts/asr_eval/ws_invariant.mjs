@@ -9,7 +9,12 @@ const MODEL = process.argv[2] || 'doubao-asr-streaming-2.0';
 const SECONDS = Number(process.argv[3] || 45);
 const BASE = 'https://api.voxmin.top/v1';
 
-const rec = '/Users/longteng/recordings/录音_2026-09-22_13-49_2026-09-22_05-49-28/audio.mp4';
+// 测试音频：用 VOX_TEST_AUDIO 指定任意本地音频（ffmpeg 能解码即可）
+const rec = process.env.VOX_TEST_AUDIO;
+if (!rec) {
+  console.log('请用 VOX_TEST_AUDIO=/path/to/audio.mp4 指定测试音频后重跑。');
+  process.exit(0);
+}
 // 解码为 16k mono PCM16
 const pcm = execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', rec, '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1'], { maxBuffer: 1 << 30 });
 console.log(`pcm ${(pcm.length / 32000).toFixed(1)}s`);

@@ -171,3 +171,6 @@ ACCOUNT_REGISTRATION_PLAN.md
 ACCOUNT_REGISTRATION_PLAN_REVIEW.md
 PHASE_0_1_IMPLEMENTATION_PLAN.md
 POINTS_SYSTEM_DESIGN.md
+# 本机开发启动脚本（含 VPS 地址、SSH 隧道到后台的口令路径、本机事故复盘）；
+# 公开的开发命令在 docs/DEV_COMMANDS.md
+scripts/start-dev.sh

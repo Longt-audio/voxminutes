@@ -14,10 +14,12 @@ node scripts/asr_eval/model_matrix.mjs
 AB_MODEL=qwen-flash node scripts/asr_eval/prompt_ab.mjs
 
 # 3) 本地 Hy-MT2（llama-helper 直连，不经过 App）
+#    路径可用环境变量指定：VOX_LLAMA_HELPER / VOX_HYMT2_MODEL
 node scripts/asr_eval/hymt2_ab.mjs
 
 # 4) 流式 ASR 的「累计串一致性」不变量（豆包等桥接必须满足）
-node scripts/asr_eval/ws_invariant.mjs doubao-asr-streaming-2.0 45
+#    需自备测试音频：VOX_TEST_AUDIO=/path/to/audio.mp4
+VOX_TEST_AUDIO=/path/to/audio.mp4 node scripts/asr_eval/ws_invariant.mjs doubao-asr-streaming-2.0 45
 ```
 
 ## 每个脚本在验什么
