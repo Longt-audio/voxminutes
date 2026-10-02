@@ -151,6 +151,38 @@ pnpm tauri build
 - 现实预期：**几周到几个月，且首次被拒/被要求补材料很常见**。
 - **建议：当作发布后的改进项，不要放进这次发布的计划里。**
 
+### 3.6 实测复核：为什么「有时候不弹」（2026-10-02）
+
+**先确认事实**：线上那份 `VoxMinutes_0.2.0_x64-setup.exe` 仍然**没有 Authenticode 签名**
+——直接解析 PE 的 Certificate Table 得到 `offset=0 size=0`。所以**不是「问题已经修好了」**：
+按微软规则「未签名 = 每个新版本都要从 0 攒信誉」，新构建在没见过的机器上**仍然会弹**。
+
+不弹，通常是下面 4 种情况之一（按概率排序）：
+
+| # | 情况 | 说明 |
+|---|---|---|
+| 1 | **文件没有 MOTW（最常见）** | 用下载器（迅雷 / IDM / aria2）、`curl`、`scp`、U 盘、局域网共享拿到的文件**不带** Mark-of-the-Web；SmartScreen 的「应用声誉」只对**下载来的**文件生效 → 直接不介入、不弹 |
+| 2 | **系统里「检查应用和文件」被关了** | Windows 安全中心 → 应用和浏览器控制 → 基于声誉的保护；对应注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\AppHost` 的 `EnableWebContentEvaluation = 0` |
+| 3 | **运行的是「同一个已经放行过」的文件** | 对某个具体文件点过「仍要运行」后，Windows 会给**那一个文件**记下放行；再运行同一个文件不再问。**换一个新构建的 exe（哈希不同）仍会问** |
+| 4 | **该文件哈希已攒够信誉** | 同一份 exe 被大量用户下载且无恶意举报后，哈希信誉够了就不再弹（量级：数周 + 数百次安装） |
+
+**在那台 Win 机器上自查**：
+
+```powershell
+# ① 有没有 MOTW（出现 Zone.Identifier = 会走 SmartScreen；没有 = 不弹的合理解释）
+dir /r VoxMinutes-Windows-latest.exe
+Get-Item .\VoxMinutes-Windows-latest.exe -Stream *
+
+# ② SmartScreen 开关（1=开，0=关）
+Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost' EnableWebContentEvaluation
+
+# ③ Windows 11 智能应用控制状态（0=关 1=强制 2=评估）
+Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy' VerifiedAndReputablePolicyState
+```
+
+> ⚠️ 对**用户沟通**的影响：既然弹不弹取决于 MOTW 与系统设置，对外文案要写「**可能**出现 SmartScreen 提示」
+> （不要写「一定会弹」，也不要说「已经没有这个问题了」）。README 与 Release 说明已按这个口径写。
+
 ---
 
 ## 四、SignPath 申请的硬性前提（缺一条就会被拒或要求补）
