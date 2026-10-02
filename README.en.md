@@ -34,7 +34,7 @@
 
 ---
 
-> ## 🚀 New Version This Week · 新版本本周发布
+> ## 🚀 v0.2.0 Released · Now Available
 >
 > **Already downloaded? Come back for the update!** v0.2.0 brings three major features:
 >
@@ -42,9 +42,7 @@
 > - 💬 **Desktop Subtitles** — Real-time transcription now floats as desktop subtitles, like watching a subtitled video
 > - 🔊 **Translation TTS** — Translations can now be read aloud: transcribe → translate → listen
 >
-> 👉 **[Get the latest release](https://github.com/Longt-audio/voxminutes/releases/latest)** · Available this week
-
----
+> 👉 **[Get the latest release](https://github.com/Longt-audio/voxminutes/releases/latest)** · Available now
 
 ---
 
