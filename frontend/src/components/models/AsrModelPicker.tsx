@@ -10,13 +10,6 @@ import {
   formatModelPrice,
 } from '@/lib/remoteModelChoice'
 import { pickLangSegment } from '@/lib/langSegment'
-import {
-  getCachedCredits,
-  creditsPerSecond,
-  estimateRecordableSeconds,
-  formatRecordableDuration,
-  minimumCreditsToStart,
-} from '@/lib/creditsEstimate'
 import { useLanguageStore } from '@/stores/languageStore'
 import { cn } from '@/lib/utils'
 import { ModelSelectCard, type ModelCardBadge } from '@/components/models/ModelSelectCard'
@@ -189,24 +182,9 @@ export function AsrModelPicker({
   const supported = supportedLanguages(value)
   const supportedKey = supported.join(',')
 
-  /** 「按余额估算还能录多久」：只在实时转录场景、且当前确实选了远程模型时显示。
-   *  余额走 60s 缓存（getRemoteUsage 每次实打网关），拉不到就整行不渲染——
-   *  绝不因为拿不到余额而影响开始录音。 */
-  const remoteSelected = normalizeAsrModelName(value) === 'remote'
-  const selectedRemote = remoteAsr.models.find((m) => m.id === remoteAsr.value)
-  const [credits, setCredits] = useState<number | null>(null)
-  useEffect(() => {
-    if (scene !== 'realtime' || !remoteSelected || !remoteEnabled) return
-    let alive = true
-    getCachedCredits()
-      .then((c) => {
-        if (alive) setCredits(c)
-      })
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
-  }, [scene, remoteSelected, remoteEnabled, remoteAsr.value])
+  // 注：原先这里还有一块「按余额估算还能录多久」的 state + effect，
+  // 2026-10-02 已随 UI 一起搬到 components/recorder/CreditEstimate.tsx
+  // （用户要求那块提示显示在「开始录音」同一行的左侧）。
 
   // 模型切换后，原先选的语言可能不再受支持（例如从 Deepgram 的日语切到 MiMo 的中/英）
   // → 自动回落 auto，避免把上游不认识的代码发上去。
@@ -337,33 +315,8 @@ export function AsrModelPicker({
           </div>
         )}
 
-        {/* 额度预估（2026-09-29）：只在「实时转录 + 已选远程模型」时出现。
-            口径严格复刻网关的冻结规则（先冻 2 分钟、之后每 60 秒阶梯补冻），
-            所以预估值是保守的；余额不足 2 分钟额度时明确提示「无法开始」——
-            那种情况下网关会在建会话时直接拒绝，整场都不会有字幕。 */}
-        {scene === 'realtime' && remoteSelected && remoteEnabled && credits !== null && (() => {
-          const cps = selectedRemote ? creditsPerSecond(selectedRemote) : null
-          if (cps === null) return null
-          const seconds = estimateRecordableSeconds(credits, cps)
-          const tooLow = seconds <= 0
-          return (
-            <div className="space-y-0.5 pt-0.5">
-              <p
-                className={cn(
-                  'text-[11px] leading-relaxed',
-                  tooLow ? 'font-medium text-red-600 dark:text-red-400' : 'text-muted-foreground'
-                )}
-              >
-                {tooLow
-                  ? t.recCreditTooLow.replace('{min}', String(minimumCreditsToStart(cps)))
-                  : t.recCreditEstimate
-                      .replace('{credits}', String(Number(credits.toFixed(2))))
-                      .replace('{duration}', formatRecordableDuration(seconds, t))}
-              </p>
-              <p className="text-[10px] leading-relaxed text-muted-foreground/70">{t.recCreditEstimateHint}</p>
-            </div>
-          )
-        })()}
+        {/* 额度预估已搬到「录音设置弹窗」底部按钮行的左侧（2026-10-02 用户要求）——
+            见 components/recorder/CreditEstimate.tsx。这里不再渲染，避免同一信息出现两次。 */}
       </div>
 
       {/* 识别语言：紧挨模型区底部的紧凑单行（小标题 + 紧凑下拉，不再独占一个大区块），
