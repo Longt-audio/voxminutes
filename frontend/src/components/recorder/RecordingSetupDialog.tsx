@@ -22,6 +22,7 @@ import { pickLangSegment } from '@/lib/langSegment'
 import { ModelSelectCard } from '@/components/models/ModelSelectCard'
 import { AsrModelPicker, useAsrModelOptions, normalizeAsrModelName } from '@/components/models/AsrModelPicker'
 import { AsrLanguagePicker } from '@/components/models/AsrLanguagePicker'
+import { CreditEstimate } from '@/components/recorder/CreditEstimate'
 import { languageLabel, sortLanguages } from '@/lib/asrLanguages'
 import { AudioTestDialog } from '@/components/recorder/AudioTestDialog'
 import { cn } from '@/lib/utils'
@@ -496,31 +497,39 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
 
         {/* 底部行：左侧识别语言（从模型列表下方移到此处，页面更紧凑；与 TAB3 的语言下拉共享同一 state），
             右侧 取消 → 语音模型测试（次级 outline）→ 开始录音 */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <AsrLanguagePicker
             value={language}
             onChange={handleLanguageChange}
             supported={supportedAsrLangs}
             showSupported={false}
           />
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-              {t.comCancel}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              disabled={!canStart}
-              title={t.recTestEntryHint}
-              onClick={() => setAudioTestOpen(true)}
-            >
-              <Activity className="h-3.5 w-3.5" />
-              {t.recAudioSelfTest}
-            </Button>
-            <Button size="sm" className="min-w-[120px]" disabled={!canStart} onClick={handleStart}>
-              {t.recStart}
-            </Button>
+          {/* 余额预估：放在「开始录音」同一行、按钮左侧的空白处（2026-10-02 用户要求）——
+              原来贴在模型列表下方，离"够不够录、能录多久"这件事太远。
+              用 ml-auto 把「提示 + 按钮」这一组整体推到右边，提示就落在按钮左边的留白里；
+              不放 justify-between 是因为那会把提示挤到整行正中，离按钮太远。
+              只有「已选远程模型」时才渲染，拉不到余额就整块消失，不影响开始录音。 */}
+          <div className="ml-auto flex items-center gap-3">
+            <CreditEstimate value={effectiveModelName} />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+                {t.comCancel}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={!canStart}
+                title={t.recTestEntryHint}
+                onClick={() => setAudioTestOpen(true)}
+              >
+                <Activity className="h-3.5 w-3.5" />
+                {t.recAudioSelfTest}
+              </Button>
+              <Button size="sm" className="min-w-[120px]" disabled={!canStart} onClick={handleStart}>
+                {t.recStart}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
