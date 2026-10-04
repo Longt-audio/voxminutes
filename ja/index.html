@@ -74,7 +74,7 @@
 </style>
 </head>
 <body>
-<div class="mig-banner">🎉 v0.2.0 リリース · 公式サイト voxmin.top オープン<a href="https://voxmin.top/ja/?from=landing" target="_blank" rel="noopener">公式サイトへ →</a></div>
+<div class="mig-banner">🎉 v0.2.0 リリース · 公式サイト voxmin.top オープン<a href="https://voxmin.top/ja/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">公式サイトへ →</a></div>
 <div class="wrap">
   <header>
     <img src="../assets/icon.png" alt="VoxMinutes">
@@ -91,7 +91,7 @@
     <h1>無料・オープンソースの<span class="red">ローカル会議アシスタント</span><br>データはデバイスから出ません</h1>
     <p class="sub">システム音声 + マイクを同時録音。話せば文字が出て、13言語にリアルタイム翻訳。ローカルAIがワンクリックで議事録を生成。アカウント不要、サブスク不要、ペイウォールなし。</p>
     <div class="cta">
-      <a class="btn" href="https://voxmin.top/ja/?from=landing" target="_blank" rel="noopener">Windows版を無料ダウンロード</a>
+      <a class="btn" href="https://voxmin.top/ja/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Windows版を無料ダウンロード</a>
       <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">ソースを見る</a>
     </div>
     <img class="shot" src="../assets/hero.png" alt="VoxMinutes リアルタイム文字起こし画面">
@@ -129,7 +129,7 @@
     <div class="download">
       <h2 class="sec-title">AIに会議メモを任せよう</h2>
       <p class="sec-sub">無料ダウンロード。モデルは初回起動ウィザードで取得。中国国内はミラーに自動切替。</p>
-      <a class="btn big" href="https://voxmin.top/ja/?from=landing" target="_blank" rel="noopener">VoxMinutes for Windows をダウンロード</a>
+      <a class="btn big" href="https://voxmin.top/ja/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">VoxMinutes for Windows をダウンロード</a>
       <p class="dl-count" style="display:none"><b class="dl-count-num">…</b> 回ダウンロード · 100% 無料</p>
       <p style="margin-top:10px;color:var(--muted);font-size:14px">現在はWindowsのみ · Mac / Linux 計画中</p>
     </div>
@@ -140,8 +140,25 @@
     <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
   </footer>
 </div>
-<a class="btn float-dl" href="https://voxmin.top/ja/?from=landing" target="_blank" rel="noopener">Windows版を無料ダウンロード</a>
+<a class="btn float-dl" href="https://voxmin.top/ja/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Windows版を無料ダウンロード</a>
 <script data-goatcounter="https://voxminutes.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
+<script>
+(function(){
+  var m=location.search.match(/[?&](?:from|utm_campaign)=([A-Za-z0-9_-]+)/);
+  if(!m) return;
+  var ch=m[1];
+  document.querySelectorAll('a[href*="voxmin.top"]').forEach(function(a){
+    try{
+      var u=new URL(a.href, location.href);
+      u.searchParams.set('from',ch);
+      u.searchParams.set('utm_campaign',ch);
+      a.href=u.href;
+    }catch(e){}
+  });
+})();
+</script>
+
 
 <script>
 (function(){
