@@ -74,7 +74,7 @@
 </style>
 </head>
 <body>
-<div class="mig-banner">🎉 v0.2.0 출시 · 공식 사이트 voxmin.top 오픈<a href="https://voxmin.top/ko/?from=landing" target="_blank" rel="noopener">공식 사이트로 →</a></div>
+<div class="mig-banner">🎉 v0.2.0 출시 · 공식 사이트 voxmin.top 오픈<a href="https://voxmin.top/ko/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">공식 사이트로 →</a></div>
 <div class="wrap">
   <header>
     <img src="../assets/icon.png" alt="VoxMinutes">
@@ -91,7 +91,7 @@
     <h1>묘리·오픈소스<span class="red">로컬 회의 어시스턴트</span><br>데이터는 기기를 떠나지 않습니다</h1>
     <p class="sub">시스템 오디오 + 마이크를 동시에 녹음하고, 말하는 즉시 텍스트로 변환하며, 13개 언어로 실시간 번역하고, 로컬 AI로 회의록을 한 번에 생성합니다. 계정도, 구독도, 페이월도 없습니다.</p>
     <div class="cta">
-      <a class="btn" href="https://voxmin.top/ko/?from=landing" target="_blank" rel="noopener">Windows용 묘리 다운로드</a>
+      <a class="btn" href="https://voxmin.top/ko/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Windows용 묘리 다운로드</a>
       <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">소스 보기</a>
     </div>
     <img class="shot" src="../assets/hero.png" alt="VoxMinutes 실시간 전사 화면">
@@ -129,7 +129,7 @@
     <div class="download">
       <h2 class="sec-title">이제 AI가 회의를 기록합니다</h2>
       <p class="sec-sub">묘리 다운로드. 첫 실행 마법사로 모델을 다운로드하며, 중국에서는 미러로 자동 전환됩니다.</p>
-      <a class="btn big" href="https://voxmin.top/ko/?from=landing" target="_blank" rel="noopener">VoxMinutes for Windows 다운로드</a>
+      <a class="btn big" href="https://voxmin.top/ko/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">VoxMinutes for Windows 다운로드</a>
       <p class="dl-count" style="display:none"><b class="dl-count-num">…</b>회 다운로드됨 · 100% 묘리</p>
       <p style="margin-top:10px;color:var(--muted);font-size:14px">현재 Windows만 지원 · Mac / Linux 예정</p>
     </div>
@@ -140,8 +140,25 @@
     <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
   </footer>
 </div>
-<a class="btn float-dl" href="https://voxmin.top/ko/?from=landing" target="_blank" rel="noopener">Windows용 묘리 다운로드</a>
+<a class="btn float-dl" href="https://voxmin.top/ko/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Windows용 묘리 다운로드</a>
 <script data-goatcounter="https://voxminutes.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
+<script>
+(function(){
+  var m=location.search.match(/[?&](?:from|utm_campaign)=([A-Za-z0-9_-]+)/);
+  if(!m) return;
+  var ch=m[1];
+  document.querySelectorAll('a[href*="voxmin.top"]').forEach(function(a){
+    try{
+      var u=new URL(a.href, location.href);
+      u.searchParams.set('from',ch);
+      u.searchParams.set('utm_campaign',ch);
+      a.href=u.href;
+    }catch(e){}
+  });
+})();
+</script>
+
 
 <script>
 (function(){
