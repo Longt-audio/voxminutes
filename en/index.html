@@ -74,7 +74,7 @@
 </style>
 </head>
 <body>
-<div class="mig-banner">🎉 v0.2.0 released · Official site voxmin.top is now live<a href="https://voxmin.top/en/?from=landing" target="_blank" rel="noopener">Visit official site →</a></div>
+<div class="mig-banner">🎉 v0.2.0 released · Official site voxmin.top is now live<a href="https://voxmin.top/en/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Visit official site →</a></div>
 <div class="wrap">
   <header>
     <img src="../assets/icon.png" alt="VoxMinutes">
@@ -91,7 +91,7 @@
     <h1>Free & open-source<span class="red">local meeting assistant</span><br>Your data never leaves your device</h1>
     <p class="sub">Record system audio and microphone together, see words appear as you speak, translate into 13 languages live, and generate meeting minutes with one click — all on-device. No account, no subscription, no paywall.</p>
     <div class="cta">
-      <a class="btn" href="https://voxmin.top/en/?from=landing" target="_blank" rel="noopener">Free Download for Windows</a>
+      <a class="btn" href="https://voxmin.top/en/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Free Download for Windows</a>
       <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">View Source</a>
     </div>
     <img class="shot" src="../assets/hero.png" alt="VoxMinutes real-time transcription interface">
@@ -129,7 +129,7 @@
     <div class="download">
       <h2 class="sec-title">Let AI take your meeting notes</h2>
       <p class="sec-sub">Free download. Models download via a first-launch wizard, with mirror fallback in China.</p>
-      <a class="btn big" href="https://voxmin.top/en/?from=landing" target="_blank" rel="noopener">Download VoxMinutes for Windows</a>
+      <a class="btn big" href="https://voxmin.top/en/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Download VoxMinutes for Windows</a>
       <p class="dl-count" style="display:none">Downloaded <b class="dl-count-num">…</b> times · 100% free</p>
       <p style="margin-top:10px;color:var(--muted);font-size:14px">Windows only for now · Mac / Linux planned</p>
     </div>
@@ -140,8 +140,25 @@
     <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
   </footer>
 </div>
-<a class="btn float-dl" href="https://voxmin.top/en/?from=landing" target="_blank" rel="noopener">Free Download for Windows</a>
+<a class="btn float-dl" href="https://voxmin.top/en/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Free Download for Windows</a>
 <script data-goatcounter="https://voxminutes.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
+<script>
+(function(){
+  var m=location.search.match(/[?&](?:from|utm_campaign)=([A-Za-z0-9_-]+)/);
+  if(!m) return;
+  var ch=m[1];
+  document.querySelectorAll('a[href*="voxmin.top"]').forEach(function(a){
+    try{
+      var u=new URL(a.href, location.href);
+      u.searchParams.set('from',ch);
+      u.searchParams.set('utm_campaign',ch);
+      a.href=u.href;
+    }catch(e){}
+  });
+})();
+</script>
+
 
 <script>
 (function(){
