@@ -74,7 +74,7 @@
 </style>
 </head>
 <body>
-<div class="mig-banner">🎉 v0.2.0 已发布 · 官网 voxmin.top 已上线（国内下载更快）<a href="https://voxmin.top/?from=landing" target="_blank" rel="noopener">前往官网 →</a></div>
+<div class="mig-banner">🎉 v0.2.0 已发布 · 官网 voxmin.top 已上线（国内下载更快）<a href="https://voxmin.top/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">前往官网 →</a></div>
 <div class="wrap">
   <header>
     <img src="../assets/icon.png" alt="VoxMinutes">
@@ -91,7 +91,7 @@
     <h1>免费开源的<span class="red">本地会议助手</span><br>数据不出你的电脑</h1>
     <p class="sub">系统声音 + 麦克风同时录制，说话即出文字，实时翻译成 13 种语言，本地 AI 一键生成会议纪要。无账号、无订阅、无付费墙。</p>
     <div class="cta">
-      <a class="btn" href="https://voxmin.top/?from=landing" target="_blank" rel="noopener">免费下载 Windows 版</a>
+      <a class="btn" href="https://voxmin.top/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">免费下载 Windows 版</a>
       <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">查看源码</a>
     </div>
     <img class="shot" src="../assets/hero.png" alt="VoxMinutes 实时转写界面">
@@ -129,7 +129,7 @@
     <div class="download">
       <h2 class="sec-title">现在开始，让 AI 帮你记会议</h2>
       <p class="sec-sub">免费下载，模型首次启动按向导下载即可，国内自动回退可用镜像</p>
-      <a class="btn big" href="https://voxmin.top/?from=landing" target="_blank" rel="noopener">下载 VoxMinutes for Windows</a>
+      <a class="btn big" href="https://voxmin.top/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">下载 VoxMinutes for Windows</a>
       <p class="dl-count" style="display:none">已被下载 <b class="dl-count-num">…</b> 次 · 100% 免费</p>
       <p style="margin-top:10px;color:var(--muted);font-size:14px">目前仅支持 Windows · Mac / Linux 计划中</p>
     </div>
@@ -140,8 +140,25 @@
     <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
   </footer>
 </div>
-<a class="btn float-dl" href="https://voxmin.top/?from=landing" target="_blank" rel="noopener">免费下载 Windows 版</a>
+<a class="btn float-dl" href="https://voxmin.top/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">免费下载 Windows 版</a>
 <script data-goatcounter="https://voxminutes.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
+<script>
+(function(){
+  var m=location.search.match(/[?&](?:from|utm_campaign)=([A-Za-z0-9_-]+)/);
+  if(!m) return;
+  var ch=m[1];
+  document.querySelectorAll('a[href*="voxmin.top"]').forEach(function(a){
+    try{
+      var u=new URL(a.href, location.href);
+      u.searchParams.set('from',ch);
+      u.searchParams.set('utm_campaign',ch);
+      a.href=u.href;
+    }catch(e){}
+  });
+})();
+</script>
+
 
 <script>
 (function(){
