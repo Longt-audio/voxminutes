@@ -134,6 +134,7 @@ One app, two engines. Use local for everyday meetings, switch to cloud for accur
 - **AI meeting notes** — a local GGUF LLM (Qwen / Gemma) writes topics, decisions and action items offline; or point it at your own API or web AI
 - **History & search** — local SQLite, full-text search, inline editing of titles and segments, re-recognise with a different model
 - **File transcription** — import audio files for offline transcription or re-recognition, and merge multiple recordings
+- **Speaker diarisation & renaming** — when offline recognition (file transcription / re-recognition) runs on the cloud Doubao or Qwen models, different speakers are detected automatically and each segment is labelled by who is speaking; in the history detail view, click a speaker's name to rename it (e.g. "Manager Zhang", "Client"), so meeting notes make it clear who said what
 - **Multi-format export** — TXT / SRT / Markdown / meeting notes, plus direct print-to-PDF
 - **Model manager** — in-app downloads (multi-source, resumable, parallel) or local import, no command line needed
 - **Multilingual UI** — English / 中文 / 한국어 / 日本語, switchable right from the welcome screen
@@ -166,8 +167,8 @@ Nothing to download — pick one and go. Covers **30+ languages**:
 
 | Model | Best for |
 |---|---|
-| Doubao | Chinese meetings |
-| Qwen | Mixed-language meetings |
+| Doubao | Chinese meetings, speaker diarisation |
+| Qwen | Mixed-language meetings, speaker diarisation |
 | MiMo | Everyday use at a lower cost |
 | Deepgram | English / overseas scenarios |
 
@@ -255,7 +256,7 @@ More commands in [docs/DEV_COMMANDS.md](docs/DEV_COMMANDS.md).
 |------|------|
 | v0.1.0 | Live/offline transcription, two translation engines, local meeting notes, history & export, model download/import, first-run wizard |
 | **v0.2.0 (current)** | **Cloud models (optional), floating desktop subtitles, read aloud, audio import / recording merge, credits system and a redesigned onboarding wizard** |
-| v0.3.0 | Select-to-translate, push-to-talk interpretation, live summaries, speaker diarisation |
+| v0.3.0 | Select-to-translate, push-to-talk interpretation, live summaries, on-device speaker diarisation |
 | Later | macOS / Linux builds, team collaboration |
 
 > 💡 Want macOS / Linux or speaker diarisation sooner? Open an issue or vote on an existing one — the roadmap follows community demand.
