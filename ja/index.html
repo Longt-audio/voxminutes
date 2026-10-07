@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VoxMinutes - 無料オープンソースのローカル会議アシスタント | リアルタイム文字起こし・翻訳・AI議事録</title>
-<meta name="description" content="VoxMinutes は 100% 無料・完全ローカル動作の Windows 会議アシスタントです。システム音声とマイクを同時録音し、リアルタイムで音声をテキスト化し、13言語に翻訳し、ローカルAIで議事録を自動生成します。データはデバイスから出ません。">
-<meta name="keywords" content="会議アシスタント,議事録,リアルタイム文字起こし,音声認識,リアルタイム翻訳,ローカルAI,オープンソース,無料,Windows,プライバシー,オフライン">
+<meta name="description" content="VoxMinutes は無料オープンソースのローカルファースト Windows 会議アシスタント。システム音声とマイクの同時録音、リアルタイム文字起こし、13言語翻訳、AI議事録、話者の識別と名前変更に対応。ローカルモードはデータがデバイスから出ず、クラウドモデルは従量制で選べます。">
+<meta name="keywords" content="会議アシスタント,議事録,話者識別,リアルタイム文字起こし,音声認識,リアルタイム翻訳,ローカルAI,オープンソース,無料,Windows,プライバシー,オフライン">
 <link rel="alternate" hreflang="zh" href="https://voxmin.top/">
 <link rel="alternate" hreflang="en" href="https://voxmin.top/en/">
 <link rel="alternate" hreflang="ko" href="https://voxmin.top/ko/">
@@ -14,7 +14,7 @@
 <link rel="canonical" href="https://voxmin.top/ja/">
 <meta name="msvalidate.01" content="04960691E47409A26006F1999E300AE6" />
 <meta property="og:title" content="VoxMinutes - 無料オープンソースのローカル会議アシスタント | リアルタイム文字起こし・翻訳・AI議事録">
-<meta property="og:description" content="VoxMinutes は 100% 無料・完全ローカル動作の Windows 会議アシスタントです。システム音声とマイクを同時録音し、リアルタイムで音声をテキスト化し、13言語に翻訳し、ローカルAIで議事録を自動生成します。データはデバイスから出ません。">
+<meta property="og:description" content="VoxMinutes は無料オープンソースのローカルファースト Windows 会議アシスタント。システム音声とマイクの同時録音、リアルタイム文字起こし、13言語翻訳、AI議事録、話者の識別と名前変更に対応。ローカルモードはデータがデバイスから出ず、クラウドモデルは従量制で選べます。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://voxmin.top/ja/">
 <meta property="og:image" content="https://longt-audio.github.io/voxminutes/assets/hero.png">
@@ -89,16 +89,16 @@
 
   <div class="hero">
     <h1>無料・オープンソースの<span class="red">ローカル会議アシスタント</span><br>データはデバイスから出ません</h1>
-    <p class="sub">システム音声 + マイクを同時録音。話せば文字が出て、13言語にリアルタイム翻訳。ローカルAIがワンクリックで議事録を生成。アカウント不要、サブスク不要、ペイウォールなし。</p>
+    <p class="sub">システム音声 + マイクを同時録音。話せば文字が出て、13言語にリアルタイム翻訳。ローカルAIがワンクリックで議事録を生成。ローカルは永久無料・アカウント不要。より高い精度が必要ならクラウド優良モデルを従量制で選べます（サブスクなし）。</p>
     <div class="cta">
       <a class="btn" href="https://voxmin.top/ja/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Windows版を無料ダウンロード</a>
       <a class="btn ghost" href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">ソースを見る</a>
     </div>
     <img class="shot" src="../assets/hero.png" alt="VoxMinutes リアルタイム文字起こし画面">
     <div class="badges">
-      <span class="badge">100% 無料</span>
-      <span class="badge">オープンソース MIT</span>
-      <span class="badge">完全ローカル</span>
+      <span class="badge">ローカル永久無料</span>
+      <span class="badge">OSS AGPL-3.0</span>
+      <span class="badge">ローカルファースト</span>
       <span class="badge">プライバシー第一</span>
       <span class="badge">Windows</span>
     </div>
@@ -112,6 +112,7 @@
       <div class="card"><img src="../assets/card-transcribe.png" alt="リアルタイム文字起こし"><div class="body"><h3>リアルタイム音声テキスト化</h3><p>X-ASR / SenseVoice デュアルエンジンのストリーミング文字起こし。話した瞬間に文字が現れ、完全オフライン。</p></div></div>
       <div class="card"><img src="../assets/card-translate.png" alt="リアルタイム翻訳"><div class="body"><h3>13言語へリアルタイム翻訳</h3><p>国際会議もその場で翻訳。会議後の整理を待つ必要はありません。</p></div></div>
       <div class="card"><img src="../assets/card-summary.png" alt="AI議事録"><div class="body"><h3>ローカルAI ワンクリック議事録</h3><p>会議後、ワンクリックでローカルLLMがトピック・結論・アクションアイテムを生成。</p></div></div>
+      <div class="card"><div class="body"><h3>話者の識別と名前変更</h3><p>オフライン認識でクラウドの Doubao / Qwen を使うと、話者を自動で識別し「誰が話しているか」ごとにラベル付け。履歴の詳細で名前をクリックすれば「張部長」「取引先」などに変更でき、議事録で誰の発言か一目で分かります。</p></div></div>
     </div>
   </section>
 
@@ -130,14 +131,14 @@
       <h2 class="sec-title">AIに会議メモを任せよう</h2>
       <p class="sec-sub">無料ダウンロード。モデルは初回起動ウィザードで取得。中国国内はミラーに自動切替。</p>
       <a class="btn big" href="https://voxmin.top/ja/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">VoxMinutes for Windows をダウンロード</a>
-      <p class="dl-count" style="display:none"><b class="dl-count-num">…</b> 回ダウンロード · 100% 無料</p>
+      <p class="dl-count" style="display:none"><b class="dl-count-num">…</b> 回ダウンロード · ローカル永久無料</p>
       <p style="margin-top:10px;color:var(--muted);font-size:14px">現在はWindowsのみ · Mac / Linux 計画中</p>
     </div>
   </section>
 
   <footer>
-    <p>VoxMinutes — 無料オープンソースのローカル会議アシスタント · <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a></p>
-    <p style="margin-top:8px">© 2026 Longt-audio · MIT License</p>
+    <p>VoxMinutes — 無料オープンソースのローカル会議アシスタント · <a href="https://voxmin.top/ja/" target="_blank" rel="noopener">公式サイト voxmin.top</a> · <a href="https://github.com/Longt-audio/voxminutes" target="_blank" rel="noopener">GitHub</a></p>
+    <p style="margin-top:8px">© 2026 Longt-audio · AGPL-3.0 License</p>
   </footer>
 </div>
 <a class="btn float-dl" href="https://voxmin.top/ja/?from=landing&utm_campaign=landing" target="_blank" rel="noopener">Windows版を無料ダウンロード</a>
