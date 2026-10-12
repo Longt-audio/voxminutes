@@ -174,3 +174,6 @@ POINTS_SYSTEM_DESIGN.md
 # 本机开发启动脚本（含 VPS 地址、SSH 隧道到后台的口令路径、本机事故复盘）；
 # 公开的开发命令在 docs/DEV_COMMANDS.md
 scripts/start-dev.sh
+
+# 内部推广资料，勿上传
+docs/promotion-v2/
