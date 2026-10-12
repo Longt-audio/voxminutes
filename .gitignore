@@ -177,3 +177,5 @@ scripts/start-dev.sh
 
 # 内部推广资料，勿上传
 docs/promotion-v2/
+# 客户端修复备忘（内部事故复盘，含用户ID与网关细节）
+下版本客户端修复备忘.md
