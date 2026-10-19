@@ -28,7 +28,7 @@
 
 ### [⬇️ 前往官网下载（推荐 · 国内直连更快）](https://voxmin.top/#download)
 
-[GitHub Releases（备用源）](https://github.com/Longt-audio/voxminutes/releases/latest) · [macOS 版（即将上线）](#macos-版即将上线) · [查看源码](https://github.com/Longt-audio/voxminutes)
+[GitHub Releases（备用源）](https://github.com/Longt-audio/voxminutes-releases/releases/latest) · [macOS 版（即将上线）](#macos-版即将上线) · [查看源码](https://github.com/Longt-audio/voxminutes)
 
 <sub>**免费 · 本地使用无需注册 · 约 50 MB · AGPL-3.0 开源** &nbsp;|&nbsp; 🪟 Windows 10 / 11（正式支持）· 🍎 macOS 即将上线 · 🐧 Linux 计划中 — [去 issue 投票](https://github.com/Longt-audio/voxminutes/issues)帮我们排优先级</sub>
 
@@ -48,7 +48,7 @@
 > - 💬 **桌面悬浮字幕** — 独立字幕窗始终置顶、可拖动、行数与字号可调，看外语会议像看带字幕的视频
 > - 💰 **本地免费 · 云端可选** — 本地模型永久免费、不限时长次数；只有主动选用云端模型时才按实际用量扣积分，**不订阅、不包月、不自动续费**
 >
-> 👉 **[官网下载](https://voxmin.top/#download)** · **[GitHub Releases](https://github.com/Longt-audio/voxminutes/releases/latest)** · **[新版本亮点](https://voxmin.top/#whatsnew)**
+> 👉 **[官网下载](https://voxmin.top/#download)** · **[GitHub Releases](https://github.com/Longt-audio/voxminutes-releases/releases/latest)** · **[新版本亮点](https://voxmin.top/#whatsnew)**
 
 ---
 
@@ -91,18 +91,18 @@ VoxMinutes 是一款**本地优先**的桌面会议助手（Windows，Tauri 2）
 
 | 平台 | 状态 | 下载 |
 |---|---|---|
-| 🪟 **Windows 10 / 11** | ✅ **正式支持** | **① 官网（推荐，国内直连更快）**：[voxmin.top/#download](https://voxmin.top/#download)<br>**② GitHub Releases（备用源）**：[releases/latest](https://github.com/Longt-audio/voxminutes/releases/latest) |
+| 🪟 **Windows 10 / 11** | ✅ **正式支持** | **① 官网（推荐，国内直连更快）**：[voxmin.top/#download](https://voxmin.top/#download)<br>**② GitHub Releases（备用源）**：[releases/latest](https://github.com/Longt-audio/voxminutes-releases/releases/latest) |
 | 🍎 **macOS（Apple 芯片）** | 🔜 **即将上线** | 开发中，暂不可下载；可先 [Star / Watch 本仓库](https://github.com/Longt-audio/voxminutes) 或到 [Issues](https://github.com/Longt-audio/voxminutes/issues) 投票，上线后第一时间在 Releases 与官网公布 |
 | 🐧 **Linux** | 📋 计划中 | 欢迎到 [Issues](https://github.com/Longt-audio/voxminutes/issues) 投票帮我们排优先级 |
 
 <a id="macos-版即将上线"></a>
 
 > **关于 macOS 版**：目前**只有 Windows 版可以下载**，macOS 版仍在开发中、**尚未提供安装包**。
-> 官网与 Releases 上任何标着 macOS 的入口在正式上线前都不应被当作可用下载；上线后我们会同时更新本 README、[官网](https://voxmin.top) 与 [Releases](https://github.com/Longt-audio/voxminutes/releases)。
+> 官网与 Releases 上任何标着 macOS 的入口在正式上线前都不应被当作可用下载；上线后我们会同时更新本 README、[官网](https://voxmin.top) 与 [Releases](https://github.com/Longt-audio/voxminutes-releases/releases)。
 
 **安装与首次使用：**
 
-1. 从**官网**下载 Windows 安装包（约 50 MB）并双击安装；也可以从 [Releases](https://github.com/Longt-audio/voxminutes/releases) 下载
+1. 从**官网**下载 Windows 安装包（约 50 MB）并双击安装；也可以从 [Releases](https://github.com/Longt-audio/voxminutes-releases/releases) 下载
 2. 启动后**新手指引**会自动弹出，引导你下载或导入 ASR 模型（必装）、翻译与总结模型（可选），或直接选云端模型跳过下载
 3. 选好麦克风与系统声音，点录音——文字实时出现，随时开启翻译与桌面字幕
 4. 结束后一键生成 AI 纪要；历史记录里可全文搜索、编辑、重新识别，导出 TXT / SRT / Markdown / PDF
