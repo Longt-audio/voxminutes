@@ -26,7 +26,7 @@
 
 ### [⬇️ 公式サイトからダウンロード（推奨）](https://voxmin.top/ja/#download)
 
-[GitHub Releases（予備）](https://github.com/Longt-audio/voxminutes/releases/latest) · [macOS 版（近日公開）](#macos-版近日公開) · [ソースを見る](https://github.com/Longt-audio/voxminutes)
+[GitHub Releases（予備）](https://github.com/Longt-audio/voxminutes-releases/releases/latest) · [macOS 版（近日公開）](#macos-版近日公開) · [ソースを見る](https://github.com/Longt-audio/voxminutes)
 
 <sub>**無料 · ローカル利用はアカウント登録不要 · 約 50 MB · AGPL-3.0 オープンソース** &nbsp;|&nbsp; 🪟 Windows 10 / 11（正式サポート）· 🍎 macOS 近日公開 · 🐧 Linux 計画中 — [Issues で投票](https://github.com/Longt-audio/voxminutes/issues)して優先順位づけにご協力ください</sub>
 
@@ -46,7 +46,7 @@
 > - 💬 **デスクトップ字幕** — 常に最前面に浮かぶ独立した字幕ウィンドウ。ドラッグで移動でき、行数と文字サイズも調整可能。外国語の会議が字幕付きの動画のように見られます
 > - 💰 **ローカルは無料・クラウドは任意** — ローカルモデルは永久無料で、時間制限も回数制限もありません。クレジットを消費するのは、自分でクラウドモデルを選んだときだけ。**サブスクなし・月額なし・自動更新なし**
 >
-> 👉 **[公式サイトからダウンロード](https://voxmin.top/ja/#download)** · **[GitHub Releases](https://github.com/Longt-audio/voxminutes/releases/latest)** · **[新バージョン](https://voxmin.top/ja/#whatsnew)**
+> 👉 **[公式サイトからダウンロード](https://voxmin.top/ja/#download)** · **[GitHub Releases](https://github.com/Longt-audio/voxminutes-releases/releases/latest)** · **[新バージョン](https://voxmin.top/ja/#whatsnew)**
 
 ---
 
@@ -89,18 +89,18 @@ VoxMinutes は**ローカルファースト**のデスクトップ会議アシ�
 
 | プラットフォーム | 状態 | ダウンロード |
 |---|---|---|
-| 🪟 **Windows 10 / 11** | ✅ **正式サポート** | **① 公式サイト（推奨）**：[voxmin.top/ja/#download](https://voxmin.top/ja/#download)<br>**② GitHub Releases（予備）**：[releases/latest](https://github.com/Longt-audio/voxminutes/releases/latest) |
+| 🪟 **Windows 10 / 11** | ✅ **正式サポート** | **① 公式サイト（推奨）**：[voxmin.top/ja/#download](https://voxmin.top/ja/#download)<br>**② GitHub Releases（予備）**：[releases/latest](https://github.com/Longt-audio/voxminutes-releases/releases/latest) |
 | 🍎 **macOS（Apple シリコン）** | 🔜 **近日公開** | 開発中のため**インストーラーはまだありません**。[リポジトリに Star / Watch](https://github.com/Longt-audio/voxminutes) するか [Issues](https://github.com/Longt-audio/voxminutes/issues) で投票してください。公開時は Releases と公式サイトでお知らせします |
 | 🐧 **Linux** | 📋 計画中 | [Issues](https://github.com/Longt-audio/voxminutes/issues) での投票が優先順位づけの参考になります |
 
 <a id="macos-版近日公開"></a>
 
 > **macOS 版について**：現在ダウンロードできるのは **Windows 版のみ**です。macOS 版は開発中で、**インストーラーはまだ提供していません**。
-> 公式サイトや Releases で macOS と表示されているものでも、正式リリース前は利用可能なダウンロードとして扱わないでください。リリース後は本 README、[公式サイト](https://voxmin.top/ja/)、[Releases](https://github.com/Longt-audio/voxminutes/releases) を同時に更新します。
+> 公式サイトや Releases で macOS と表示されているものでも、正式リリース前は利用可能なダウンロードとして扱わないでください。リリース後は本 README、[公式サイト](https://voxmin.top/ja/)、[Releases](https://github.com/Longt-audio/voxminutes-releases/releases) を同時に更新します。
 
 **インストールと初回起動：**
 
-1. **公式サイト**から Windows インストーラー（約 50 MB）をダウンロードしてダブルクリックでインストールします。[Releases](https://github.com/Longt-audio/voxminutes/releases) からもダウンロードできます
+1. **公式サイト**から Windows インストーラー（約 50 MB）をダウンロードしてダブルクリックでインストールします。[Releases](https://github.com/Longt-audio/voxminutes-releases/releases) からもダウンロードできます
 2. 起動すると**初回起動ウィザード**が自動的に表示され、ASR モデル（必須）と翻訳・要約モデル（任意）のダウンロードまたはインポートを案内します。クラウドモデルを選べばダウンロードを省略できます
 3. マイクとシステム音声を選んで録音を開始 —— 文字がリアルタイムで表示され、翻訳・デスクトップ字幕はいつでも有効にできます
 4. 終了後にワンクリックで AI 議事録を生成。履歴から全文検索・編集・再認識ができ、TXT / SRT / Markdown / PDF に書き出せます
