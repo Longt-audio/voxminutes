@@ -26,7 +26,7 @@
 
 ### [⬇️ Download from the official site (recommended)](https://voxmin.top/en/#download)
 
-[GitHub Releases (backup source)](https://github.com/Longt-audio/voxminutes/releases/latest) · [macOS version (coming soon)](#macos-version-coming-soon) · [View source](https://github.com/Longt-audio/voxminutes)
+[GitHub Releases (backup source)](https://github.com/Longt-audio/voxminutes-releases/releases/latest) · [macOS version (coming soon)](#macos-version-coming-soon) · [View source](https://github.com/Longt-audio/voxminutes)
 
 <sub>**Free · No account needed for local use · ~50 MB · AGPL-3.0** &nbsp;|&nbsp; 🪟 Windows 10 / 11 (available) · 🍎 macOS coming soon · 🐧 Linux planned — [vote on Issues](https://github.com/Longt-audio/voxminutes/issues) to move it up</sub>
 
@@ -46,7 +46,7 @@
 > - 💬 **Floating desktop subtitles** — a separate always-on-top subtitle window you can drag, with adjustable line count and font size
 > - 💰 **Free locally, optional in the cloud** — local models are free forever with no limits on time or runs; credits are only spent when you deliberately choose a cloud model. **No subscription, no monthly plan, no auto-renewal**
 >
-> 👉 **[Download](https://voxmin.top/en/#download)** · **[GitHub Releases](https://github.com/Longt-audio/voxminutes/releases/latest)** · **[What's new](https://voxmin.top/en/#whatsnew)**
+> 👉 **[Download](https://voxmin.top/en/#download)** · **[GitHub Releases](https://github.com/Longt-audio/voxminutes-releases/releases/latest)** · **[What's new](https://voxmin.top/en/#whatsnew)**
 
 ---
 
@@ -89,17 +89,17 @@ On first launch the built-in wizard helps you download or import the models you 
 
 | Platform | Status | Download |
 |---|---|---|
-| 🪟 **Windows 10 / 11** | ✅ **Available** | **① Official site (recommended)**: [voxmin.top/en/#download](https://voxmin.top/en/#download)<br>**② GitHub Releases (backup source)**: [releases/latest](https://github.com/Longt-audio/voxminutes/releases/latest) |
+| 🪟 **Windows 10 / 11** | ✅ **Available** | **① Official site (recommended)**: [voxmin.top/en/#download](https://voxmin.top/en/#download)<br>**② GitHub Releases (backup source)**: [releases/latest](https://github.com/Longt-audio/voxminutes-releases/releases/latest) |
 | 🍎 **macOS (Apple silicon)** | 🔜 **Coming soon** | Still in development — **no installer available yet**. [Star / watch the repo](https://github.com/Longt-audio/voxminutes) or [vote on Issues](https://github.com/Longt-audio/voxminutes/issues); we'll announce it here, on the site and in Releases |
 | 🐧 **Linux** | 📋 Planned | [Vote on Issues](https://github.com/Longt-audio/voxminutes/issues) to help us prioritise |
 
 <a id="macos-version-coming-soon"></a>
 
-> **About macOS:** only the **Windows build is downloadable today**. The macOS version is still in development and **no installer exists yet** — anything labelled macOS on the site or in Releases should not be treated as an available download until it ships. When it does, this README, [the site](https://voxmin.top/en/) and [Releases](https://github.com/Longt-audio/voxminutes/releases) will all be updated together.
+> **About macOS:** only the **Windows build is downloadable today**. The macOS version is still in development and **no installer exists yet** — anything labelled macOS on the site or in Releases should not be treated as an available download until it ships. When it does, this README, [the site](https://voxmin.top/en/) and [Releases](https://github.com/Longt-audio/voxminutes-releases/releases) will all be updated together.
 
 **Setup and first run:**
 
-1. Download the Windows installer (~50 MB) from the **official site**, or from [Releases](https://github.com/Longt-audio/voxminutes/releases)
+1. Download the Windows installer (~50 MB) from the **official site**, or from [Releases](https://github.com/Longt-audio/voxminutes-releases/releases)
 2. On launch the **first-run wizard** downloads or imports the ASR model (required) plus translation / summary models (optional) — or pick a cloud model and skip downloading
 3. Choose your microphone and system audio, then hit record. Text appears live; turn on translation and desktop subtitles whenever you like
 4. Generate AI notes in one click. From history you can search, edit and re-recognise, then export TXT / SRT / Markdown / PDF
