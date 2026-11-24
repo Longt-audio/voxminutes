@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
-import { Mic, Square, Pause, Play, MicOff, Speaker, Languages, Captions, Info } from 'lucide-react'
+import { Mic, Square, Pause, Play, MicOff, Speaker, Languages, Captions, Info, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '@/state'
 import { useRecorder, REMOTE_ASR_PLACEHOLDER } from '@/hooks/useRecorder'
 import { useAudioLevel } from '@/hooks/useAudioLevel'
@@ -29,7 +29,10 @@ import {
   getRemoteEnabled,
   apiGetSettings,
   apiSaveSetting,
+  onAudioSilenceWarning,
+  onAudioSilenceCleared,
 } from '@/services/ipc'
+import type { SilenceWarning } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AudioSpectrumBars } from './AudioSpectrumBars'
@@ -683,6 +686,101 @@ function LevelMeter({
 /** 用户点过「不再显示」后置 true，之后不再展示麦克风静音提示 */
 const MIC_HINT_DISMISSED_KEY = 'recorder.micHintDismissed'
 
+/**
+ * 录音中「连续没有声音」提醒（后端 simple_level_monitor 检测，30 秒无声推一次、
+ * 有声音后推 cleared）。以前录了 9 分钟全是静音界面也毫无提示，用户只能事后发现没字。
+ */
+function useSilenceWarning(isRecording: boolean) {
+  const [warning, setWarning] = useState<SilenceWarning | null>(null)
+
+  useEffect(() => {
+    let disposed = false
+    const unlistens: Array<() => void> = []
+    const keep = (p: Promise<() => void>) =>
+      p.then((fn) => (disposed ? fn() : unlistens.push(fn))).catch(() => {})
+    keep(onAudioSilenceWarning((w) => setWarning(w)))
+    keep(onAudioSilenceCleared(() => setWarning(null)))
+    return () => {
+      disposed = true
+      unlistens.forEach((fn) => fn())
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isRecording) setWarning(null)
+  }, [isRecording])
+
+  return { warning, dismiss: () => setWarning(null) }
+}
+
+function SilenceWarningBanner({
+  warning,
+  isMicMuted,
+  onUnmute,
+  onDismiss,
+}: {
+  warning: SilenceWarning
+  isMicMuted: boolean
+  onUnmute: () => void
+  onDismiss: () => void
+}) {
+  const t = useMessages()
+  const playing = warning.playing_device
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800"
+    >
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+      <div className="min-w-0 flex-1 space-y-0.5 text-xs leading-relaxed">
+        <div className="font-medium">
+          {t.recSilenceTitle.replaceAll('{n}', String(warning.silent_secs))}
+        </div>
+        <div>{t.recSilenceBody}</div>
+        {playing && (
+          <div>
+            {t.recSilencePlayingHint
+              .replaceAll('{dev}', playing)
+              .replaceAll('{sys}', warning.system_device ?? '')}
+          </div>
+        )}
+        {isMicMuted ? (
+          <div>{t.recSilenceMicMuted}</div>
+        ) : (
+          warning.mic_device && (
+            <div>{t.recSilenceMicNoSignal.replaceAll('{mic}', warning.mic_device)}</div>
+          )
+        )}
+      </div>
+      <div className="flex shrink-0 flex-col items-stretch gap-1">
+        <button
+          type="button"
+          className="whitespace-nowrap rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] hover:bg-amber-100"
+          onClick={() => openSystemSoundSettings().catch(() => {})}
+        >
+          {t.recSoundSettings}
+        </button>
+        {isMicMuted && (
+          <button
+            type="button"
+            className="whitespace-nowrap rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] hover:bg-amber-100"
+            onClick={onUnmute}
+          >
+            {t.recSilenceUnmute}
+          </button>
+        )}
+        <button
+          type="button"
+          className="whitespace-nowrap rounded px-2 py-0.5 text-[11px] text-amber-700 hover:bg-amber-100"
+          onClick={onDismiss}
+        >
+          {t.recSilenceDismiss}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /** 右栏上方信息行：空闲时显示录制来源提示；录音时显示计时 + 双路电平 + 真实频谱 */
 export function RecorderInfo() {
   const isRecording = useAppStore((s) => s.isRecording)
@@ -708,6 +806,7 @@ export function RecorderInfo() {
   }
 
   useAudioLevel()
+  const silence = useSilenceWarning(isRecording)
 
   /** 点提示语直接取消静音（省得用户去找按钮）。失败则回滚，避免状态与后端不一致。 */
   const handleUnmuteMic = async () => {
@@ -746,6 +845,7 @@ export function RecorderInfo() {
   }
 
   return (
+    <div className="flex w-full flex-col gap-2">
     <div className="flex gap-3 items-center h-8 w-full">
       <span className="sh-rec-dot text-primary shrink-0" />
       <span className="font-mono text-2xl font-semibold tracking-wider leading-none tabular-nums">
@@ -793,6 +893,15 @@ export function RecorderInfo() {
       <div className="ml-auto flex-1 min-w-[100px] max-w-[380px] h-full rounded-md border bg-muted/40 px-1.5 py-0.5">
         <AudioSpectrumBars />
       </div>
+    </div>
+    {silence.warning && (
+      <SilenceWarningBanner
+        warning={silence.warning}
+        isMicMuted={isMicMuted}
+        onUnmute={handleUnmuteMic}
+        onDismiss={silence.dismiss}
+      />
+    )}
     </div>
   )
 }

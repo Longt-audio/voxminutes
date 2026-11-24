@@ -287,18 +287,26 @@ async fn notify_device_changed_and_restart_monitor<R: Runtime>(
         }),
     );
 
-    let mut monitoring_names: Vec<String> = Vec::new();
-    if let Some(ref name) = mic_name {
-        monitoring_names.push(name.clone());
-    }
-    if let Some(ref name) = sys_name {
-        monitoring_names.push(name.clone());
-    }
-    if !monitoring_names.is_empty() {
+    if mic_name.is_some() || sys_name.is_some() {
         let _ = crate::audio::simple_level_monitor::stop_monitoring().await;
-        let _ = crate::audio::simple_level_monitor::start_monitoring(app.clone(), monitoring_names)
-            .await;
+        let _ =
+            crate::audio::simple_level_monitor::start_monitoring(app.clone(), mic_name, sys_name)
+                .await;
     }
+}
+
+/// 当前录音实际使用的 (麦克风, 系统音频) 设备名；没有进行中的录音时返回 `None`。
+pub fn current_recording_device_names() -> Option<(Option<String>, Option<String>)> {
+    let guard = RECORDING_MANAGER.lock().ok()?;
+    let manager = guard.as_ref()?;
+    let state = manager.get_state();
+    if !state.is_recording() {
+        return None;
+    }
+    Some((
+        state.get_microphone_device().map(|d| d.name.clone()),
+        state.get_system_device().map(|d| d.name.clone()),
+    ))
 }
 
 /// Lock the global recording manager and ask it to rebuild streams with the
@@ -640,19 +648,13 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     crate::tray::update_tray_menu(&app);
 
     // 启动音频电平监控
-    {
-        let mut monitoring_names: Vec<String> = Vec::new();
-        if let Some(ref name) = mic_name_for_monitoring {
-            monitoring_names.push(name.clone());
-        }
-        if let Some(ref name) = sys_name_for_monitoring {
-            monitoring_names.push(name.clone());
-        }
-        if !monitoring_names.is_empty() {
-            let _ =
-                crate::audio::simple_level_monitor::start_monitoring(app.clone(), monitoring_names)
-                    .await;
-        }
+    if mic_name_for_monitoring.is_some() || sys_name_for_monitoring.is_some() {
+        let _ = crate::audio::simple_level_monitor::start_monitoring(
+            app.clone(),
+            mic_name_for_monitoring.clone(),
+            sys_name_for_monitoring.clone(),
+        )
+        .await;
     }
 
     info!("✅ Recording started successfully with async-first approach");
@@ -959,16 +961,14 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     // Update tray menu to reflect recording state
     crate::tray::update_tray_menu(&app);
 
-    // 启动音频电平监控
-    let monitoring_device_names: Vec<String> = mic_device_name
-        .iter()
-        .chain(system_device_name.iter())
-        .cloned()
-        .collect();
-    if !monitoring_device_names.is_empty() {
+    // 启动音频电平监控：优先用录音实际打开的设备（未指定的一路会回落到系统默认）
+    let (monitor_mic, monitor_sys) = current_recording_device_names()
+        .unwrap_or_else(|| (mic_device_name.clone(), system_device_name.clone()));
+    if monitor_mic.is_some() || monitor_sys.is_some() {
         let _ = crate::audio::simple_level_monitor::start_monitoring(
             app.clone(),
-            monitoring_device_names,
+            monitor_mic,
+            monitor_sys,
         )
         .await;
     }
@@ -1553,6 +1553,14 @@ pub async fn resume_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), Strin
     } else {
         Err("No recording manager found".to_string())
     }
+}
+
+/// 非阻塞读取 (是否暂停, 麦克风是否静音)（供 50ms 一轮的电平监控循环使用，不能在锁上
+/// 阻塞 tokio 线程）。拿不到锁或没有进行中的录音时返回 `None`，调用方沿用上一次的值。
+pub fn try_recording_flags() -> Option<(bool, bool)> {
+    let guard = RECORDING_MANAGER.try_lock().ok()?;
+    let manager = guard.as_ref()?;
+    Some((manager.is_paused(), manager.is_mic_muted()))
 }
 
 /// Check if recording is currently paused

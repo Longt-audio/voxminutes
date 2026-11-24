@@ -342,17 +342,25 @@ async fn save_transcript(file_path: String, content: String) -> Result<(), Strin
 }
 
 // Audio level monitoring commands
+/// 前端不再传设备名：之前靠设备名里是否含 "mic" 判断输入/输出，中文/日文系统的
+/// 「耳机 (USB Audio)」「麦克风阵列」「マイク」都匹配不上，麦克风电平条永远为 0。
+/// 现在由后端按「当前录音实际使用的设备」（无录音时为系统默认设备）显式区分。
 #[tauri::command]
-async fn start_audio_level_monitoring<R: Runtime>(
-    app: AppHandle<R>,
-    device_names: Vec<String>,
-) -> Result<(), String> {
+async fn start_audio_level_monitoring<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let (mic, system) = audio::recording_commands::current_recording_device_names()
+        .unwrap_or_else(|| {
+            (
+                audio::devices::default_input_device().ok().map(|d| d.name),
+                audio::devices::default_output_device().ok().map(|d| d.name),
+            )
+        });
     log_info!(
-        "Starting audio level monitoring for devices: {:?}",
-        device_names
+        "Starting audio level monitoring: mic={:?}, system={:?}",
+        mic,
+        system
     );
 
-    audio::simple_level_monitor::start_monitoring(app, device_names)
+    audio::simple_level_monitor::start_monitoring(app, mic, system)
         .await
         .map_err(|e| format!("Failed to start audio level monitoring: {}", e))
 }
@@ -397,6 +405,17 @@ fn get_default_audio_devices() -> DefaultDevicesInfo {
         microphone: default_input_device().ok().map(|d| d.name),
         speaker: default_output_device().ok().map(|d| d.name),
     }
+}
+
+/// 当前正在出声的播放设备（按响度降序；仅 Windows 有值）。
+/// 录音设置弹窗用它提示「声音在 X 上播放，但要录的是 Y」。
+#[tauri::command]
+async fn get_playing_output_devices() -> Vec<String> {
+    tokio::task::spawn_blocking(|| {
+        audio::devices::playing_output_devices(audio::devices::PLAYING_PEAK_THRESHOLD)
+    })
+    .await
+    .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -1515,6 +1534,7 @@ pub fn run() {
             model_download::summary_local_models,
             get_audio_devices,
             get_default_audio_devices,
+            get_playing_output_devices,
             open_system_sound_settings,
             trigger_microphone_permission,
             start_recording_with_devices,

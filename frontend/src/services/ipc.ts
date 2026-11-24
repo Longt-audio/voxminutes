@@ -6,6 +6,7 @@ import type {
   TranscriptUpdate,
   AudioDevice,
   DefaultDevicesInfo,
+  SilenceWarning,
   ModelInfo,
   DownloadableModelInfo,
   ModelDownloadProgress,
@@ -138,6 +139,11 @@ export async function listAudioDevices(): Promise<AudioDevice[]> {
 
 export async function getDefaultAudioDevices(): Promise<DefaultDevicesInfo> {
   return invoke<DefaultDevicesInfo>('get_default_audio_devices')
+}
+
+/** 当前正在出声的播放设备（按响度降序；仅 Windows 有值，读取约需 0.3 秒） */
+export async function getPlayingOutputDevices(): Promise<string[]> {
+  return invoke<string[]>('get_playing_output_devices')
 }
 
 export async function openSystemSoundSettings(): Promise<void> {
@@ -884,8 +890,17 @@ export function onDatabaseInitialized(callback: () => void): Promise<UnlistenFn>
 
 // ── 音频电平 / 频谱监听 ──────────────────────────────────────────────────────
 
-export async function startAudioLevelMonitoring(deviceNames: string[]): Promise<void> {
-  return invoke('start_audio_level_monitoring', { deviceNames })
+/** 设备由后端按当前录音实际使用的设备（无录音时为系统默认）确定，并显式区分麦克风/系统音频 */
+export async function startAudioLevelMonitoring(): Promise<void> {
+  return invoke('start_audio_level_monitoring')
+}
+
+export function onAudioSilenceWarning(callback: (warning: SilenceWarning) => void): Promise<UnlistenFn> {
+  return listen<SilenceWarning>('audio-silence-warning', (event) => callback(event.payload))
+}
+
+export function onAudioSilenceCleared(callback: () => void): Promise<UnlistenFn> {
+  return listen('audio-silence-cleared', () => callback())
 }
 
 export async function stopAudioLevelMonitoring(): Promise<void> {

@@ -45,6 +45,16 @@ export interface DefaultDevicesInfo {
   speaker: string | null
 }
 
+/** 录音中连续没有声音时后端推送的提醒（事件 audio-silence-warning） */
+export interface SilenceWarning {
+  silent_secs: number
+  mic_device: string | null
+  system_device: string | null
+  mic_muted: boolean
+  /** 实测正在出声、但不是当前录制设备的播放设备（声音在别处播放 → 录不到） */
+  playing_device: string | null
+}
+
 export interface RecordingPreferences {
   recordingsFolder: string
   autoSave: boolean

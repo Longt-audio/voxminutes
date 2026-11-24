@@ -33,11 +33,10 @@ export function useAudioLevel() {
     let disposed = false
     let unlisten: (() => void) | undefined
 
-    // 使用当前默认设备名监听（名称仅用于 Rust 侧标注 input/output）
-    const { defaultDevices } = useAppStore.getState()
-    const names = [defaultDevices.microphone, defaultDevices.speaker]
-      .filter((n): n is string => !!n)
-    startAudioLevelMonitoring(names.length > 0 ? names : ['Microphone']).catch(() => {})
+    // 设备由后端按当前录音实际使用的设备确定并显式标注 input/output。
+    // （以前这里传默认设备名、后端靠名字里有没有 "mic" 猜类型——中文/日文系统的
+    //  「耳机 (USB Audio)」「麦克风阵列」都猜不中，麦克风电平条永远为 0。）
+    startAudioLevelMonitoring().catch(() => {})
 
     onAudioLevels((update) => {
       const entry = update.levels.find((l) => l.spectrum && l.spectrum.length > 0)
