@@ -43,6 +43,17 @@ export interface AudioDevice {
 export interface DefaultDevicesInfo {
   microphone: string | null
   speaker: string | null
+  /** Windows「默认通信设备」（会议软件通常从这里出声）；其他平台为 null/缺省 */
+  communication_speaker?: string | null
+}
+
+/** 录音中连续没有声音时后端推送的提醒（事件 audio-silence-warning） */
+export interface SilenceWarning {
+  silent_secs: number
+  mic_device: string | null
+  system_device: string | null
+  /** 仅当 Windows 默认通信设备与正在录制的系统音频设备不同时才有值 */
+  communication_device: string | null
 }
 
 export interface RecordingPreferences {

@@ -1,10 +1,11 @@
 use anyhow::Result;
-use log::{error, info};
+use log::{error, info, warn};
 use realfft::{RealFftPlanner, RealToComplex};
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Runtime};
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 /// Number of time-domain samples sent to the UI per update. This is independent
 /// of the capture sample rate; the raw ring buffer is decimated down to this
@@ -93,6 +94,184 @@ pub struct AudioLevelUpdate {
 
 // Simple global monitoring state
 static IS_MONITORING: AtomicBool = AtomicBool::new(false);
+/// 每次 start_monitoring 自增；旧任务发现代数变化就退出。
+/// 之前只靠 IS_MONITORING + sleep(100ms)：stop/start 间隔太短时旧任务看不到 false，
+/// 会出现两个监控任务并存、事件重复推送。
+static MONITOR_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// 峰值低于该值视为「没有声音」（≈ -50 dBFS）。
+/// 实测（2026-11-24 用户日志）：USB 耳机麦克风无人说话时峰值 ≤ 0.0015，回环无播放时为 0；
+/// 正常说话 / 会议声音峰值通常 > 0.05。
+pub const SILENCE_PEAK_THRESHOLD: f32 = 0.003;
+/// 连续静音多久后提醒用户。
+pub const SILENCE_WARN_AFTER: Duration = Duration::from_secs(30);
+
+/// 「持续没有声音」提醒的载荷（事件 `audio-silence-warning`）。
+#[derive(Debug, Serialize, Clone)]
+pub struct SilenceWarning {
+    pub silent_secs: u64,
+    pub mic_device: Option<String>,
+    pub system_device: Option<String>,
+    /// Windows 默认通信设备 —— 仅当它与当前录制的系统音频设备**不同**时才有值。
+    /// 会议软件常把声音送到这里，这是「录不到会议声音」最常见的原因。
+    pub communication_device: Option<String>,
+}
+
+#[derive(Debug, PartialEq)]
+enum SilenceEvent {
+    Warn(Duration),
+    Cleared,
+}
+
+/// 连续静音检测（纯逻辑，便于单测）。每次静音段只提醒一次；声音恢复后重新计时。
+struct SilenceTracker {
+    last_sound: Instant,
+    warned: bool,
+}
+
+impl SilenceTracker {
+    fn new(now: Instant) -> Self {
+        Self {
+            last_sound: now,
+            warned: false,
+        }
+    }
+
+    fn update(&mut self, now: Instant, peak: f32, paused: bool) -> Option<SilenceEvent> {
+        if paused {
+            // 暂停期间不计时（暂停本来就可能没声音）
+            self.last_sound = now;
+            return None;
+        }
+        if peak >= SILENCE_PEAK_THRESHOLD {
+            self.last_sound = now;
+            if self.warned {
+                self.warned = false;
+                return Some(SilenceEvent::Cleared);
+            }
+            return None;
+        }
+        let silent_for = now.saturating_duration_since(self.last_sound);
+        if !self.warned && silent_for >= SILENCE_WARN_AFTER {
+            self.warned = true;
+            return Some(SilenceEvent::Warn(silent_for));
+        }
+        None
+    }
+}
+
+/// 系统通知文案（按界面语言）。主窗口经常被隐藏（只开悬浮球/字幕），只靠页面内横幅用户看不到。
+fn silence_notification_text(lang: &str, w: &SilenceWarning) -> (String, String) {
+    let secs = w.silent_secs;
+    let sys = w.system_device.clone().unwrap_or_default();
+    match lang {
+        "en" => {
+            let mut body = format!(
+                "No sound has been captured for {}s, so nothing can be transcribed.",
+                secs
+            );
+            if let Some(comm) = &w.communication_device {
+                body.push_str(&format!(
+                    " Meeting apps may be playing through \"{}\", but \"{}\" is being recorded.",
+                    comm, sys
+                ));
+            }
+            body.push_str(" Check the System Audio device in recording setup, or unmute the mic.");
+            ("VoxMinutes: no sound captured".to_string(), body)
+        }
+        "ja" => {
+            let mut body = format!(
+                "{}秒間、音声が取り込まれていないため文字起こしできません。",
+                secs
+            );
+            if let Some(comm) = &w.communication_device {
+                body.push_str(&format!(
+                    "会議アプリの音声は「{}」から再生されている可能性がありますが、録音中なのは「{}」です。",
+                    comm, sys
+                ));
+            }
+            body.push_str("録音設定の「システム音声」デバイスを確認するか、マイクのミュートを解除してください。");
+            ("VoxMinutes：音声が取り込まれていません".to_string(), body)
+        }
+        "ko" => {
+            let mut body = format!(
+                "{}초 동안 소리가 수집되지 않아 받아쓰기를 할 수 없습니다.",
+                secs
+            );
+            if let Some(comm) = &w.communication_device {
+                body.push_str(&format!(
+                    " 회의 앱 소리는 \"{}\"(으)로 재생 중일 수 있지만 현재 \"{}\"을(를) 녹음하고 있습니다.",
+                    comm, sys
+                ));
+            }
+            body.push_str(" 녹음 설정의 시스템 오디오 장치를 확인하거나 마이크 음소거를 해제하세요.");
+            ("VoxMinutes: 소리가 수집되지 않음".to_string(), body)
+        }
+        _ => {
+            let mut body = format!("已连续 {} 秒没有采集到任何声音，识别不会有结果。", secs);
+            if let Some(comm) = &w.communication_device {
+                body.push_str(&format!(
+                    "会议软件的声音可能在「{}」上播放，而当前录的是「{}」。",
+                    comm, sys
+                ));
+            }
+            body.push_str("请检查录音设置里的「系统音频」设备，或打开麦克风。");
+            ("VoxMinutes：没有录到声音".to_string(), body)
+        }
+    }
+}
+
+async fn emit_silence_warning<R: Runtime>(
+    app: &AppHandle<R>,
+    silent_for: Duration,
+    mic_device: &Option<String>,
+    system_device: &Option<String>,
+) {
+    let sys_for_query = system_device.clone();
+    // COM 查询放到阻塞线程池，避免卡住 tokio worker
+    let communication_device = tokio::task::spawn_blocking(move || {
+        super::devices::communication_output_if_different(sys_for_query.as_deref())
+    })
+    .await
+    .unwrap_or(None);
+
+    let warning = SilenceWarning {
+        silent_secs: silent_for.as_secs(),
+        mic_device: mic_device.clone(),
+        system_device: system_device.clone(),
+        communication_device,
+    };
+    warn!(
+        "🔇 已连续 {}s 没有采集到声音（峰值 < {}）：mic={:?}, system={:?}, 默认通信设备={:?} \
+         —— 识别不会有结果；常见原因是会议软件在另一台设备上出声，或麦克风静音",
+        warning.silent_secs,
+        SILENCE_PEAK_THRESHOLD,
+        warning.mic_device,
+        warning.system_device,
+        warning.communication_device
+    );
+    let _ = app.emit("audio-silence-warning", &warning);
+
+    // 系统通知（尊重通知设置里的「系统错误」开关）
+    let (title, body) = silence_notification_text(&crate::translation::home_lang(), &warning);
+    if let Some(state) =
+        app.try_state::<crate::notifications::commands::NotificationManagerState<R>>()
+    {
+        let guard = state.read().await;
+        if let Some(manager) = guard.as_ref() {
+            use crate::notifications::types::{
+                Notification, NotificationPriority, NotificationTimeout, NotificationType,
+            };
+            let notification =
+                Notification::new(title, body.clone(), NotificationType::SystemError(body))
+                    .with_priority(NotificationPriority::High)
+                    .with_timeout(NotificationTimeout::Seconds(10));
+            if let Err(e) = manager.show_notification(notification).await {
+                warn!("Failed to show silence notification: {}", e);
+            }
+        }
+    }
+}
 
 /// Decimate a slice of samples down to `target` points by averaging bins.
 /// Preserves the overall waveform shape and is cheap enough to run every 50 ms.
@@ -128,22 +307,32 @@ fn waveform_samples_for_rate(sample_rate: u32, all_samples: &[f32]) -> Vec<f32> 
     all_samples[all_samples.len() - take..].to_vec()
 }
 
-/// Start audio level monitoring for specified devices
+/// Start audio level monitoring for the given microphone / system-audio devices.
 /// Reads real audio levels from the global store updated by the audio pipeline.
+///
+/// 设备类型由调用方**显式**给出：以前靠设备名里是否包含 "mic" 猜输入/输出，
+/// 中文/日文系统的「耳机 (USB Audio)」「麦克风阵列」「マイク」都猜不中（而且 USB 耳机的
+/// 输入、输出两端同名），麦克风电平条因此永远为 0。
 pub async fn start_monitoring<R: Runtime>(
     app_handle: AppHandle<R>,
-    device_names: Vec<String>,
+    mic_device: Option<String>,
+    system_device: Option<String>,
 ) -> Result<()> {
     info!(
-        "Starting real audio level monitoring for devices: {:?}",
-        device_names
+        "Starting real audio level monitoring: mic={:?}, system={:?}",
+        mic_device, system_device
     );
 
     // Stop any existing monitoring
     IS_MONITORING.store(false, Ordering::SeqCst);
+    let generation = MONITOR_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
 
     // Wait a bit for any existing tasks to stop
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    if MONITOR_GENERATION.load(Ordering::SeqCst) != generation {
+        // 等待期间又有新的 start_monitoring：交给更新的那次
+        return Ok(());
+    }
 
     // Start new monitoring
     IS_MONITORING.store(true, Ordering::SeqCst);
@@ -151,7 +340,12 @@ pub async fn start_monitoring<R: Runtime>(
     let app_handle_clone = app_handle.clone();
     tokio::spawn(async move {
         let mut last_vad_active: Option<bool> = None;
-        while IS_MONITORING.load(Ordering::SeqCst) {
+        let mut silence = SilenceTracker::new(Instant::now());
+        let mut paused = false;
+        let mut last_pause_check = Instant::now();
+        while IS_MONITORING.load(Ordering::SeqCst)
+            && MONITOR_GENERATION.load(Ordering::SeqCst) == generation
+        {
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
             // 上报 VAD「语音进行中」状态变化（供前端显示「正在识别」提示）。
@@ -188,11 +382,34 @@ pub async fn start_monitoring<R: Runtime>(
                 compute_spectrum(&spectrum_samples, sample_rate)
             };
 
+            // 连续静音检测：两路（静音后的麦克风 + 系统回环）峰值都低于阈值即视为没有声音。
+            // 数据陈旧（流断了、设备重建中）同样按没有声音处理。
+            if last_pause_check.elapsed() >= Duration::from_secs(1) {
+                last_pause_check = Instant::now();
+                if let Some(p) = super::recording_commands::try_is_recording_paused() {
+                    paused = p;
+                }
+            }
+            let loudest = if is_stale {
+                0.0
+            } else {
+                store.mic_peak.max(store.system_peak)
+            };
+            match silence.update(Instant::now(), loudest, paused) {
+                Some(SilenceEvent::Warn(silent_for)) => {
+                    emit_silence_warning(&app_handle_clone, silent_for, &mic_device, &system_device)
+                        .await;
+                }
+                Some(SilenceEvent::Cleared) => {
+                    info!("🔊 Audio captured again — clearing silence warning");
+                    let _ = app_handle_clone.emit("audio-silence-cleared", ());
+                }
+                None => {}
+            }
+
             let mut levels: Vec<AudioLevelData> = Vec::new();
 
-            for name in &device_names {
-                let is_mic = name.to_lowercase().contains("microphone")
-                    || name.to_lowercase().contains("mic");
+            let mut push_level = |name: &String, is_mic: bool| {
                 let (rms, peak, active) = if is_stale {
                     (0.0f32, 0.0f32, false)
                 } else if is_mic {
@@ -200,20 +417,21 @@ pub async fn start_monitoring<R: Runtime>(
                 } else {
                     (store.system_rms, store.system_peak, store.system_active)
                 };
-
                 levels.push(AudioLevelData {
                     device_name: name.clone(),
-                    device_type: if is_mic {
-                        "input".to_string()
-                    } else {
-                        "output".to_string()
-                    },
+                    device_type: if is_mic { "input" } else { "output" }.to_string(),
                     rms_level: rms,
                     peak_level: peak,
                     is_active: active,
                     spectrum: spectrum.clone(),
                     samples: ui_samples.clone(),
                 });
+            };
+            if let Some(name) = &mic_device {
+                push_level(name, true);
+            }
+            if let Some(name) = &system_device {
+                push_level(name, false);
             }
 
             if !levels.is_empty() {
@@ -234,6 +452,11 @@ pub async fn start_monitoring<R: Runtime>(
             "vad-speech-activity",
             serde_json::json!({ "active": false }),
         );
+        // 已发出的静音提醒随本任务一起撤销（设备切换后新任务会重新计时、必要时再提醒），
+        // 否则前端横幅会一直挂着。
+        if silence.warned {
+            let _ = app_handle_clone.emit("audio-silence-cleared", ());
+        }
 
         info!("Audio level monitoring task ended");
     });
@@ -245,10 +468,84 @@ pub async fn start_monitoring<R: Runtime>(
 pub async fn stop_monitoring() -> Result<()> {
     info!("Stopping audio level monitoring");
     IS_MONITORING.store(false, Ordering::SeqCst);
+    MONITOR_GENERATION.fetch_add(1, Ordering::SeqCst);
     Ok(())
 }
 
 /// Check if currently monitoring
 pub fn is_monitoring() -> bool {
     IS_MONITORING.load(Ordering::SeqCst)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const NOISE_FLOOR: f32 = 0.0015; // USB 耳机麦克风无人说话时的实测峰值
+    const SPEECH: f32 = 0.2;
+
+    #[test]
+    fn warns_once_after_sustained_silence() {
+        let t0 = Instant::now();
+        let mut tracker = SilenceTracker::new(t0);
+        assert_eq!(tracker.update(t0 + Duration::from_secs(10), NOISE_FLOOR, false), None);
+        assert_eq!(tracker.update(t0 + Duration::from_secs(29), 0.0, false), None);
+        assert_eq!(
+            tracker.update(t0 + Duration::from_secs(30), NOISE_FLOOR, false),
+            Some(SilenceEvent::Warn(Duration::from_secs(30)))
+        );
+        // 同一段静音不重复提醒
+        assert_eq!(tracker.update(t0 + Duration::from_secs(90), 0.0, false), None);
+    }
+
+    #[test]
+    fn sound_resets_timer_and_clears_warning() {
+        let t0 = Instant::now();
+        let mut tracker = SilenceTracker::new(t0);
+        assert_eq!(tracker.update(t0 + Duration::from_secs(20), SPEECH, false), None);
+        // 有声音后重新计时：第 45 秒距上次有声音只有 25 秒
+        assert_eq!(tracker.update(t0 + Duration::from_secs(45), 0.0, false), None);
+        assert!(matches!(
+            tracker.update(t0 + Duration::from_secs(50), 0.0, false),
+            Some(SilenceEvent::Warn(_))
+        ));
+        assert_eq!(
+            tracker.update(t0 + Duration::from_secs(51), SPEECH, false),
+            Some(SilenceEvent::Cleared)
+        );
+        // 清除后可再次提醒
+        assert!(matches!(
+            tracker.update(t0 + Duration::from_secs(81), 0.0, false),
+            Some(SilenceEvent::Warn(_))
+        ));
+    }
+
+    #[test]
+    fn paused_time_does_not_count_as_silence() {
+        let t0 = Instant::now();
+        let mut tracker = SilenceTracker::new(t0);
+        assert_eq!(tracker.update(t0 + Duration::from_secs(120), 0.0, true), None);
+        assert_eq!(tracker.update(t0 + Duration::from_secs(140), 0.0, false), None);
+        assert!(matches!(
+            tracker.update(t0 + Duration::from_secs(150), 0.0, false),
+            Some(SilenceEvent::Warn(_))
+        ));
+    }
+
+    #[test]
+    fn notification_mentions_communication_device_only_when_known() {
+        let mut w = SilenceWarning {
+            silent_secs: 30,
+            mic_device: Some("耳机 (USB Audio)".into()),
+            system_device: Some("扬声器 (Realtek(R) Audio)".into()),
+            communication_device: Some("耳机 (USB Audio)".into()),
+        };
+        let (_, body) = silence_notification_text("zh", &w);
+        assert!(body.contains("「耳机 (USB Audio)」") && body.contains("扬声器 (Realtek(R) Audio)"));
+        w.communication_device = None;
+        let (_, body) = silence_notification_text("zh", &w);
+        assert!(!body.contains("会议软件"));
+        let (title, _) = silence_notification_text("en", &w);
+        assert!(title.contains("no sound"));
+    }
 }

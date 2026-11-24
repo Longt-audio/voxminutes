@@ -342,17 +342,25 @@ async fn save_transcript(file_path: String, content: String) -> Result<(), Strin
 }
 
 // Audio level monitoring commands
+/// 前端不再传设备名：之前靠设备名里是否含 "mic" 判断输入/输出，中文/日文系统的
+/// 「耳机 (USB Audio)」「麦克风阵列」「マイク」都匹配不上，麦克风电平条永远为 0。
+/// 现在由后端按「当前录音实际使用的设备」（无录音时为系统默认设备）显式区分。
 #[tauri::command]
-async fn start_audio_level_monitoring<R: Runtime>(
-    app: AppHandle<R>,
-    device_names: Vec<String>,
-) -> Result<(), String> {
+async fn start_audio_level_monitoring<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let (mic, system) = audio::recording_commands::current_recording_device_names()
+        .unwrap_or_else(|| {
+            (
+                audio::devices::default_input_device().ok().map(|d| d.name),
+                audio::devices::default_output_device().ok().map(|d| d.name),
+            )
+        });
     log_info!(
-        "Starting audio level monitoring for devices: {:?}",
-        device_names
+        "Starting audio level monitoring: mic={:?}, system={:?}",
+        mic,
+        system
     );
 
-    audio::simple_level_monitor::start_monitoring(app, device_names)
+    audio::simple_level_monitor::start_monitoring(app, mic, system)
         .await
         .map_err(|e| format!("Failed to start audio level monitoring: {}", e))
 }
@@ -388,14 +396,19 @@ async fn trigger_microphone_permission() -> Result<bool, String> {
 struct DefaultDevicesInfo {
     microphone: Option<String>,
     speaker: Option<String>,
+    /// Windows「默认通信设备」（会议软件通常从这里出声）；其他平台为 None。
+    communication_speaker: Option<String>,
 }
 
 #[tauri::command]
 fn get_default_audio_devices() -> DefaultDevicesInfo {
-    use audio::devices::{default_input_device, default_output_device};
+    use audio::devices::{
+        default_communication_output_device_name, default_input_device, default_output_device,
+    };
     DefaultDevicesInfo {
         microphone: default_input_device().ok().map(|d| d.name),
         speaker: default_output_device().ok().map(|d| d.name),
+        communication_speaker: default_communication_output_device_name(),
     }
 }
 

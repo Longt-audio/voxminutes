@@ -63,6 +63,8 @@ struct AudioTestSession {
     wav_playback: Option<WavPlaybackController>,
     samples: Arc<Vec<f32>>,
     source_rate: u32,
+    /// 测试音播放到哪台设备：与本次采集的系统音频设备一致（None = 系统默认）。
+    playback_device: Option<String>,
     /// 会话被 stop 时置位；start 任务在等待/播放检查点读取并放弃继续。
     cancelled: Arc<AtomicBool>,
     /// 注销 transcript-update 监听的闭包（stop 与 Drop 二选一执行）。
@@ -345,15 +347,10 @@ pub async fn start_audio_test<R: Runtime>(
         .get_state()
         .get_system_device()
         .map(|d| d.name.clone());
-    let mut monitoring_names = Vec::new();
-    if let Some(name) = mic_name {
-        monitoring_names.push(name);
-    }
-    if let Some(name) = sys_name {
-        monitoring_names.push(name);
-    }
-    if !monitoring_names.is_empty() {
-        let _ = simple_level_monitor::start_monitoring(app.clone(), monitoring_names).await;
+    // 记下实际采集的系统音频设备：测试音要播放到同一台设备上才能被回环录到
+    let playback_device_name = sys_name.clone();
+    if mic_name.is_some() || sys_name.is_some() {
+        let _ = simple_level_monitor::start_monitoring(app.clone(), mic_name, sys_name).await;
     }
 
     // ⚠️ 关键：先注册会话再进入等待。此前注册推迟到播放开始之后，导致
@@ -369,6 +366,7 @@ pub async fn start_audio_test<R: Runtime>(
             wav_playback: None,
             samples: samples.clone(),
             source_rate,
+            playback_device: playback_device_name.clone(),
             cancelled: cancel.clone(),
             unlisten: Some(unlisten),
         });
@@ -390,9 +388,11 @@ pub async fn start_audio_test<R: Runtime>(
         remaining_ms -= step;
     }
 
-    // 9. Start playback of the test WAV on the default output device.  The
-    //    system-audio capture loopback will pick it up and mix it with the mic.
-    let (wav_playback, playback_ready) = spawn_wav_playback(samples.to_vec(), source_rate);
+    // 9. Start playback of the test WAV on the output device whose loopback we
+    //    are capturing (previously always the default device — when the user
+    //    picked another system-audio device the self-test could never hear it).
+    let (wav_playback, playback_ready) =
+        spawn_wav_playback(samples.to_vec(), source_rate, playback_device_name);
     let ready_result = tokio::task::spawn_blocking(move || {
         playback_ready.recv_timeout(Duration::from_secs(5)).ok()
     })
@@ -510,10 +510,14 @@ pub async fn stop_audio_test<R: Runtime>(_app: AppHandle<R>) -> Result<(), Strin
 pub async fn replay_audio_test<R: Runtime>(app: AppHandle<R>) -> Result<f32, String> {
     info!("🔁 Replaying audio test WAV");
 
-    let (samples, source_rate) = {
+    let (samples, source_rate, playback_device) = {
         let guard = AUDIO_TEST_SESSION.lock().unwrap();
         match guard.as_ref() {
-            Some(session) => (session.samples.clone(), session.source_rate),
+            Some(session) => (
+                session.samples.clone(),
+                session.source_rate,
+                session.playback_device.clone(),
+            ),
             None => return Err("没有正在进行的音频测试".to_string()),
         }
     };
@@ -530,7 +534,8 @@ pub async fn replay_audio_test<R: Runtime>(app: AppHandle<R>) -> Result<f32, Str
         }
     }
 
-    let (wav_playback, playback_ready) = spawn_wav_playback(samples.to_vec(), source_rate);
+    let (wav_playback, playback_ready) =
+        spawn_wav_playback(samples.to_vec(), source_rate, playback_device);
     let ready_result = tokio::task::spawn_blocking(move || {
         playback_ready.recv_timeout(Duration::from_secs(5)).ok()
     })
@@ -558,11 +563,34 @@ pub async fn replay_audio_test<R: Runtime>(app: AppHandle<R>) -> Result<f32, Str
     Ok(duration_seconds)
 }
 
+/// Find the output device to play the test WAV on: the named device when it is
+/// present (the one whose loopback is being captured), otherwise the default.
+fn resolve_playback_device(host: &cpal::Host, device_name: Option<&str>) -> Option<cpal::Device> {
+    if let Some(wanted) = device_name {
+        if let Ok(mut outputs) = host.output_devices() {
+            if let Some(device) = outputs.find(|d| {
+                d.name()
+                    .map(|n| super::devices::same_device_name(&n, wanted))
+                    .unwrap_or(false)
+            }) {
+                return Some(device);
+            }
+        }
+        warn!(
+            "🔊 WAV playback: output device '{}' not found, falling back to default",
+            wanted
+        );
+    }
+    host.default_output_device()
+}
+
 /// Spawn a CPAL playback thread that plays the decoded mono WAV samples through
-/// the default output device.  The returned controller can stop playback early.
+/// `output_device_name` (or the default output device when `None`).  The
+/// returned controller can stop playback early.
 fn spawn_wav_playback(
     samples: Vec<f32>,
     source_rate: u32,
+    output_device_name: Option<String>,
 ) -> (WavPlaybackController, std::sync::mpsc::Receiver<()>) {
     let stop_flag = Arc::new(AtomicBool::new(false));
     let stop_flag_thread = stop_flag.clone();
@@ -573,15 +601,16 @@ fn spawn_wav_playback(
         let host = match cpal::default_host() {
             h => h,
         };
-        let device = match host.default_output_device() {
+        let device = match resolve_playback_device(&host, output_device_name.as_deref()) {
             Some(d) => d,
             None => {
-                error!("No default output device for WAV playback");
+                error!("No output device for WAV playback");
                 return;
             }
         };
         info!(
-            "🔊 WAV playback: default output device resolved in {:.1?}",
+            "🔊 WAV playback: output device '{}' resolved in {:.1?}",
+            device.name().unwrap_or_default(),
             t0.elapsed()
         );
 

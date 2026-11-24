@@ -6,6 +6,7 @@ pub mod discovery;
 pub mod fallback;
 pub mod microphone;
 pub mod platform;
+pub mod roles;
 pub mod speakers;
 
 // Re-export all public functions to preserve existing API
@@ -16,6 +17,10 @@ pub use configuration::{
 pub use discovery::{list_audio_devices, trigger_audio_permission};
 pub use microphone::{default_input_device, find_builtin_input_device};
 pub use speakers::{default_output_device, find_builtin_output_device};
+pub use roles::{
+    communication_output_if_different, default_communication_output_device_name,
+    same_device_name,
+};
 
 // Re-export fallback functions (platform-specific)
 #[cfg(target_os = "macos")]

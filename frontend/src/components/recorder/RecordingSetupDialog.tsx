@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/state'
 import { listAudioDevices, getDownloadableModels, getDefaultAudioDevices, openSystemSoundSettings, setTranslationEnabled as ipcSetTranslationEnabled, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationEngine as ipcSetTranslationEngine, getRemoteEnabled, summaryGetConfig, warmRemoteStreaming } from '@/services/ipc'
-import { ExternalLink, Mic, MonitorSpeaker, Activity, Cloud, HardDrive } from 'lucide-react'
+import { ExternalLink, Mic, MonitorSpeaker, Activity, Cloud, HardDrive, AlertTriangle } from 'lucide-react'
 import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
 import { getTranslateTargetLangs, translateTargetLangLabel, defaultTargetLang } from '@/lib/translateTargetLangs'
@@ -49,6 +49,32 @@ const selectCls =
 const LAST_ASR_MODEL_KEY = 'vox.lastAsrModel'
 /** 上次选择的识别语言（localStorage；规范码或 'auto'） */
 const LAST_ASR_LANGUAGE_KEY = 'vox.lastAsrLanguage'
+/** 上次开始录音时用的麦克风 / 系统音频设备（'' = 系统默认）与「开始时静音」 */
+const LAST_MIC_DEVICE_KEY = 'vox.lastMicDevice'
+const LAST_SYSTEM_DEVICE_KEY = 'vox.lastSystemDevice'
+const MUTE_ON_START_KEY = 'vox.micMutedOnStart'
+
+function readLocal(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeLocal(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    /* localStorage 不可用：忽略，仅本次生效 */
+  }
+}
+
+/** 设备名比较：忽略首尾空白与部分平台追加的 (input)/(output) 后缀（与后端 same_device_name 一致） */
+function sameDeviceName(a: string, b: string) {
+  const norm = (s: string) => s.trim().replace(/\s*\((input|output)\)$/, '')
+  return norm(a) === norm(b)
+}
 
 type SetupTab = 'asr' | 'translate' | 'audio'
 
@@ -128,6 +154,18 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
   const micOptions = useMemo(() => devices.filter((d) => d.device_type === 'Input'), [devices])
   const systemOptions = useMemo(() => devices.filter((d) => d.device_type === 'Output'), [devices])
 
+  // Windows 默认通信设备 ≠ 将要录制的系统音频设备：会议软件的声音大概率录不到（2026-11-24
+  // 真机排查：默认设备是 Realtek 扬声器、通信设备是 USB 耳机，9 分钟录音全是静音）。
+  // 只在通信设备确实出现在可选列表里时提示，并提供一键改录。
+  const commDevice = useMemo(() => {
+    const comm = defaults.communication_speaker
+    if (!comm) return null
+    return systemOptions.find((d) => sameDeviceName(d.name, comm))?.name ?? null
+  }, [defaults.communication_speaker, systemOptions])
+  const effectiveSystemDevice = systemDevice || defaults.speaker || ''
+  const showCommMismatch =
+    !!commDevice && !!effectiveSystemDevice && !sameDeviceName(commDevice, effectiveSystemDevice)
+
   // 初始模型解析：优先上次选择（localStorage > store selectedModel，需校验仍可选），
   // 否则按 X-ASR > SenseVoice > 远程 的顺序取默认；都不满足则不选。
   const resolvedInitialModel = useMemo(() => {
@@ -193,16 +231,30 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
     }
   }
 
-  // 打开时回到第一个 tab、重新走「恢复上次选择」并刷新设备列表；麦克风默认静音（与主窗口状态互通）
+  // 打开时回到第一个 tab、恢复上次开始录音时的选择（设备 / 语言 / 开始时静音）并刷新设备列表。
+  // 以前这里每次都重置为「系统默认 / auto / 静音」：用户选过的系统音频设备下次就丢了，
+  // 而语言虽然写进了 localStorage，也在这里被覆盖回 auto。
+  // 「开始时静音」未设置过时仍默认静音（只录系统声音，与主窗口状态互通）。
   useEffect(() => {
     if (!open) return
     setTab('asr')
     userPickedRef.current = false
-    setMicDevice('')
-    setSystemDevice('')
-    setLanguage('auto')
-    setMicMuted(true)
-    listAudioDevices().then(setDevices).catch(() => setDevices([]))
+    const savedMic = readLocal(LAST_MIC_DEVICE_KEY) || ''
+    const savedSystem = readLocal(LAST_SYSTEM_DEVICE_KEY) || ''
+    setMicDevice(savedMic)
+    setSystemDevice(savedSystem)
+    setLanguage(readLocal(LAST_ASR_LANGUAGE_KEY) || 'auto')
+    setMicMuted(readLocal(MUTE_ON_START_KEY) !== 'false')
+    listAudioDevices()
+      .then((list) => {
+        setDevices(list)
+        // 上次的设备已拔掉 → 回落到系统默认（不改存储，设备插回后下次还能恢复）
+        const has = (name: string, type: AudioDevice['device_type']) =>
+          list.some((d) => d.device_type === type && d.name === name)
+        if (savedMic && !has(savedMic, 'Input')) setMicDevice('')
+        if (savedSystem && !has(savedSystem, 'Output')) setSystemDevice('')
+      })
+      .catch(() => setDevices([]))
     getDefaultAudioDevices().then(setDefaults).catch(() => {})
     // 自定义 API 引擎可用性与展示信息（endpoint · model）
     fetchCustomApiConfigured().then(setCustomApiConfigured).catch(() => setCustomApiConfigured(false))
@@ -222,9 +274,10 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
   const handleStart = () => {
     if (!canStart) return
     // 记住本次选择，下次打开弹窗优先恢复
-    try {
-      window.localStorage.setItem(LAST_ASR_MODEL_KEY, effectiveModelName)
-    } catch {}
+    writeLocal(LAST_ASR_MODEL_KEY, effectiveModelName)
+    writeLocal(LAST_MIC_DEVICE_KEY, micDevice)
+    writeLocal(LAST_SYSTEM_DEVICE_KEY, systemDevice)
+    writeLocal(MUTE_ON_START_KEY, String(isMicMuted))
     onOpenChange(false)
     onConfirm({
       modelName: effectiveModelName,
@@ -494,6 +547,25 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
             </section>
           )}
         </div>
+
+        {/* 通信设备不一致提示：放在内容区外，任何 TAB 下都能看到（用户通常不会点开「音频通路」） */}
+        {showCommMismatch && commDevice && (
+          <div className="flex shrink-0 items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-amber-800">
+              {t.recCommDeviceMismatch
+                .replaceAll('{comm}', commDevice)
+                .replaceAll('{sys}', effectiveSystemDevice)}
+            </p>
+            <button
+              type="button"
+              className="shrink-0 whitespace-nowrap rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] text-amber-800 hover:bg-amber-100"
+              onClick={() => setSystemDevice(commDevice)}
+            >
+              {t.recUseCommDevice.replaceAll('{comm}', commDevice)}
+            </button>
+          </div>
+        )}
 
         {/* 底部行：左侧识别语言（从模型列表下方移到此处，页面更紧凑；与 TAB3 的语言下拉共享同一 state），
             右侧 取消 → 语音模型测试（次级 outline）→ 开始录音 */}

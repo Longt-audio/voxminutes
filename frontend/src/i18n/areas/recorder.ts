@@ -84,6 +84,18 @@ export interface RecorderMessages {
   recTranslateCheck: string
   recCurrentDefault: string
   recSoundSettings: string
+  /** 录音设置弹窗：Windows 默认通信设备 ≠ 将要录制的系统音频设备时的提示（{comm}/{sys}） */
+  recCommDeviceMismatch: string
+  /** 一键改录通信设备的按钮（{comm}） */
+  recUseCommDevice: string
+  /** 录音中连续静音提醒：标题（{n} 秒） */
+  recSilenceTitle: string
+  recSilenceBody: string
+  /** 静音提醒里的通信设备提示（{comm}/{sys}） */
+  recSilenceCommHint: string
+  recSilenceMicMuted: string
+  recSilenceUnmute: string
+  recSilenceDismiss: string
   /** 新录音默认标题前缀：语言无关常量 'Rec'（与录音文件夹 Rec_ 前缀一致），
    *  生成形如 Rec_2026-09-28_15-22；只影响新录音，历史记录标题不变 */
   recDefaultTitle: string
@@ -310,6 +322,16 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslateCheck: 'Real-time translation (show translation under each segment)',
     recCurrentDefault: 'Current system default: {mic} / {speaker}',
     recSoundSettings: 'Sound Settings',
+    recCommDeviceMismatch:
+      'Meeting apps (Teams, Zoom, etc.) usually play through the Windows default communication device "{comm}", but "{sys}" will be recorded — their audio may be missed.',
+    recUseCommDevice: 'Record "{comm}"',
+    recSilenceTitle: 'No sound captured for {n}s',
+    recSilenceBody: 'Nothing can be transcribed until audio reaches the app.',
+    recSilenceCommHint:
+      'Meeting apps may be playing through "{comm}", but "{sys}" is being recorded. Set "{comm}" as the default output device in Sound Settings (applies immediately), or pick it as System Audio next time.',
+    recSilenceMicMuted: 'The microphone is muted, so your own voice is not recorded either.',
+    recSilenceUnmute: 'Unmute mic',
+    recSilenceDismiss: 'Dismiss',
     recDefaultTitle: 'Rec',
     recSavedToHistory: 'Saved to history',
     recSaveFailed: 'Failed to save transcript',
@@ -460,6 +482,16 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslateCheck: '实时翻译（每段下方显示译文）',
     recCurrentDefault: '当前系统默认：{mic} / {speaker}',
     recSoundSettings: '声音设置',
+    recCommDeviceMismatch:
+      '会议软件（腾讯会议、Teams、Zoom 等）通常从 Windows 默认通信设备「{comm}」出声，但将要录制的是「{sys}」，可能录不到会议声音。',
+    recUseCommDevice: '改录「{comm}」',
+    recSilenceTitle: '已连续 {n} 秒没有录到声音',
+    recSilenceBody: '没有声音进入软件，识别不会有结果。',
+    recSilenceCommHint:
+      '会议软件的声音可能在「{comm}」上播放，而当前录的是「{sys}」。可在「声音设置」里把「{comm}」设为默认输出设备（立即生效），或下次开始录音时把「系统音频」选为它。',
+    recSilenceMicMuted: '麦克风处于静音状态，你自己说的话也不会被录到。',
+    recSilenceUnmute: '打开麦克风',
+    recSilenceDismiss: '知道了',
     recDefaultTitle: 'Rec',
     recSavedToHistory: '已保存到历史记录',
     recSaveFailed: '保存转录记录失败',
@@ -610,6 +642,16 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslateCheck: '실시간 번역(각 문장 아래에 번역 표시)',
     recCurrentDefault: '현재 시스템 기본값: {mic} / {speaker}',
     recSoundSettings: '소리 설정',
+    recCommDeviceMismatch:
+      '회의 앱(Teams, Zoom 등)은 보통 Windows 기본 통신 장치 "{comm}"(으)로 소리를 내지만, 녹음 대상은 "{sys}"입니다. 회의 소리가 녹음되지 않을 수 있습니다.',
+    recUseCommDevice: '"{comm}" 녹음',
+    recSilenceTitle: '{n}초 동안 소리가 수집되지 않음',
+    recSilenceBody: '앱에 소리가 들어오지 않아 받아쓰기를 할 수 없습니다.',
+    recSilenceCommHint:
+      '회의 앱 소리는 "{comm}"(으)로 재생 중일 수 있지만 현재 "{sys}"을(를) 녹음하고 있습니다. 소리 설정에서 "{comm}"을(를) 기본 출력 장치로 지정하거나(즉시 적용), 다음 녹음 시 시스템 오디오로 선택하세요.',
+    recSilenceMicMuted: '마이크가 음소거되어 있어 본인 목소리도 녹음되지 않습니다.',
+    recSilenceUnmute: '마이크 켜기',
+    recSilenceDismiss: '닫기',
     recDefaultTitle: 'Rec',
     recSavedToHistory: '기록에 저장했습니다',
     recSaveFailed: '받아쓰기 기록 저장에 실패했습니다',
@@ -760,6 +802,16 @@ export const RECORDER_MESSAGES: Record<Language, RecorderMessages> = {
     recTranslateCheck: 'リアルタイム翻訳（各セグメントの下に訳文を表示）',
     recCurrentDefault: '現在のシステムデフォルト：{mic} / {speaker}',
     recSoundSettings: 'サウンド設定',
+    recCommDeviceMismatch:
+      '会議アプリ（Teams、Zoom など）は通常 Windows の既定の通信デバイス「{comm}」から音を出しますが、録音対象は「{sys}」です。会議の音声が録音されない可能性があります。',
+    recUseCommDevice: '「{comm}」を録音',
+    recSilenceTitle: '{n}秒間、音声が取り込まれていません',
+    recSilenceBody: 'アプリに音声が届いていないため、文字起こしできません。',
+    recSilenceCommHint:
+      '会議アプリの音声は「{comm}」から再生されている可能性がありますが、録音中なのは「{sys}」です。サウンド設定で「{comm}」を既定の出力デバイスにする（すぐに反映）か、次回の録音でシステム音声として選択してください。',
+    recSilenceMicMuted: 'マイクがミュートされているため、ご自身の声も録音されません。',
+    recSilenceUnmute: 'マイクをオン',
+    recSilenceDismiss: '閉じる',
     recDefaultTitle: 'Rec',
     recSavedToHistory: '履歴に保存しました',
     recSaveFailed: '文字起こしの保存に失敗しました',

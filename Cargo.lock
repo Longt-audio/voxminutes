@@ -7935,6 +7935,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "which",
+ "windows 0.54.0",
  "xz2",
  "zip 2.4.2",
 ]

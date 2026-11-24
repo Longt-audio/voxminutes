@@ -6,6 +6,7 @@ import type {
   TranscriptUpdate,
   AudioDevice,
   DefaultDevicesInfo,
+  SilenceWarning,
   ModelInfo,
   DownloadableModelInfo,
   ModelDownloadProgress,
@@ -884,8 +885,17 @@ export function onDatabaseInitialized(callback: () => void): Promise<UnlistenFn>
 
 // ── 音频电平 / 频谱监听 ──────────────────────────────────────────────────────
 
-export async function startAudioLevelMonitoring(deviceNames: string[]): Promise<void> {
-  return invoke('start_audio_level_monitoring', { deviceNames })
+/** 设备由后端按当前录音实际使用的设备（无录音时为系统默认）确定，并显式区分麦克风/系统音频 */
+export async function startAudioLevelMonitoring(): Promise<void> {
+  return invoke('start_audio_level_monitoring')
+}
+
+export function onAudioSilenceWarning(callback: (warning: SilenceWarning) => void): Promise<UnlistenFn> {
+  return listen<SilenceWarning>('audio-silence-warning', (event) => callback(event.payload))
+}
+
+export function onAudioSilenceCleared(callback: () => void): Promise<UnlistenFn> {
+  return listen('audio-silence-cleared', () => callback())
 }
 
 export async function stopAudioLevelMonitoring(): Promise<void> {
