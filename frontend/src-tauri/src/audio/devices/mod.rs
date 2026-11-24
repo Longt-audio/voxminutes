@@ -18,8 +18,7 @@ pub use discovery::{list_audio_devices, trigger_audio_permission};
 pub use microphone::{default_input_device, find_builtin_input_device};
 pub use speakers::{default_output_device, find_builtin_output_device};
 pub use roles::{
-    communication_output_if_different, default_communication_output_device_name,
-    same_device_name,
+    playing_device_other_than, playing_output_devices, same_device_name, PLAYING_PEAK_THRESHOLD,
 };
 
 // Re-export fallback functions (platform-specific)

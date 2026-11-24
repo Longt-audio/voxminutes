@@ -141,6 +141,11 @@ export async function getDefaultAudioDevices(): Promise<DefaultDevicesInfo> {
   return invoke<DefaultDevicesInfo>('get_default_audio_devices')
 }
 
+/** 当前正在出声的播放设备（按响度降序；仅 Windows 有值，读取约需 0.3 秒） */
+export async function getPlayingOutputDevices(): Promise<string[]> {
+  return invoke<string[]>('get_playing_output_devices')
+}
+
 export async function openSystemSoundSettings(): Promise<void> {
   return invoke('open_system_sound_settings')
 }

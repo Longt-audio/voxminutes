@@ -1555,11 +1555,12 @@ pub async fn resume_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), Strin
     }
 }
 
-/// 非阻塞读取「是否暂停」（供 50ms 一轮的电平监控循环使用，不能在锁上阻塞 tokio 线程）。
-/// 拿不到锁时返回 `None`，调用方沿用上一次的值。
-pub fn try_is_recording_paused() -> Option<bool> {
+/// 非阻塞读取 (是否暂停, 麦克风是否静音)（供 50ms 一轮的电平监控循环使用，不能在锁上
+/// 阻塞 tokio 线程）。拿不到锁或没有进行中的录音时返回 `None`，调用方沿用上一次的值。
+pub fn try_recording_flags() -> Option<(bool, bool)> {
     let guard = RECORDING_MANAGER.try_lock().ok()?;
-    Some(guard.as_ref().map(|m| m.is_paused()).unwrap_or(false))
+    let manager = guard.as_ref()?;
+    Some((manager.is_paused(), manager.is_mic_muted()))
 }
 
 /// Check if recording is currently paused

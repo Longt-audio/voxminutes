@@ -112,9 +112,9 @@ pub struct SilenceWarning {
     pub silent_secs: u64,
     pub mic_device: Option<String>,
     pub system_device: Option<String>,
-    /// Windows 默认通信设备 —— 仅当它与当前录制的系统音频设备**不同**时才有值。
-    /// 会议软件常把声音送到这里，这是「录不到会议声音」最常见的原因。
-    pub communication_device: Option<String>,
+    pub mic_muted: bool,
+    /// 实测「正在出声」、但**不是**当前录制设备的播放设备（声音在别处播放 → 回环录不到）。
+    pub playing_device: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -161,64 +161,49 @@ impl SilenceTracker {
 }
 
 /// 系统通知文案（按界面语言）。主窗口经常被隐藏（只开悬浮球/字幕），只靠页面内横幅用户看不到。
+/// 依据：声音在别的设备上播放 → 提示改录那台；麦克风静音 → 提示打开；
+/// 麦克风开着却没信号 → 提示它可能不是正在用的那个麦克风（2026-11-24 真机：当时的默认输入
+/// 「耳机 (USB Audio)」只有 -72 dB 底噪，9 分钟录音里一段语音都没检测到）。
 fn silence_notification_text(lang: &str, w: &SilenceWarning) -> (String, String) {
     let secs = w.silent_secs;
     let sys = w.system_device.clone().unwrap_or_default();
-    match lang {
-        "en" => {
-            let mut body = format!(
-                "No sound has been captured for {}s, so nothing can be transcribed.",
-                secs
-            );
-            if let Some(comm) = &w.communication_device {
-                body.push_str(&format!(
-                    " Meeting apps may be playing through \"{}\", but \"{}\" is being recorded.",
-                    comm, sys
-                ));
-            }
-            body.push_str(" Check the System Audio device in recording setup, or unmute the mic.");
-            ("VoxMinutes: no sound captured".to_string(), body)
-        }
-        "ja" => {
-            let mut body = format!(
-                "{}秒間、音声が取り込まれていないため文字起こしできません。",
-                secs
-            );
-            if let Some(comm) = &w.communication_device {
-                body.push_str(&format!(
-                    "会議アプリの音声は「{}」から再生されている可能性がありますが、録音中なのは「{}」です。",
-                    comm, sys
-                ));
-            }
-            body.push_str("録音設定の「システム音声」デバイスを確認するか、マイクのミュートを解除してください。");
-            ("VoxMinutes：音声が取り込まれていません".to_string(), body)
-        }
-        "ko" => {
-            let mut body = format!(
-                "{}초 동안 소리가 수집되지 않아 받아쓰기를 할 수 없습니다.",
-                secs
-            );
-            if let Some(comm) = &w.communication_device {
-                body.push_str(&format!(
-                    " 회의 앱 소리는 \"{}\"(으)로 재생 중일 수 있지만 현재 \"{}\"을(를) 녹음하고 있습니다.",
-                    comm, sys
-                ));
-            }
-            body.push_str(" 녹음 설정의 시스템 오디오 장치를 확인하거나 마이크 음소거를 해제하세요.");
-            ("VoxMinutes: 소리가 수집되지 않음".to_string(), body)
-        }
-        _ => {
-            let mut body = format!("已连续 {} 秒没有采集到任何声音，识别不会有结果。", secs);
-            if let Some(comm) = &w.communication_device {
-                body.push_str(&format!(
-                    "会议软件的声音可能在「{}」上播放，而当前录的是「{}」。",
-                    comm, sys
-                ));
-            }
-            body.push_str("请检查录音设置里的「系统音频」设备，或打开麦克风。");
-            ("VoxMinutes：没有录到声音".to_string(), body)
-        }
+    let mic = w.mic_device.clone().unwrap_or_default();
+    let mut body = match lang {
+        "en" => format!("No sound has been captured for {}s, so nothing can be transcribed.", secs),
+        "ja" => format!("{}秒間、音声が取り込まれていないため文字起こしできません。", secs),
+        "ko" => format!("{}초 동안 소리가 수집되지 않아 받아쓰기를 할 수 없습니다.", secs),
+        _ => format!("已连续 {} 秒没有采集到任何声音，识别不会有结果。", secs),
+    };
+    if let Some(playing) = &w.playing_device {
+        body.push_str(&match lang {
+            "en" => format!(" Sound is playing on \"{}\", but \"{}\" is being recorded.", playing, sys),
+            "ja" => format!("音声は「{}」で再生されていますが、録音中なのは「{}」です。", playing, sys),
+            "ko" => format!(" 소리는 \"{}\"에서 재생 중이지만 \"{}\"을(를) 녹음하고 있습니다.", playing, sys),
+            _ => format!("声音正在「{}」上播放，但录的是「{}」。", playing, sys),
+        });
     }
+    if w.mic_muted {
+        body.push_str(match lang {
+            "en" => " The microphone is muted.",
+            "ja" => "マイクはミュート中です。",
+            "ko" => " 마이크가 음소거되어 있습니다.",
+            _ => "麦克风处于静音状态。",
+        });
+    } else if w.mic_device.is_some() {
+        body.push_str(&match lang {
+            "en" => format!(" The microphone \"{}\" is getting no signal — it may not be the mic you are using.", mic),
+            "ja" => format!("マイク「{}」に信号がありません。使用中のマイクではない可能性があります。", mic),
+            "ko" => format!(" 마이크 \"{}\"에 신호가 없습니다. 사용 중인 마이크가 아닐 수 있습니다.", mic),
+            _ => format!("麦克风「{}」没有信号，可能不是你正在用的那个麦克风。", mic),
+        });
+    }
+    let title = match lang {
+        "en" => "VoxMinutes: no sound captured",
+        "ja" => "VoxMinutes：音声が取り込まれていません",
+        "ko" => "VoxMinutes: 소리가 수집되지 않음",
+        _ => "VoxMinutes：没有录到声音",
+    };
+    (title.to_string(), body)
 }
 
 async fn emit_silence_warning<R: Runtime>(
@@ -226,11 +211,12 @@ async fn emit_silence_warning<R: Runtime>(
     silent_for: Duration,
     mic_device: &Option<String>,
     system_device: &Option<String>,
+    mic_muted: bool,
 ) {
     let sys_for_query = system_device.clone();
-    // COM 查询放到阻塞线程池，避免卡住 tokio worker
-    let communication_device = tokio::task::spawn_blocking(move || {
-        super::devices::communication_output_if_different(sys_for_query.as_deref())
+    // 读峰值表要采样 ~0.3s 且走 COM，放到阻塞线程池，避免卡住 tokio worker
+    let playing_device = tokio::task::spawn_blocking(move || {
+        super::devices::playing_device_other_than(sys_for_query.as_deref())
     })
     .await
     .unwrap_or(None);
@@ -239,16 +225,18 @@ async fn emit_silence_warning<R: Runtime>(
         silent_secs: silent_for.as_secs(),
         mic_device: mic_device.clone(),
         system_device: system_device.clone(),
-        communication_device,
+        mic_muted,
+        playing_device,
     };
     warn!(
-        "🔇 已连续 {}s 没有采集到声音（峰值 < {}）：mic={:?}, system={:?}, 默认通信设备={:?} \
-         —— 识别不会有结果；常见原因是会议软件在另一台设备上出声，或麦克风静音",
+        "🔇 已连续 {}s 没有采集到声音（峰值 < {}）：mic={:?}（静音={}）, system={:?}, 正在别处出声的设备={:?} \
+         —— 识别不会有结果",
         warning.silent_secs,
         SILENCE_PEAK_THRESHOLD,
         warning.mic_device,
+        warning.mic_muted,
         warning.system_device,
-        warning.communication_device
+        warning.playing_device
     );
     let _ = app.emit("audio-silence-warning", &warning);
 
@@ -342,6 +330,7 @@ pub async fn start_monitoring<R: Runtime>(
         let mut last_vad_active: Option<bool> = None;
         let mut silence = SilenceTracker::new(Instant::now());
         let mut paused = false;
+        let mut mic_muted = false;
         let mut last_pause_check = Instant::now();
         while IS_MONITORING.load(Ordering::SeqCst)
             && MONITOR_GENERATION.load(Ordering::SeqCst) == generation
@@ -386,8 +375,9 @@ pub async fn start_monitoring<R: Runtime>(
             // 数据陈旧（流断了、设备重建中）同样按没有声音处理。
             if last_pause_check.elapsed() >= Duration::from_secs(1) {
                 last_pause_check = Instant::now();
-                if let Some(p) = super::recording_commands::try_is_recording_paused() {
+                if let Some((p, m)) = super::recording_commands::try_recording_flags() {
                     paused = p;
+                    mic_muted = m;
                 }
             }
             let loudest = if is_stale {
@@ -397,8 +387,14 @@ pub async fn start_monitoring<R: Runtime>(
             };
             match silence.update(Instant::now(), loudest, paused) {
                 Some(SilenceEvent::Warn(silent_for)) => {
-                    emit_silence_warning(&app_handle_clone, silent_for, &mic_device, &system_device)
-                        .await;
+                    emit_silence_warning(
+                        &app_handle_clone,
+                        silent_for,
+                        &mic_device,
+                        &system_device,
+                        mic_muted,
+                    )
+                    .await;
                 }
                 Some(SilenceEvent::Cleared) => {
                     info!("🔊 Audio captured again — clearing silence warning");
@@ -533,19 +529,28 @@ mod tests {
     }
 
     #[test]
-    fn notification_mentions_communication_device_only_when_known() {
+    fn notification_text_follows_evidence() {
         let mut w = SilenceWarning {
             silent_secs: 30,
             mic_device: Some("耳机 (USB Audio)".into()),
             system_device: Some("扬声器 (Realtek(R) Audio)".into()),
-            communication_device: Some("耳机 (USB Audio)".into()),
+            mic_muted: false,
+            playing_device: Some("扬声器 (USB Audio Device)".into()),
         };
         let (_, body) = silence_notification_text("zh", &w);
-        assert!(body.contains("「耳机 (USB Audio)」") && body.contains("扬声器 (Realtek(R) Audio)"));
-        w.communication_device = None;
+        assert!(body.contains("声音正在「扬声器 (USB Audio Device)」上播放"));
+        assert!(body.contains("录的是「扬声器 (Realtek(R) Audio)」"));
+        // 麦克风开着却没信号 → 点名这个麦克风
+        assert!(body.contains("麦克风「耳机 (USB Audio)」没有信号"));
+
+        // 没检测到别处出声、麦克风静音 → 只提示静音
+        w.playing_device = None;
+        w.mic_muted = true;
         let (_, body) = silence_notification_text("zh", &w);
-        assert!(!body.contains("会议软件"));
-        let (title, _) = silence_notification_text("en", &w);
-        assert!(title.contains("no sound"));
+        assert!(!body.contains("正在「"));
+        assert!(body.contains("麦克风处于静音状态") && !body.contains("没有信号"));
+
+        let (title, body) = silence_notification_text("en", &w);
+        assert!(title.contains("no sound") && body.contains("muted"));
     }
 }

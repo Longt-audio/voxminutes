@@ -1,30 +1,49 @@
-//! 默认设备「角色」查询。
+//! 「声音实际在哪台设备上播放」检测。
 //!
-//! Windows 有两套默认播放设备：
-//! - 默认设备（eConsole）：浏览器、播放器等普通程序的出声设备；cpal 的
-//!   `default_output_device()` 返回的就是它，本应用「系统默认」录的也是它。
-//! - 默认通信设备（eCommunications）：腾讯会议 / Teams / Zoom / LINE 通话等
-//!   会议软件通常把对方声音送到这里。
+//! 本应用的「系统音频」是对**某一台**播放设备做回环采集（默认跟随 Windows 默认设备）。
+//! 如果声音其实在另一台设备上播放（换了耳机、会议软件/浏览器单独指定了输出设备……），
+//! 回环录到的就全是静音，识别不会有任何结果。
 //!
-//! 两者不一致时（典型：默认设备是笔记本扬声器、通信设备是 USB 耳机），
-//! 会议声音进了耳机，我们却在扬声器上做回环采集 → 录到的全是静音。
-//! 这里提供查询，供 UI 提示用户改录通信设备。
+//! 这里读取每台播放设备的峰值表（与 Windows 声音设置里的绿色音量条同源），
+//! 找出「正在出声」的设备，供 UI 给出**有证据的**提示。
+//! （早期版本按「默认通信设备 ≠ 录制设备」提示，但很多机器上通信设备常年是一个
+//! 用不到的 USB 声卡，提示会一直误报——2026-11-24 用户反馈后改为实测。）
 
-/// 当前 Windows 默认**通信**播放设备的名称（与 cpal 设备名同源：PKEY_Device_FriendlyName）。
-/// 非 Windows 平台或查询失败时返回 `None`。
-pub fn default_communication_output_device_name() -> Option<String> {
+/// 峰值不低于该值视为「正在出声」（≈ -46 dBFS）。
+pub const PLAYING_PEAK_THRESHOLD: f32 = 0.005;
+
+/// 当前正在出声的播放设备名（与 cpal 设备名同源：PKEY_Device_FriendlyName），按响度降序。
+/// 会在约 0.3 秒内多次采样峰值表（阻塞），请勿在 async 上下文直接调用。
+/// 非 Windows 平台返回空列表。
+pub fn playing_output_devices(threshold: f32) -> Vec<String> {
     #[cfg(target_os = "windows")]
     {
         // 在独立线程里初始化 COM（MTA）并查询，避免影响调用方线程已有的 COM 套间。
-        std::thread::spawn(windows_impl::default_communication_render_name)
+        let mut devices = std::thread::spawn(move || windows_impl::playing_render_devices(threshold))
             .join()
-            .ok()
-            .flatten()
+            .unwrap_or_default();
+        devices.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        devices.into_iter().map(|(name, _)| name).collect()
     }
     #[cfg(not(target_os = "windows"))]
     {
-        None
+        let _ = threshold;
+        Vec::new()
     }
+}
+
+/// 除 `captured_system_device` 以外、正在出声的最响设备（阻塞，见 [`playing_output_devices`]）。
+pub fn playing_device_other_than(captured_system_device: Option<&str>) -> Option<String> {
+    pick_other_device(
+        playing_output_devices(PLAYING_PEAK_THRESHOLD),
+        captured_system_device,
+    )
+}
+
+fn pick_other_device(playing: Vec<String>, captured: Option<&str>) -> Option<String> {
+    playing
+        .into_iter()
+        .find(|name| captured.map_or(true, |c| !same_device_name(name, c)))
 }
 
 /// 去掉部分平台给设备名追加的 " (input)" / " (output)" 后缀，便于比较。
@@ -42,24 +61,16 @@ pub fn same_device_name(a: &str, b: &str) -> bool {
     normalize_device_name(a) == normalize_device_name(b)
 }
 
-/// 若默认通信播放设备与 `captured_system_device` 不是同一个，返回通信设备名。
-/// `captured_system_device` 为 `None`（未采集系统声音）时也返回通信设备名。
-pub fn communication_output_if_different(captured_system_device: Option<&str>) -> Option<String> {
-    let comm = default_communication_output_device_name()?;
-    match captured_system_device {
-        Some(captured) if same_device_name(captured, &comm) => None,
-        _ => Some(comm),
-    }
-}
-
 #[cfg(target_os = "windows")]
 mod windows_impl {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
+    use std::time::Duration;
 
     use windows::Win32::Devices::Properties::DEVPKEY_Device_FriendlyName;
+    use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
     use windows::Win32::Media::Audio::{
-        eCommunications, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
+        eRender, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, DEVICE_STATE_ACTIVE,
     };
     use windows::Win32::System::Com::StructuredStorage::PropVariantClear;
     use windows::Win32::System::Com::{
@@ -68,28 +79,61 @@ mod windows_impl {
     };
     use windows::Win32::System::Variant::VT_LPWSTR;
 
-    pub fn default_communication_render_name() -> Option<String> {
+    /// 峰值表是「上一个刷新周期」的峰值，单次读数可能恰好落在语音停顿里，多采几次取最大。
+    const SAMPLES: usize = 8;
+    const SAMPLE_INTERVAL: Duration = Duration::from_millis(40);
+
+    pub fn playing_render_devices(threshold: f32) -> Vec<(String, f32)> {
         unsafe {
             let init = CoInitializeEx(None, COINIT_MULTITHREADED);
-            let name = query();
+            let result = query(threshold).unwrap_or_default();
             if init.is_ok() {
                 CoUninitialize();
             }
-            name
+            result
         }
     }
 
-    unsafe fn query() -> Option<String> {
+    unsafe fn query(threshold: f32) -> Option<Vec<(String, f32)>> {
         let enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
-        let device = enumerator
-            .GetDefaultAudioEndpoint(eRender, eCommunications)
+        let collection = enumerator
+            .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
             .ok()?;
+        let count = collection.GetCount().ok()?;
+
+        let mut meters: Vec<(IMMDevice, IAudioMeterInformation, f32)> = Vec::new();
+        for i in 0..count {
+            let Ok(device) = collection.Item(i) else { continue };
+            if let Ok(meter) = device.Activate::<IAudioMeterInformation>(CLSCTX_ALL, None) {
+                meters.push((device, meter, 0.0));
+            }
+        }
+        for round in 0..SAMPLES {
+            for (_, meter, max_peak) in meters.iter_mut() {
+                if let Ok(peak) = meter.GetPeakValue() {
+                    *max_peak = max_peak.max(peak);
+                }
+            }
+            if round + 1 < SAMPLES {
+                std::thread::sleep(SAMPLE_INTERVAL);
+            }
+        }
+
+        Some(
+            meters
+                .into_iter()
+                .filter(|(_, _, peak)| *peak >= threshold)
+                .filter_map(|(device, _, peak)| friendly_name(&device).map(|n| (n, peak)))
+                .collect(),
+        )
+    }
+
+    unsafe fn friendly_name(device: &IMMDevice) -> Option<String> {
         let store = device.OpenPropertyStore(STGM_READ).ok()?;
         let mut value = store
             .GetValue(&DEVPKEY_Device_FriendlyName as *const _ as *const _)
             .ok()?;
-
         let raw = &value.as_raw().Anonymous.Anonymous;
         let name = if raw.vt == VT_LPWSTR.0 {
             let ptr = *(&raw.Anonymous as *const _ as *const *const u16);
@@ -122,14 +166,69 @@ mod tests {
         assert!(!same_device_name("扬声器 (Realtek(R) Audio)", "耳机 (USB Audio)"));
     }
 
-    /// 真机探针：打印当前默认通信设备（仅 Windows 有值）。
-    /// 运行：cargo test --lib default_communication_device_probe -- --ignored --nocapture
+    #[test]
+    fn picks_loudest_device_that_is_not_captured() {
+        let playing = vec!["扬声器 (USB Audio Device)".to_string(), "扬声器 (Realtek(R) Audio)".to_string()];
+        assert_eq!(
+            pick_other_device(playing.clone(), Some("扬声器 (USB Audio Device)")),
+            Some("扬声器 (Realtek(R) Audio)".to_string())
+        );
+        assert_eq!(
+            pick_other_device(playing.clone(), Some("耳机 (USB Audio)")),
+            Some("扬声器 (USB Audio Device)".to_string())
+        );
+        assert_eq!(
+            pick_other_device(vec!["扬声器 (Realtek(R) Audio)".into()], Some("扬声器 (Realtek(R) Audio)")),
+            None
+        );
+        assert_eq!(pick_other_device(Vec::new(), None), None);
+    }
+
+    /// 真机探针：在指定输出设备上放 2 秒正弦波，检测应能看到它「正在出声」。
+    /// 运行：PLAYING_PROBE_DEVICE="扬声器 (Realtek(R) Audio)" \
+    ///   cargo test --lib playing_device_probe -- --ignored --nocapture
     #[test]
     #[ignore]
-    fn default_communication_device_probe() {
+    fn playing_device_probe() {
+        use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+
+        println!("before playback: {:?}", playing_output_devices(PLAYING_PEAK_THRESHOLD));
+
+        let wanted = std::env::var("PLAYING_PROBE_DEVICE").expect("set PLAYING_PROBE_DEVICE");
+        let host = cpal::default_host();
+        let device = host
+            .output_devices()
+            .unwrap()
+            .find(|d| d.name().map(|n| same_device_name(&n, &wanted)).unwrap_or(false))
+            .expect("probe device not found");
+        let config = device.default_output_config().unwrap();
+        let rate = config.sample_rate().0 as f32;
+        let channels = config.channels() as usize;
+        let mut phase = 0f32;
+        let stream = device
+            .build_output_stream(
+                &config.into(),
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    for frame in data.chunks_mut(channels) {
+                        let s = (phase * 2.0 * std::f32::consts::PI).sin() * 0.2;
+                        phase = (phase + 440.0 / rate) % 1.0;
+                        frame.iter_mut().for_each(|x| *x = s);
+                    }
+                },
+                |e| eprintln!("stream error: {e}"),
+                None,
+            )
+            .unwrap();
+        stream.play().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        let during = playing_output_devices(PLAYING_PEAK_THRESHOLD);
+        println!("during playback on {wanted:?}: {during:?}");
         println!(
-            "default communication output: {:?}",
-            default_communication_output_device_name()
+            "other than default-captured 耳机 (USB Audio): {:?}",
+            playing_device_other_than(Some("耳机 (USB Audio)"))
         );
+        std::thread::sleep(std::time::Duration::from_millis(1300));
+        drop(stream);
+        assert!(during.iter().any(|n| same_device_name(n, &wanted)));
     }
 }

@@ -725,7 +725,7 @@ function SilenceWarningBanner({
   onDismiss: () => void
 }) {
   const t = useMessages()
-  const comm = warning.communication_device
+  const playing = warning.playing_device
   return (
     <div
       role="alert"
@@ -737,14 +737,20 @@ function SilenceWarningBanner({
           {t.recSilenceTitle.replaceAll('{n}', String(warning.silent_secs))}
         </div>
         <div>{t.recSilenceBody}</div>
-        {comm && (
+        {playing && (
           <div>
-            {t.recSilenceCommHint
-              .replaceAll('{comm}', comm)
+            {t.recSilencePlayingHint
+              .replaceAll('{dev}', playing)
               .replaceAll('{sys}', warning.system_device ?? '')}
           </div>
         )}
-        {isMicMuted && <div>{t.recSilenceMicMuted}</div>}
+        {isMicMuted ? (
+          <div>{t.recSilenceMicMuted}</div>
+        ) : (
+          warning.mic_device && (
+            <div>{t.recSilenceMicNoSignal.replaceAll('{mic}', warning.mic_device)}</div>
+          )
+        )}
       </div>
       <div className="flex shrink-0 flex-col items-stretch gap-1">
         <button

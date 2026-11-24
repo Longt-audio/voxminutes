@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/state'
-import { listAudioDevices, getDownloadableModels, getDefaultAudioDevices, openSystemSoundSettings, setTranslationEnabled as ipcSetTranslationEnabled, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationEngine as ipcSetTranslationEngine, getRemoteEnabled, summaryGetConfig, warmRemoteStreaming } from '@/services/ipc'
+import { listAudioDevices, getDownloadableModels, getDefaultAudioDevices, getPlayingOutputDevices, openSystemSoundSettings, setTranslationEnabled as ipcSetTranslationEnabled, setTranslationTargetLang as ipcSetTranslationTargetLang, setTranslationEngine as ipcSetTranslationEngine, getRemoteEnabled, summaryGetConfig, warmRemoteStreaming } from '@/services/ipc'
 import { ExternalLink, Mic, MonitorSpeaker, Activity, Cloud, HardDrive, AlertTriangle } from 'lucide-react'
 import { useMessages } from '@/i18n/useMessages'
 import { useLanguageStore } from '@/stores/languageStore'
@@ -154,17 +154,39 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
   const micOptions = useMemo(() => devices.filter((d) => d.device_type === 'Input'), [devices])
   const systemOptions = useMemo(() => devices.filter((d) => d.device_type === 'Output'), [devices])
 
-  // Windows 默认通信设备 ≠ 将要录制的系统音频设备：会议软件的声音大概率录不到（2026-11-24
-  // 真机排查：默认设备是 Realtek 扬声器、通信设备是 USB 耳机，9 分钟录音全是静音）。
-  // 只在通信设备确实出现在可选列表里时提示，并提供一键改录。
-  const commDevice = useMemo(() => {
-    const comm = defaults.communication_speaker
-    if (!comm) return null
-    return systemOptions.find((d) => sameDeviceName(d.name, comm))?.name ?? null
-  }, [defaults.communication_speaker, systemOptions])
+  // 声音实际在哪台设备上播放（读各播放设备的峰值表，弹窗打开期间每 3 秒刷新）。
+  // 若正在出声的设备 ≠ 将要录制的系统音频设备，那些声音录不到 → 提示并提供一键改录。
+  // 只依据实测出声，不按「默认通信设备」之类的配置猜（很多机器上通信设备常年是一块
+  // 用不到的 USB 声卡，按配置提示会一直误报——2026-11-24 用户反馈）。
+  const [playingDevices, setPlayingDevices] = useState<string[]>([])
+  useEffect(() => {
+    if (!open) {
+      setPlayingDevices([])
+      return
+    }
+    let cancelled = false
+    const poll = () =>
+      getPlayingOutputDevices()
+        .then((list) => !cancelled && setPlayingDevices(list))
+        .catch(() => {})
+    poll()
+    const timer = window.setInterval(poll, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [open])
   const effectiveSystemDevice = systemDevice || defaults.speaker || ''
-  const showCommMismatch =
-    !!commDevice && !!effectiveSystemDevice && !sameDeviceName(commDevice, effectiveSystemDevice)
+  const playingElsewhere = useMemo(() => {
+    if (!effectiveSystemDevice) return null
+    for (const name of playingDevices) {
+      if (sameDeviceName(name, effectiveSystemDevice)) continue
+      // 只提示可选列表里有的设备（才能一键改录）
+      const option = systemOptions.find((d) => sameDeviceName(d.name, name))
+      if (option) return option.name
+    }
+    return null
+  }, [playingDevices, effectiveSystemDevice, systemOptions])
 
   // 初始模型解析：优先上次选择（localStorage > store selectedModel，需校验仍可选），
   // 否则按 X-ASR > SenseVoice > 远程 的顺序取默认；都不满足则不选。
@@ -548,21 +570,21 @@ export function RecordingSetupDialog({ open, onOpenChange, onConfirm }: Recordin
           )}
         </div>
 
-        {/* 通信设备不一致提示：放在内容区外，任何 TAB 下都能看到（用户通常不会点开「音频通路」） */}
-        {showCommMismatch && commDevice && (
+        {/* 「声音在别处播放」提示：放在内容区外，任何 TAB 下都能看到（用户通常不会点开「音频通路」） */}
+        {playingElsewhere && (
           <div className="flex shrink-0 items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
             <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-amber-800">
-              {t.recCommDeviceMismatch
-                .replaceAll('{comm}', commDevice)
+              {t.recPlayingElsewhere
+                .replaceAll('{dev}', playingElsewhere)
                 .replaceAll('{sys}', effectiveSystemDevice)}
             </p>
             <button
               type="button"
               className="shrink-0 whitespace-nowrap rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] text-amber-800 hover:bg-amber-100"
-              onClick={() => setSystemDevice(commDevice)}
+              onClick={() => setSystemDevice(playingElsewhere)}
             >
-              {t.recUseCommDevice.replaceAll('{comm}', commDevice)}
+              {t.recUsePlayingDevice.replaceAll('{dev}', playingElsewhere)}
             </button>
           </div>
         )}

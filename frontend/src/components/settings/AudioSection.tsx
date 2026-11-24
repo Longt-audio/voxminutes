@@ -48,17 +48,6 @@ export function AudioSection() {
         </div>
       </div>
 
-      {/* Windows 默认通信设备与默认输出设备不同：会议软件的声音常常录不到 */}
-      {devices.communication_speaker &&
-        devices.speaker &&
-        devices.communication_speaker.trim() !== devices.speaker.trim() && (
-          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-            {t.recCommDeviceMismatch
-              .replaceAll('{comm}', devices.communication_speaker)
-              .replaceAll('{sys}', devices.speaker)}
-          </p>
-        )}
-
       <div className="mt-4 flex items-center gap-3">
         <Button onClick={() => openSystemSoundSettings().catch(() => {})}>
           {t.setOpenSoundSettings}

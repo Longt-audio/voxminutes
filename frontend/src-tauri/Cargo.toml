@@ -152,10 +152,11 @@ futures-channel = "0.3.31"
 # Windows-specific dependencies
 [target.'cfg(target_os = "windows")'.dependencies]
 futures-channel = "0.3.31"
-# 与 cpal 0.15 使用同一版本（0.54），只用来查询「默认通信设备」（cpal 只暴露 eConsole 默认设备）。
+# 与 cpal 0.15 使用同一版本（0.54），只用来读各播放设备的峰值表（检测声音实际在哪台设备上播放）。
 windows = { version = "0.54.0", features = [
     "Win32_Foundation",
     "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
     "Win32_Devices_Properties",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",

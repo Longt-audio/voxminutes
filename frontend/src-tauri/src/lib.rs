@@ -396,20 +396,26 @@ async fn trigger_microphone_permission() -> Result<bool, String> {
 struct DefaultDevicesInfo {
     microphone: Option<String>,
     speaker: Option<String>,
-    /// Windows「默认通信设备」（会议软件通常从这里出声）；其他平台为 None。
-    communication_speaker: Option<String>,
 }
 
 #[tauri::command]
 fn get_default_audio_devices() -> DefaultDevicesInfo {
-    use audio::devices::{
-        default_communication_output_device_name, default_input_device, default_output_device,
-    };
+    use audio::devices::{default_input_device, default_output_device};
     DefaultDevicesInfo {
         microphone: default_input_device().ok().map(|d| d.name),
         speaker: default_output_device().ok().map(|d| d.name),
-        communication_speaker: default_communication_output_device_name(),
     }
+}
+
+/// 当前正在出声的播放设备（按响度降序；仅 Windows 有值）。
+/// 录音设置弹窗用它提示「声音在 X 上播放，但要录的是 Y」。
+#[tauri::command]
+async fn get_playing_output_devices() -> Vec<String> {
+    tokio::task::spawn_blocking(|| {
+        audio::devices::playing_output_devices(audio::devices::PLAYING_PEAK_THRESHOLD)
+    })
+    .await
+    .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -1528,6 +1534,7 @@ pub fn run() {
             model_download::summary_local_models,
             get_audio_devices,
             get_default_audio_devices,
+            get_playing_output_devices,
             open_system_sound_settings,
             trigger_microphone_permission,
             start_recording_with_devices,
